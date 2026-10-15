@@ -156,6 +156,38 @@ function renderCrash() {
     : [li('Ставок нет', 'muted')]));
 }
 
+function renderMusic() {
+  const m = admin.data.music;
+  $('m-now').textContent = m.current
+    ? `Сейчас играет: ${m.current.title} (${Math.floor(m.current.offset / 60)}:${String(m.current.offset % 60).padStart(2, '0')})`
+    : 'Ничего не играет';
+  // Кнопки треков перестраиваем, только когда поменялся состав папки.
+  const list = $('m-list');
+  const key = m.playlist.map((s) => s.id).join('|');
+  if (list.dataset.key !== key) {
+    list.dataset.key = key;
+    list.replaceChildren();
+    if (!m.playlist.length) {
+      const empty = document.createElement('p');
+      empty.className = 'muted small';
+      empty.textContent = 'Папка music пустая. Положи туда mp3, и они появятся здесь.';
+      list.append(empty);
+    }
+    for (const s of m.playlist) {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'ghost song';
+      b.dataset.id = s.id;
+      const title = document.createElement('span');
+      title.textContent = `▶ ${s.title}`;
+      b.append(title);
+      b.addEventListener('click', () => run('/music/play', { id: s.id }, `Играет: ${s.title}`));
+      list.append(b);
+    }
+  }
+  for (const b of list.querySelectorAll('.song')) b.classList.toggle('playing', !!m.current && m.current.id === b.dataset.id);
+}
+
 function renderRoulette() {
   const r = admin.data.roulette;
   $('r-phase').textContent = { betting: 'ставки', spinning: 'крутится', result: 'результат' }[r.phase] || r.phase;
@@ -221,6 +253,7 @@ function render() {
   if (!admin.data) return;
   renderPlayers();
   renderSelected();
+  renderMusic();
   renderCrash();
   renderRoulette();
   renderPoker();
@@ -355,6 +388,12 @@ $('rig-crash').addEventListener('click', () => {
   const multiplier = Number($('rig-mult').value);
   run('/crash/rig', { multiplier }, (r) => `Краш на ${multiplier.toFixed(2)}× в ${r.round === 'current' ? 'этом' : 'следующем'} раунде`);
 });
+$('m-random').addEventListener('click', () => run('/music/play', { id: 'random' }, (r) => `Играет: ${r.track.title}`));
+$('m-stop').addEventListener('click', () => run('/music/stop', {}, 'Музыка выключена'));
+$('chat-clear').addEventListener('click', () => {
+  if (confirm('Очистить чат у всех?')) run('/chat/clear', {}, 'Чат очищен');
+});
+
 $('rig-roulette').addEventListener('click', () => {
   const number = Number($('rig-number').value);
   run('/roulette/rig', { number }, (r) => `Выпадет ${number} ${r.round === 'current' ? 'в этом' : 'в следующем'} вращении`);

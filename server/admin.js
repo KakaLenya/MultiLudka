@@ -24,7 +24,7 @@ function tokenMatches(given, expected) {
 }
 
 function createAdminRouter({
-  adminToken, store, crash, table, roulette, chat, mutes, cleanText,
+  adminToken, store, crash, table, roulette, music, chat, mutes, cleanText,
   onlineIds, sendToPlayer, broadcast, refreshLists, disconnectPlayer = () => {},
 }) {
   const router = express.Router();
@@ -65,7 +65,8 @@ function createAdminRouter({
         createdAt: p.createdAt,
       }))
       .sort((a, b) => b.online - a.online || b.capital - a.capital);
-    res.json({ players, crash: crash.adminState(), roulette: roulette.adminState(), poker: table.adminView(), chat: chat.log() });
+    res.json({ players, crash: crash.adminState(), roulette: roulette.adminState(), poker: table.adminView(), chat: chat.log(),
+      music: { current: music.state(), playlist: music.playlist() } });
   });
 
   // { amount, target: "online" | "all" | "player", playerId? }
@@ -187,6 +188,20 @@ function createAdminRouter({
     const result = crash.crashNow();
     if (result.error) return fail(res, result.error);
     ok(res, result);
+  });
+
+  // { id } — ID видео из плейлиста или "random".
+  router.post('/music/play', (req, res) => {
+    const result = music.play(req.body.id);
+    if (result.error) return fail(res, result.error);
+    ok(res, result);
+  });
+
+  router.post('/music/stop', (req, res) => ok(res, music.stop()));
+
+  router.post('/chat/clear', (req, res) => {
+    chat.clear();
+    ok(res);
   });
 
   // { number: 0..36 } — номер следующего вращения.

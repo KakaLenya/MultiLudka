@@ -112,6 +112,18 @@
         </section>
       </div>
 
+      <!-- Музыка -->
+      <section class="card">
+        <h2>🎵 Музыка</h2>
+        <p class="muted small" id="m-now">Ничего не играет</p>
+        <div class="row">
+          <button type="button" id="m-random">🎲 Случайная</button>
+          <button type="button" class="danger" id="m-stop">⏹ Стоп</button>
+        </div>
+        <div class="songs" id="m-list"></div>
+        <p class="muted small">Треки берутся из папки <code>music</code> в папке проекта (mp3, m4a, ogg, wav). Новые файлы появляются здесь сами. Играет у всех онлайн синхронно, каждый может выключить у себя.</p>
+      </section>
+
       <!-- Краш -->
       <section class="card">
         <h2>📈 Краш</h2>
@@ -158,7 +170,7 @@
 
       <!-- Чат -->
       <section class="card">
-        <h2>💬 Чат</h2>
+        <h2>💬 Чат <button type="button" class="ghost small-btn" id="chat-clear">Очистить чат</button></h2>
         <ul class="chat-log" id="a-chat"></ul>
       </section>
     </div>

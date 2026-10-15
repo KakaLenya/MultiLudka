@@ -7,6 +7,13 @@ const { createCrashGame, BETTING_MS } = require('../server/crash');
 const { createTable, START_DELAY_MS } = require('../server/dicepoker');
 const { createAdminRouter } = require('../server/admin');
 const { createRoulette } = require('../server/roulette');
+const fs = require('node:fs');
+const os = require('node:os');
+const path = require('node:path');
+const { createMusic } = require('../server/music');
+
+const MUSIC_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'casino-admin-music-'));
+for (const f of ['Алкоголичка.mp3', 'Зацепила.mp3']) fs.writeFileSync(path.join(MUSIC_DIR, f), 'x');
 
 test('краш: подкрутка текущего раунда во время ставок, иначе следующего', () => {
   const clock = { t: 0 };
@@ -84,7 +91,12 @@ async function withServer(fn) {
     crash,
     table,
     roulette: createRoulette({ store }),
-    chat: { log: () => chatLog, post: (playerId, name, text) => chatLog.push({ playerId, name, text }) },
+    music: createMusic({ dir: MUSIC_DIR, onChange: (track) => sent.push({ type: 'music', track }) }),
+    chat: {
+      log: () => chatLog,
+      post: (playerId, name, text) => chatLog.push({ playerId, name, text }),
+      clear: () => { chatLog.length = 0; },
+    },
     mutes: new Map(),
     cleanText: (t) => (typeof t === 'string' && t.trim() ? t.trim() : null),
     onlineIds: () => new Set([a.id]),
@@ -151,5 +163,25 @@ test('API: начислить, забрать больше, чем есть, т�
     const st = await (await fetch(`${base}/state`)).json();
     assert.equal(st.players.length, 0, 'удалённого нет в списке');
     assert.equal((await post(`${base}/delete-player`, { playerId: a.id })).status, 404);
+  });
+});
+
+test('API: музыка только из папки, очистка чата', async () => {
+  await withServer(async ({ base, sent, chatLog }) => {
+    let r = await post(`${base}/music/play`, { id: 'Зацепила.mp3' });
+    assert.equal(r.status, 200);
+    assert.equal(sent.at(-1).track.title, 'Зацепила');
+    assert.equal((await post(`${base}/music/play`, { id: '../package.json' })).status, 400, 'чужие файлы нельзя');
+    r = await (await post(`${base}/music/play`, { id: 'random' })).json();
+    assert.ok(['Алкоголичка.mp3', 'Зацепила.mp3'].includes(r.track.id));
+    const st = await (await fetch(`${base}/state`)).json();
+    assert.equal(st.music.playlist.length, 2);
+    assert.equal(st.music.current.id, r.track.id);
+    assert.equal((await post(`${base}/music/stop`, {})).status, 200);
+    assert.equal(sent.at(-1).track, null);
+
+    chatLog.push({ playerId: '1', name: 'x', text: 'привет' });
+    assert.equal((await post(`${base}/chat/clear`, {})).status, 200);
+    assert.equal(chatLog.length, 0);
   });
 });

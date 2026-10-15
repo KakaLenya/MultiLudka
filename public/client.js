@@ -972,6 +972,81 @@ function rouletteFrame() {
 }
 requestAnimationFrame(rouletteFrame);
 
+// ---------- Музыка (включает админ, файлы из папки music на сервере) ----------
+
+const MUSIC_KEY = 'casino.music';
+const VOLUME_KEY = 'casino.volume';
+const music = {
+  track: null,          // { id, title, url, offset }
+  recvAt: 0,
+  on: storage.get(MUSIC_KEY) !== 'off',
+  loadedId: null,       // какой трек сейчас в <audio>
+};
+const audioEl = $('music-audio');
+audioEl.volume = Number(storage.get(VOLUME_KEY) ?? 0.6);
+$('music-volume').value = audioEl.volume;
+
+// Где сейчас трек у всех: смещение от сервера + сколько прошло с получения.
+function musicPosition() {
+  return music.track.offset + (performance.now() - music.recvAt) / 1000;
+}
+
+function tryPlay() {
+  audioEl.play().then(
+    () => { $('music-start').hidden = true; },
+    // Браузер не даёт играть звук, пока человек ничего не нажал на странице.
+    () => { $('music-start').hidden = false; },
+  );
+}
+
+function renderMusic() {
+  const t = music.track;
+  $('music').hidden = !t;
+  $('music').classList.toggle('off', !!t && !music.on);
+  if (!t || !music.on) {
+    audioEl.pause();
+    audioEl.removeAttribute('src');
+    music.loadedId = null;
+    $('music-start').hidden = true;
+    if (t) {
+      $('music-title').textContent = `🎵 ${t.title}`;
+      $('music-toggle').textContent = 'включить';
+    }
+    return;
+  }
+  $('music-title').textContent = `🎵 ${t.title}`;
+  $('music-toggle').textContent = 'выключить у себя';
+  if (music.loadedId === t.id) return;
+  music.loadedId = t.id;
+  audioEl.src = t.url;
+  // Перематываем, когда браузер узнал длину трека.
+  audioEl.onloadedmetadata = () => {
+    const pos = musicPosition();
+    if (Number.isFinite(audioEl.duration) && pos >= audioEl.duration) {
+      audioEl.pause();  // трек у всех уже закончился
+      return;
+    }
+    audioEl.currentTime = pos;
+    tryPlay();
+  };
+}
+
+$('music-start').addEventListener('click', () => {
+  if (music.track) audioEl.currentTime = musicPosition();
+  tryPlay();
+});
+
+$('music-toggle').addEventListener('click', () => {
+  music.on = !music.on;
+  storage.set(MUSIC_KEY, music.on ? 'on' : 'off');
+  renderMusic();
+});
+
+$('music-volume').addEventListener('input', () => {
+  audioEl.volume = Number($('music-volume').value);
+  storage.set(VOLUME_KEY, String(audioEl.volume));
+});
+
 // ---------- Объявления и эффекты от админа ----------
 
 function showBanner(text) {
@@ -1036,6 +1111,14 @@ const handlers = {
     $('me-name').textContent = msg.name;
     $('me-balance').textContent = msg.balance;
     state.balance = msg.balance;
+  },
+
+  music(msg) {
+    // Новый трек от админа: снова пускаем видео, даже если тот же самый клип включили заново.
+    if (msg.track && music.track && msg.track.id === music.track.id && msg.track.offset === 0) music.loadedId = null;
+    music.track = msg.track;
+    music.recvAt = performance.now();
+    renderMusic();
   },
 
   roulette_state(msg) {

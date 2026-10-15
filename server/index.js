@@ -9,6 +9,7 @@ const { createCrashGame } = require('./crash');
 const { createTable } = require('./dicepoker');
 const { createAdminRouter } = require('./admin');
 const { createRoulette } = require('./roulette');
+const { createMusic } = require('./music');
 
 const PORT = Number(process.env.PORT) || 3000;
 // По умолчанию слушаем только локально: наружу пускает cloudflared.
@@ -26,6 +27,9 @@ const REG_PER_IP = 10;
 const REG_WINDOW_MS = 60 * 60 * 1000;
 
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, '..', 'data');
+// Сюда владелец зала кладёт mp3; в git папка не попадает.
+const MUSIC_DIR = process.env.MUSIC_DIR || path.join(__dirname, '..', 'music');
+fs.mkdirSync(MUSIC_DIR, { recursive: true });
 
 const store = createStore({ file: path.join(DATA_DIR, 'players.json') });
 
@@ -41,6 +45,7 @@ const adminToken = (() => {
 
 const app = express();
 app.use(express.static(path.join(__dirname, '..', 'public')));
+app.use('/music-files', express.static(MUSIC_DIR, { index: false, dotfiles: 'ignore', maxAge: '1h' }));
 
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server, maxPayload: 4096 });
@@ -161,6 +166,8 @@ const roulette = createRoulette({
 });
 store.addReserver(roulette.reserved);
 
+const music = createMusic({ dir: MUSIC_DIR, onChange: (track) => broadcast({ type: 'music', track }) });
+
 // Покер: каждому своё состояние (свои кубики видны только себе).
 let pokerTimer = null;
 function broadcastPoker() {
@@ -228,6 +235,7 @@ const handlers = {
     table.setConnected(player, true);
     send(ws, { type: 'poker_state', ...table.view(player) });
     send(ws, { type: 'chat_history', messages: chatLog });
+    send(ws, { type: 'music', track: music.state() });
     broadcastOnline();
   },
 
@@ -363,7 +371,15 @@ app.use('/admin/api', createAdminRouter({
   crash,
   table,
   roulette,
-  chat: { log: () => chatLog, post: postChat },
+  music,
+  chat: {
+    log: () => chatLog,
+    post: postChat,
+    clear: () => {
+      chatLog.length = 0;
+      broadcast({ type: 'chat_history', messages: [] });
+    },
+  },
   mutes,
   cleanText: cleanChat,
   onlineIds,

@@ -63,3 +63,9 @@ code { background: var(--bg); padding: 1px 5px; border-radius: 4px; }
 @media (max-width: 900px) {
   .admin-grid { grid-template-columns: 1fr; }
 }
+
+.songs { display: grid; grid-template-columns: repeat(auto-fill, minmax(190px, 1fr)); gap: 6px; margin-top: 10px; }
+.song { display: flex; justify-content: space-between; gap: 8px; text-align: left; font-weight: 500; }
+.song .views { color: var(--muted); font-size: 12px; white-space: nowrap; }
+.song.playing { border-color: var(--gold); color: var(--gold); }
+.small-btn { padding: 4px 10px; font-size: 13px; margin-left: 8px; vertical-align: middle; }

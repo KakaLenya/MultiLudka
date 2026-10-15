@@ -486,3 +486,30 @@ body.fx-disco { animation: fx-disco .5s linear infinite; }
   font-weight: 800;
   z-index: 2;
 }
+
+/* Музыка */
+.music {
+  position: fixed;
+  left: 16px;
+  bottom: 16px;
+  z-index: 30;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(460px, calc(100vw - 32px));
+  padding: 8px 12px;
+  border-radius: 999px;
+  background: var(--card);
+  border: 1px solid var(--gold);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, .45);
+  font-size: 14px;
+}
+.music.off { border-color: var(--line); opacity: .8; }
+.music.off #music-volume { display: none; }
+.music-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.music-play { padding: 4px 10px; font-size: 13px; }
+#music-volume { width: 80px; flex: none; accent-color: var(--gold); }
+.music .link { white-space: nowrap; }
+@media (max-width: 700px) {
+  .music { left: 8px; right: 8px; bottom: 8px; }
+}
