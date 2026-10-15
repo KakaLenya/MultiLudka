@@ -52,6 +52,8 @@ cloudflared tunnel --url http://127.0.0.1:3000
 
 В выводе появится ссылка вида `https://xxxx.trycloudflare.com`. Её и отправляй друзьям.
 
+- Если в логе повторяется `failed to dial to edge with quic: timeout`, сеть режет UDP. Запускай через TCP:
+  `cloudflared tunnel --protocol http2 --url http://127.0.0.1:3000`
 - Ссылка новая при каждом запуске cloudflared. Для постоянной нужен именованный туннель с аккаунтом Cloudflare.
 - В команде именно `127.0.0.1`, а не `localhost`: на Windows `localhost` может уйти в IPv6 (`::1`), а сервер слушает только IPv4.
 - WebSocket через туннель работает сам: клиент берёт адрес из текущей страницы (`wss://` на https).
