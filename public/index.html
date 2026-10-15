@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Казино-зал</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="logo">🎲 Казино-зал</div>
+    <div class="me" id="me" hidden>
+      <span id="me-name"></span>
+      <span class="chips" id="me-balance"></span>
+    </div>
+    <div class="conn" id="conn" data-state="connecting">подключение…</div>
+  </header>
+
+  <main>
+    <section class="card login" id="login">
+      <h1>Заходи</h1>
+      <p class="muted">Фишки виртуальные. Играем на интерес.</p>
+      <form id="login-form" autocomplete="off">
+        <input id="name" maxlength="20" placeholder="Твоё имя" required>
+        <button type="submit" id="login-btn" disabled>Войти</button>
+      </form>
+      <p class="error" id="login-error"></p>
+    </section>
+
+    <section class="lobby" id="lobby" hidden>
+      <div class="games">
+        <div class="card game soon">
+          <h2>📈 Краш</h2>
+          <p class="muted">Скоро</p>
+        </div>
+        <div class="card game soon">
+          <h2>🎲 Покер на кубиках</h2>
+          <p class="muted">Скоро</p>
+        </div>
+      </div>
+      <aside class="card online">
+        <h2>Онлайн <span class="count" id="online-count">0</span></h2>
+        <ul id="online-list"></ul>
+      </aside>
+    </section>
+  </main>
+
+  <script src="client.js"></script>
+</body>
+</html>
