@@ -1239,6 +1239,9 @@ function tryPlay() {
 
 function renderMusic() {
   const t = music.track;
+  // Пока играет песня из зала, фоновый джаз молчит.
+  if (window.Lounge) window.Lounge.setDucked(!!t && music.on);
+  document.body.classList.toggle('has-music', !!t);
   $('music').hidden = !t;
   $('music').classList.toggle('off', !!t && !music.on);
   if (!t || !music.on) {
@@ -1475,3 +1478,36 @@ $('logout').addEventListener('click', () => {
 });
 
 connect();
+
+// ---------- Фоновый джаз (lounge.js) ----------
+
+(function setupLounge() {
+  const L = window.Lounge;
+  if (!L) return;
+  // Браузер даёт звук только после действия человека: заводим фон на первый клик или клавишу.
+  const unlock = () => L.unlock();
+  for (const ev of ['pointerdown', 'keydown', 'touchstart']) document.addEventListener(ev, unlock, { capture: true });
+
+  const panel = $('lounge-panel');
+  $('lounge-btn').addEventListener('click', () => { panel.hidden = !panel.hidden; });
+  document.addEventListener('click', (ev) => {
+    if (!$('lounge').contains(ev.target)) panel.hidden = true;
+  });
+  $('lounge-toggle').addEventListener('click', () => L.toggle());
+  $('lounge-next').addEventListener('click', () => L.next());
+  $('lounge-prev').addEventListener('click', () => L.prev());
+  $('lounge-vol').addEventListener('input', () => L.setVolume($('lounge-vol').value));
+
+  function render(s) {
+    $('lounge-vol').value = s.vol;
+    $('lounge-track').textContent = s.track ? `«${s.track}»` : 'Ещё не играл';
+    $('lounge-toggle').textContent = s.on ? 'Выключить' : 'Включить';
+    $('lounge-btn').classList.toggle('playing', s.playing && !s.ducked);
+    $('lounge-btn').classList.toggle('off', !s.on);
+    $('lounge-note').textContent = !s.on ? 'Фон выключен'
+      : s.ducked ? 'Пауза: играет песня из зала'
+        : !s.playing ? 'Заиграет после первого клика на странице' : '';
+  }
+  L.onChange(render);
+  render(L.status());
+})();

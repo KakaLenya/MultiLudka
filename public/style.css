@@ -836,3 +836,56 @@ body.fx-disco { animation: fx-disco .5s linear infinite; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
 }
+
+/* ---------- Фоновый джаз ---------- */
+
+.lounge { position: fixed; right: 16px; bottom: 16px; z-index: 31; display: flex; flex-direction: column; align-items: flex-end; gap: 10px; }
+.lounge-btn {
+  position: relative;
+  width: 46px; height: 46px;
+  padding: 0;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  background: rgba(10, 22, 15, .85);
+  border: 1px solid var(--line);
+  color: var(--text);
+  font-size: 20px;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, .45);
+  opacity: .75;
+  transition: opacity .2s, transform .15s;
+}
+.lounge-btn:not(:disabled):hover { opacity: 1; background: rgba(10, 22, 15, .95); box-shadow: 0 8px 22px rgba(0, 0, 0, .45); }
+.lounge-btn.off { filter: grayscale(1); opacity: .5; }
+.lounge-btn .eq { position: absolute; right: 6px; bottom: 7px; display: none; gap: 1.5px; align-items: flex-end; height: 10px; }
+.lounge-btn.playing .eq { display: flex; }
+.lounge-btn .eq i { width: 2.5px; background: var(--gold); border-radius: 1px; animation: eq 1s ease-in-out infinite; }
+.lounge-btn .eq i:nth-child(2) { animation-delay: -.35s; }
+.lounge-btn .eq i:nth-child(3) { animation-delay: -.7s; }
+@keyframes eq { 0%, 100% { height: 3px; } 50% { height: 10px; } }
+
+.lounge-panel {
+  width: 240px;
+  padding: 14px;
+  border-radius: 16px;
+  background: rgba(10, 22, 15, .95);
+  backdrop-filter: blur(14px);
+  border: 1px solid var(--line);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, .55);
+  font-size: 14px;
+  animation: toast-in .15s ease-out;
+}
+.lounge-head { font-family: var(--display); font-weight: 700; font-size: 13px; color: var(--gold-2); }
+.lounge-track { margin: 6px 0 10px; font-weight: 700; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lounge-row { display: flex; gap: 6px; }
+.lounge-row button { padding: 8px 10px; font-size: 14px; }
+.lounge-row #lounge-toggle { flex: 1; }
+.lounge-vol { display: flex; align-items: center; gap: 6px; margin-top: 10px; color: var(--muted); }
+#lounge-vol { padding: 0; border: 0; background: none; box-shadow: none; accent-color: var(--gold); height: 22px; }
+.lounge-note { margin: 8px 0 0; min-height: 0; font-size: 12px; color: var(--muted); }
+.lounge-note:empty { display: none; }
+
+@media (max-width: 700px) {
+  .lounge { right: 10px; bottom: 10px; }
+  .has-music .lounge { bottom: 70px; }
+}

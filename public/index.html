@@ -205,6 +205,25 @@
     <audio id="music-audio" preload="auto"></audio>
   </aside>
 
+  <div class="lounge" id="lounge">
+    <div class="lounge-panel" id="lounge-panel" hidden>
+      <div class="lounge-head">🎷 Фоновый джаз</div>
+      <div class="lounge-track" id="lounge-track">—</div>
+      <div class="lounge-row">
+        <button type="button" class="ghost" id="lounge-prev" title="Предыдущий">⏮</button>
+        <button type="button" id="lounge-toggle">Включить</button>
+        <button type="button" class="ghost" id="lounge-next" title="Следующий">⏭</button>
+      </div>
+      <label class="lounge-vol">🔉 <input type="range" id="lounge-vol" min="0" max="100" step="1" aria-label="Громкость фона"></label>
+      <p class="lounge-note" id="lounge-note"></p>
+    </div>
+    <button type="button" class="lounge-btn" id="lounge-btn" title="Фоновая музыка" aria-label="Фоновая музыка">
+      <span class="lounge-icon">🎷</span>
+      <span class="eq" aria-hidden="true"><i></i><i></i><i></i></span>
+    </button>
+  </div>
+
+  <script src="lounge.js"></script>
   <script src="client.js"></script>
 </body>
 </html>
