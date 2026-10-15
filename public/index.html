@@ -37,16 +37,44 @@
           </div>
           <button type="button" id="bonus-btn">Забрать</button>
         </div>
-        <div class="games">
-          <div class="card game soon">
-            <h2>📈 Краш</h2>
-            <p class="muted">Скоро</p>
+        <nav class="tabs">
+          <button type="button" class="tab active">📈 Краш</button>
+          <button type="button" class="tab" disabled>🎲 Покер на кубиках · скоро</button>
+        </nav>
+
+        <section class="card crash" id="crash">
+          <div class="history" id="crash-history" aria-label="Последние раунды"></div>
+          <div class="stage">
+            <canvas id="crash-canvas"></canvas>
+            <div class="overlay">
+              <div class="mult" id="crash-mult">1.00×</div>
+              <div class="phase" id="crash-phase">…</div>
+            </div>
           </div>
-          <div class="card game soon">
-            <h2>🎲 Покер на кубиках</h2>
-            <p class="muted">Скоро</p>
-          </div>
-        </div>
+
+          <form class="controls" id="crash-form" autocomplete="off">
+            <label class="field">
+              <span>Ставка</span>
+              <input id="bet-amount" type="number" min="10" step="1" inputmode="numeric" value="50">
+            </label>
+            <div class="quick">
+              <button type="button" class="ghost" data-quick="half">½</button>
+              <button type="button" class="ghost" data-quick="double">×2</button>
+              <button type="button" class="ghost" data-quick="max">макс</button>
+            </div>
+            <label class="field">
+              <span>Автовывод на ×</span>
+              <input id="auto-cashout" type="number" min="1.01" max="100" step="0.01" inputmode="decimal" placeholder="нет">
+            </label>
+            <button type="submit" class="action" id="crash-action" disabled>Поставить</button>
+          </form>
+          <p class="my-result" id="crash-my"></p>
+
+          <table class="bets">
+            <thead><tr><th>Игрок</th><th>Ставка</th><th>Вывод</th></tr></thead>
+            <tbody id="crash-bets"></tbody>
+          </table>
+        </section>
         <p class="error toast" id="toast"></p>
       </div>
       <aside class="side-col">

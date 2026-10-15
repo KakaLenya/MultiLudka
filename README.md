@@ -61,17 +61,18 @@ cloudflared tunnel --url http://127.0.0.1:3000
 server/
   index.js     express + ws, роутинг сообщений
   players.js   игроки, балансы, пособие, рейтинг, хранение в JSON
+  crash.js     Краш: раунды, ставки, вывод
   rng.js       вся случайность через crypto
 public/
   index.html, style.css, client.js
 test/
-  players.test.js
+  players.test.js, crash.test.js
 ```
 
 ## Прогресс
 
 - [x] Этап 0: скелет, вход по имени, список онлайн
 - [x] Этап 1: токен в localStorage, балансы в `data/players.json`, лидерборд, пособие
-- [ ] Этап 2: Краш
+- [x] Этап 2: Краш (ставка, вывод, автовывод, график, история, пробел = поставить/забрать)
 - [ ] Этап 3: Покер на кубиках
 - [ ] Этап 4: реконнект в стол, чат, защита, анимации

@@ -198,6 +198,8 @@ function createStore({ file = null, now = Date.now, saveDelayMs = SAVE_DELAY_MS 
     claimBonus,
     leaderboard,
     flush,
+    // Баланс тот же, но изменились фишки в играх (например, ставка сгорела): разослать заново.
+    notify: (player) => { for (const fn of changeListeners) fn(player); },
     onChange: (fn) => changeListeners.push(fn),
     addReserver: (fn) => reservers.push(fn),
   };

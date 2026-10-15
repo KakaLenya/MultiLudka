@@ -94,9 +94,86 @@ button.link {
 
 .lobby { display: grid; grid-template-columns: 1fr 260px; gap: 16px; }
 .main-col, .side-col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
-.games { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-.game { min-height: 160px; }
-.game.soon { opacity: .6; }
+
+.tabs { display: flex; gap: 8px; flex-wrap: wrap; }
+.tab {
+  background: var(--card);
+  color: var(--muted);
+  border: 1px solid var(--line);
+}
+.tab.active { color: var(--text); border-color: var(--gold); }
+
+/* Краш */
+.history { display: flex; gap: 6px; overflow: hidden; margin-bottom: 12px; min-height: 26px; }
+.history span {
+  flex: none;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  background: var(--bg);
+  color: var(--red);
+}
+.history span.good { color: var(--green); }
+.history span.great { color: var(--gold); }
+
+.stage {
+  position: relative;
+  height: 260px;
+  border-radius: 10px;
+  background: var(--bg);
+  overflow: hidden;
+}
+.stage canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+}
+.mult {
+  font-size: clamp(48px, 12vw, 84px);
+  font-weight: 800;
+  font-variant-numeric: tabular-nums;
+  line-height: 1;
+}
+.mult[data-phase="betting"] { color: var(--muted); }
+.mult[data-phase="crashed"] { color: var(--red); }
+.phase { margin-top: 8px; color: var(--muted); }
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px;
+  margin-top: 16px;
+}
+.field { display: flex; flex-direction: column; gap: 4px; flex: 1 1 120px; font-size: 13px; color: var(--muted); }
+.field input { flex: none; }
+.quick { display: flex; gap: 4px; }
+button.ghost {
+  padding: 10px 10px;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--line);
+  font-weight: 500;
+}
+.action { flex: 1 1 180px; min-height: 44px; }
+.action.cashout { background: var(--green); color: #05200f; }
+.my-result { min-height: 1.4em; margin: 10px 0 0; color: var(--muted); }
+.my-result.win { color: var(--green); }
+.my-result.lose { color: var(--red); }
+
+.bets { width: 100%; border-collapse: collapse; margin-top: 12px; font-variant-numeric: tabular-nums; }
+.bets th { text-align: left; font-weight: 400; font-size: 13px; color: var(--muted); padding: 4px 0; }
+.bets td { padding: 6px 0; border-top: 1px solid var(--line); }
+.bets th:not(:first-child), .bets td:not(:first-child) { text-align: right; }
+.bets tr.self td:first-child { color: var(--gold); }
+.bets .won { color: var(--green); }
+.bets .lost { color: var(--red); }
 
 .bonus {
   display: flex;
@@ -137,6 +214,7 @@ button.link {
 }
 
 @media (max-width: 700px) {
-  .lobby, .games { grid-template-columns: 1fr; }
+  .lobby { grid-template-columns: 1fr; }
+  .stage { height: 200px; }
   .topbar { flex-wrap: wrap; }
 }

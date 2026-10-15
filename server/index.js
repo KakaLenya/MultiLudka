@@ -3,6 +3,7 @@ const path = require('node:path');
 const express = require('express');
 const { WebSocketServer } = require('ws');
 const { createStore } = require('./players');
+const { createCrashGame } = require('./crash');
 
 const PORT = Number(process.env.PORT) || 3000;
 // По умолчанию слушаем только локально: наружу пускает cloudflared.
@@ -83,6 +84,12 @@ store.onChange((player) => {
   scheduleLeaderboard();
 });
 
+const crash = createCrashGame({
+  store,
+  onState: (s) => broadcast({ type: 'crash_state', ...s }),
+});
+store.addReserver(crash.reserved);
+
 const handlers = {
   hello(ws, msg) {
     if (ws.player) return send(ws, { type: 'error', message: 'Уже вошёл' });
@@ -108,11 +115,22 @@ const handlers = {
     });
     send(ws, balanceMsg(player));
     send(ws, leaderboardMsg());
+    send(ws, { type: 'crash_state', ...crash.state() });
     broadcastOnline();
   },
 
   claim_bonus(ws) {
     const result = store.claimBonus(ws.player);
+    if (result.error) send(ws, { type: 'error', message: result.error });
+  },
+
+  crash_bet(ws, msg) {
+    const result = crash.bet(ws.player, msg.amount, msg.autoCashout);
+    if (result.error) send(ws, { type: 'error', message: result.error });
+  },
+
+  crash_cashout(ws) {
+    const result = crash.cashout(ws.player);
     if (result.error) send(ws, { type: 'error', message: result.error });
   },
 };
@@ -166,9 +184,11 @@ setInterval(() => {
   }
 }, HEARTBEAT_MS);
 
-// Не теряем изменения, которые ещё ждут дебаунса.
+// Возвращаем ставки незавершённого раунда и дописываем то, что ждёт дебаунса.
 function shutdown() {
   try {
+    crash.stop();
+    crash.refundActive();
     store.flush();
   } finally {
     process.exit(0);
@@ -177,6 +197,8 @@ function shutdown() {
 process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);
 process.on('SIGHUP', shutdown);
+
+crash.start();
 
 server.listen(PORT, HOST, () => {
   console.log(`Казино-зал: http://${HOST === '0.0.0.0' ? 'localhost' : HOST}:${PORT}`);
