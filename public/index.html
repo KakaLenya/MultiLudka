@@ -40,8 +40,34 @@
         </div>
         <nav class="tabs">
           <button type="button" class="tab active" data-tab="crash">📈 Краш</button>
+          <button type="button" class="tab" data-tab="roulette">🎡 Рулетка</button>
           <button type="button" class="tab" data-tab="poker">🎲 Покер на кубиках <span class="dot" id="poker-dot" hidden></span></button>
         </nav>
+
+        <section class="card roulette" id="roulette" hidden>
+          <div class="history" id="r-history" aria-label="Последние номера"></div>
+          <div class="r-top">
+            <div class="wheel-box">
+              <canvas id="r-wheel" width="260" height="260"></canvas>
+              <div class="r-pointer"></div>
+              <div class="r-center" id="r-center">…</div>
+            </div>
+            <div class="r-side">
+              <div class="r-phase" id="r-phase">…</div>
+              <div class="r-result" id="r-result"></div>
+              <div class="r-label">Фишка</div>
+              <div class="r-chips" id="r-chips"></div>
+              <div class="r-mytotal" id="r-mytotal"></div>
+              <button type="button" class="ghost" id="r-clear">Снять мои ставки</button>
+            </div>
+          </div>
+          <p class="muted small-hint">Выбери фишку и нажимай на поле: число платит 35:1, дюжина и колонка 2:1, остальное 1:1.</p>
+          <div class="board-wrap"><div class="board" id="r-board"></div></div>
+          <table class="bets">
+            <thead><tr><th>Игрок</th><th>Ставки</th><th>Итог</th></tr></thead>
+            <tbody id="r-bets"></tbody>
+          </table>
+        </section>
 
         <section class="card poker" id="poker" hidden>
           <div class="poker-head">

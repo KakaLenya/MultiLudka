@@ -195,6 +195,16 @@ function createStore({ file = null, now = Date.now, saveDelayMs = SAVE_DELAY_MS 
     return { ok: true };
   }
 
+  // Админ: удалить игрока совсем (имя освобождается, токен перестаёт работать).
+  function remove(player) {
+    if (byId.get(player.id) !== player) return { error: 'Игрок не найден' };
+    byId.delete(player.id);
+    byToken.delete(player.token);
+    byName.delete(nameKey(player.name));
+    scheduleSave();
+    return { ok: true };
+  }
+
   // Админ: пособие снова доступно сразу.
   function resetBonus(player) {
     player.lastBonusAt = null;
@@ -221,6 +231,7 @@ function createStore({ file = null, now = Date.now, saveDelayMs = SAVE_DELAY_MS 
     claimBonus,
     leaderboard,
     rename,
+    remove,
     resetBonus,
     all: () => [...byId.values()],
     flush,

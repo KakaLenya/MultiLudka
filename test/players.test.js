@@ -143,3 +143,18 @@ test('повреждённый файл: понятная ошибка, а не 
   fs.writeFileSync(file, '{ сломано');
   assert.throws(() => createStore({ file }), /повреждён/);
 });
+
+test('удаление игрока: пропадает, имя и токен освобождаются, файл без него', () => {
+  const file = tmpFile();
+  const store = createStore({ file });
+  const { player } = store.register('Данек');
+  store.register('Глад');
+  assert.deepEqual(store.remove(player), { ok: true });
+  assert.equal(store.findByToken(player.token), null);
+  assert.equal(store.get(player.id), null);
+  assert.ok(store.register('данек').player, 'имя снова свободно');
+  assert.ok(store.remove(player).error);
+  store.flush();
+  const names = createStore({ file }).all().map((p) => p.name);
+  assert.deepEqual(names.sort(), ['Глад', 'данек'].sort());
+});

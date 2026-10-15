@@ -336,12 +336,11 @@ const TAB_KEY = 'casino.tab';
 
 function showTab(name) {
   document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t.dataset.tab === name));
-  $('crash').hidden = name !== 'crash';
-  $('poker').hidden = name !== 'poker';
+  for (const id of ['crash', 'roulette', 'poker']) $(id).hidden = name !== id;
   storage.set(TAB_KEY, name);
 }
 document.querySelectorAll('.tab').forEach((t) => t.addEventListener('click', () => showTab(t.dataset.tab)));
-showTab(storage.get(TAB_KEY) === 'poker' ? 'poker' : 'crash');
+showTab(['roulette', 'poker'].includes(storage.get(TAB_KEY)) ? storage.get(TAB_KEY) : 'crash');
 
 // ---------- Звуки (WebAudio, без файлов) ----------
 
@@ -703,6 +702,276 @@ $('chat-form').addEventListener('submit', (ev) => {
   $('chat-input').value = '';
 });
 
+// ---------- Рулетка ----------
+
+const R_WHEEL = [0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 10, 5,
+  24, 16, 33, 1, 20, 14, 31, 9, 22, 18, 29, 7, 28, 12, 35, 3, 26];
+const R_RED = new Set([1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36]);
+const R_STEP = (2 * Math.PI) / R_WHEEL.length;
+const R_CHIPS = [10, 50, 100, 500, 1000, 5000];
+const R_CHIP_KEY = 'casino.roulette.chip';
+const rColor = (n) => (n === 0 ? 'green' : R_RED.has(n) ? 'red' : 'black');
+
+// Как на сервере: какие ставки выигрывают при номере n.
+const R_WINS = {
+  straight: (n, num) => n === num,
+  red: (n) => R_RED.has(n),
+  black: (n) => n !== 0 && !R_RED.has(n),
+  even: (n) => n !== 0 && n % 2 === 0,
+  odd: (n) => n % 2 === 1,
+  low: (n) => n >= 1 && n <= 18,
+  high: (n) => n >= 19,
+  dozen1: (n) => n >= 1 && n <= 12,
+  dozen2: (n) => n >= 13 && n <= 24,
+  dozen3: (n) => n >= 25,
+  column1: (n) => n !== 0 && n % 3 === 1,
+  column2: (n) => n !== 0 && n % 3 === 2,
+  column3: (n) => n !== 0 && n % 3 === 0,
+};
+
+const rl = {
+  view: null,
+  recvAt: 0,
+  chip: Number(storage.get(R_CHIP_KEY)) || 50,
+  rotation: 0,          // текущий поворот колеса
+  spin: null,           // { roundId, from, to }
+  lastResultRound: 0,
+  cells: [],            // [{ el, type, number }]
+};
+if (!R_CHIPS.includes(rl.chip)) rl.chip = 50;
+
+// Чипы выбора номинала.
+$('r-chips').replaceChildren(...R_CHIPS.map((v) => {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'chip';
+  b.dataset.v = v;
+  b.textContent = v >= 1000 ? `${v / 1000}k` : v;
+  b.addEventListener('click', () => {
+    rl.chip = v;
+    storage.set(R_CHIP_KEY, String(v));
+    renderChips();
+  });
+  return b;
+}));
+function renderChips() {
+  document.querySelectorAll('.chip').forEach((c) => c.classList.toggle('active', Number(c.dataset.v) === rl.chip));
+}
+renderChips();
+
+// Поле: зеро, 12x3 номеров, колонки, дюжины, внешние ставки.
+(function buildBoard() {
+  const cells = [];
+  const add = (label, type, number, col, row, cls) => {
+    const el = document.createElement('button');
+    el.type = 'button';
+    el.className = `cell ${cls || ''}`;
+    el.style.gridColumn = col;
+    el.style.gridRow = row;
+    el.textContent = label;
+    el.addEventListener('click', () => {
+      send({ type: 'roulette_bet', betType: type, number, amount: rl.chip });
+    });
+    cells.push({ el, type, number });
+  };
+  add('0', 'straight', 0, '1', '1 / 4', 'green');
+  for (let c = 1; c <= 12; c++) {
+    for (let r = 1; r <= 3; r++) {
+      const n = 3 * c - (r - 1);   // верхний ряд 3,6,...,36
+      add(String(n), 'straight', n, String(c + 1), String(r), rColor(n));
+    }
+  }
+  add('2:1', 'column3', null, '14', '1');
+  add('2:1', 'column2', null, '14', '2');
+  add('2:1', 'column1', null, '14', '3');
+  add('1-12', 'dozen1', null, '2 / 6', '4');
+  add('13-24', 'dozen2', null, '6 / 10', '4');
+  add('25-36', 'dozen3', null, '10 / 14', '4');
+  add('1-18', 'low', null, '2 / 4', '5');
+  add('Чёт', 'even', null, '4 / 6', '5');
+  add('◆', 'red', null, '6 / 8', '5', 'red');
+  add('◆', 'black', null, '8 / 10', '5', 'black');
+  add('Нечёт', 'odd', null, '10 / 12', '5');
+  add('19-36', 'high', null, '12 / 14', '5');
+  $('r-board').replaceChildren(...cells.map((c) => c.el));
+  rl.cells = cells;
+})();
+
+$('r-clear').addEventListener('click', () => send({ type: 'roulette_clear' }));
+
+function myRouletteBets() {
+  const v = rl.view;
+  return v && state.me ? v.players.find((p) => p.id === state.me.playerId) || null : null;
+}
+
+function rouletteTimeLeft() {
+  return rl.view ? Math.max(0, rl.view.timeLeft - (performance.now() - rl.recvAt)) : 0;
+}
+
+function renderRoulette() {
+  const v = rl.view;
+  if (!v) return;
+  const mine = myRouletteBets();
+  const betting = v.phase === 'betting';
+
+  // История.
+  $('r-history').replaceChildren(...v.history.map((h) => {
+    const s = document.createElement('span');
+    s.textContent = h.n;
+    s.className = h.color === 'red' ? '' : h.color === 'green' ? 'good' : 'great';
+    s.style.color = h.color === 'red' ? '#ff6b61' : h.color === 'green' ? 'var(--green)' : '#ddd';
+    return s;
+  }));
+
+  // Мои фишки на поле и подсветка выигравших клеток.
+  const stakes = new Map();
+  for (const b of (mine ? mine.bets : [])) stakes.set(`${b.type}:${b.number}`, b.amount);
+  for (const c of rl.cells) {
+    c.el.disabled = !betting;
+    c.el.querySelector('.stake')?.remove();
+    const amt = stakes.get(`${c.type}:${c.number}`);
+    if (amt) {
+      const s = document.createElement('span');
+      s.className = 'stake';
+      s.textContent = amt >= 1000 ? `${Math.round(amt / 100) / 10}k` : amt;
+      c.el.append(s);
+    }
+    c.el.classList.toggle('win', v.phase === 'result' && R_WINS[c.type](v.result, c.number));
+  }
+
+  $('r-mytotal').textContent = mine ? `Твои ставки: ${mine.total}` : '';
+  $('r-clear').disabled = !(betting && mine);
+
+  // Итог раунда.
+  const res = $('r-result');
+  if (v.phase === 'result' && mine) {
+    res.textContent = mine.won > 0 ? `Выигрыш ${mine.won} (+${mine.won - mine.total})` : `Мимо: −${mine.total}`;
+    res.className = `r-result ${mine.won > 0 ? 'win' : 'lose'}`;
+  } else {
+    res.textContent = '';
+    res.className = 'r-result';
+  }
+  if (v.phase === 'result' && rl.lastResultRound !== v.roundId) {
+    rl.lastResultRound = v.roundId;
+    if (mine && mine.won > 0) sounds.win();
+    else if (mine) sounds.lose();
+  }
+
+  // Ставки игроков.
+  $('r-bets').replaceChildren(...v.players.map((p) => {
+    const tr = document.createElement('tr');
+    if (state.me && p.id === state.me.playerId) tr.className = 'self';
+    const name = document.createElement('td');
+    name.textContent = p.name;
+    const total = document.createElement('td');
+    total.textContent = p.total;
+    const won = document.createElement('td');
+    if (p.won !== null) {
+      won.textContent = p.won > 0 ? `+${p.won - p.total}` : `−${p.total}`;
+      won.className = p.won > 0 ? 'won' : 'lost';
+    } else {
+      won.textContent = '…';
+    }
+    tr.append(name, total, won);
+    return tr;
+  }));
+}
+
+// Колесо: рисуем каждый кадр, во время вращения плавно доводим до выпавшего номера.
+const rCanvas = $('r-wheel');
+const rCtx = rCanvas.getContext('2d');
+
+function drawWheel(rotation) {
+  const dpr = window.devicePixelRatio || 1;
+  const size = 260;
+  if (rCanvas.width !== size * dpr) {
+    rCanvas.width = size * dpr;
+    rCanvas.height = size * dpr;
+  }
+  const ctx = rCtx;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, size, size);
+  const c = size / 2;
+  const outer = c - 4;
+  const inner = outer - 34;
+  ctx.save();
+  ctx.translate(c, c);
+  ctx.rotate(rotation - Math.PI / 2 - R_STEP / 2);  // номер 0 по центру сверху при rotation = 0
+  R_WHEEL.forEach((n, i) => {
+    const a0 = i * R_STEP;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.arc(0, 0, outer, a0, a0 + R_STEP);
+    ctx.closePath();
+    ctx.fillStyle = n === 0 ? '#1e7a46' : R_RED.has(n) ? '#b3261e' : '#161616';
+    ctx.fill();
+    ctx.strokeStyle = 'rgba(242, 193, 78, .5)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.save();
+    ctx.rotate(a0 + R_STEP / 2);
+    ctx.translate(outer - 15, 0);
+    ctx.rotate(Math.PI / 2);
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 12px system-ui, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(String(n), 0, 0);
+    ctx.restore();
+  });
+  ctx.beginPath();
+  ctx.arc(0, 0, inner, 0, 2 * Math.PI);
+  ctx.fillStyle = '#0f1a14';
+  ctx.fill();
+  ctx.strokeStyle = 'rgba(242, 193, 78, .6)';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  ctx.restore();
+}
+
+const easeOut = (x) => 1 - (1 - x) ** 4;
+// Поворот, при котором номер n стоит под указателем.
+const restingRotation = (n) => -R_WHEEL.indexOf(n) * R_STEP;
+
+function rouletteFrame() {
+  const v = rl.view;
+  if (v && !$('roulette').hidden) {
+    if (v.phase === 'spinning') {
+      if (!rl.spin || rl.spin.roundId !== v.roundId) {
+        // Старт вращения: минимум 5 оборотов и остановка ровно на выпавшем номере.
+        const from = rl.rotation;
+        const base = restingRotation(v.result);
+        const turns = Math.ceil((from - base) / (2 * Math.PI)) + 5;
+        rl.spin = { roundId: v.roundId, from, to: base + turns * 2 * Math.PI };
+      }
+      const p = Math.min(1, 1 - rouletteTimeLeft() / v.spinMs);
+      rl.rotation = rl.spin.from + (rl.spin.to - rl.spin.from) * easeOut(p);
+    } else if (v.phase === 'result' && v.result !== null) {
+      // Видели вращение: стоим там, где оно закончилось; зашли позже: просто ставим на номер.
+      rl.rotation = rl.spin && rl.spin.roundId === v.roundId ? rl.spin.to : restingRotation(v.result);
+    }
+    drawWheel(rl.rotation);
+
+    const center = $('r-center');
+    const secs = Math.ceil(rouletteTimeLeft() / 1000);
+    if (v.phase === 'betting') {
+      center.textContent = secs;
+      center.className = 'r-center';
+      $('r-phase').textContent = `Делайте ставки: ${secs} с`;
+    } else if (v.phase === 'spinning') {
+      center.textContent = '…';
+      center.className = 'r-center';
+      $('r-phase').textContent = 'Ставок больше нет, колесо крутится';
+    } else {
+      center.textContent = v.result;
+      center.className = `r-center ${v.color}`;
+      $('r-phase').textContent = `Выпало ${v.result}. Новый раунд через ${secs} с`;
+    }
+  }
+  requestAnimationFrame(rouletteFrame);
+}
+requestAnimationFrame(rouletteFrame);
+
 // ---------- Объявления и эффекты от админа ----------
 
 function showBanner(text) {
@@ -767,6 +1036,12 @@ const handlers = {
     $('me-name').textContent = msg.name;
     $('me-balance').textContent = msg.balance;
     state.balance = msg.balance;
+  },
+
+  roulette_state(msg) {
+    rl.view = msg;
+    rl.recvAt = performance.now();
+    renderRoulette();
   },
 
   announce(msg) {

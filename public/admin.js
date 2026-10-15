@@ -156,6 +156,22 @@ function renderCrash() {
     : [li('Ставок нет', 'muted')]));
 }
 
+function renderRoulette() {
+  const r = admin.data.roulette;
+  $('r-phase').textContent = { betting: 'ставки', spinning: 'крутится', result: 'результат' }[r.phase] || r.phase;
+  // Админ видит номер с начала вращения (до этого он ещё не выбран).
+  $('r-number').textContent = r.result === null ? '—' : r.result;
+  $('r-total').textContent = r.players.reduce((s, p) => s + p.total, 0);
+  $('r-rigged').textContent = r.rigged === null ? '' : `Следующее вращение подкручено на ${r.rigged}`;
+  const label = (b) => (b.type === 'straight' ? `№${b.number}` : {
+    red: 'красное', black: 'чёрное', even: 'чёт', odd: 'нечёт', low: '1-18', high: '19-36',
+    dozen1: '1-12', dozen2: '13-24', dozen3: '25-36', column1: 'кол.1', column2: 'кол.2', column3: 'кол.3',
+  }[b.type]);
+  $('r-bets').replaceChildren(...(r.players.length
+    ? r.players.map((p) => li(`${p.name}: ${p.bets.map((b) => `${label(b)} ${b.amount}`).join(', ')}${p.won !== null ? ` → ${p.won ? `+${p.won - p.total}` : `−${p.total}`}` : ''}`))
+    : [li('Ставок нет', 'muted')]));
+}
+
 function renderPoker() {
   const v = admin.data.poker;
   $('p-phase').textContent = PHASES[v.phase] || v.phase;
@@ -206,6 +222,7 @@ function render() {
   renderPlayers();
   renderSelected();
   renderCrash();
+  renderRoulette();
   renderPoker();
   renderChat();
 }
@@ -294,6 +311,14 @@ $('kick-table').addEventListener('click', () => {
   if (p) run('/kick-table', { playerId: p.id }, (r) => (r.pending ? `${p.name} встанет после раздачи` : `${p.name} встал из-за стола`));
 });
 
+$('delete-player').addEventListener('click', async () => {
+  const p = needSelected();
+  if (!p) return;
+  if (!confirm(`Удалить ${p.name} совсем? Его фишки (${p.capital}) пропадут, имя освободится.`)) return;
+  const r = await run('/delete-player', { playerId: p.id }, (x) => `${x.name} удалён`);
+  if (r) admin.selected = null;
+});
+
 $('rig-dice-btn').addEventListener('click', () => {
   const p = needSelected();
   const dice = [...$('rig-dice').value.trim()].map(Number);
@@ -330,6 +355,11 @@ $('rig-crash').addEventListener('click', () => {
   const multiplier = Number($('rig-mult').value);
   run('/crash/rig', { multiplier }, (r) => `Краш на ${multiplier.toFixed(2)}× в ${r.round === 'current' ? 'этом' : 'следующем'} раунде`);
 });
+$('rig-roulette').addEventListener('click', () => {
+  const number = Number($('rig-number').value);
+  run('/roulette/rig', { number }, (r) => `Выпадет ${number} ${r.round === 'current' ? 'в этом' : 'в следующем'} вращении`);
+});
+
 $('crash-now').addEventListener('click', () => {
   run('/crash/now', {}, (r) => `Крашнули на ${r.at.toFixed(2)}×`);
 });

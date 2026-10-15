@@ -8,6 +8,7 @@ const { randomToken } = require('./rng');
 const { createCrashGame } = require('./crash');
 const { createTable } = require('./dicepoker');
 const { createAdminRouter } = require('./admin');
+const { createRoulette } = require('./roulette');
 
 const PORT = Number(process.env.PORT) || 3000;
 // По умолчанию слушаем только локально: наружу пускает cloudflared.
@@ -154,6 +155,12 @@ const crash = createCrashGame({
 });
 store.addReserver(crash.reserved);
 
+const roulette = createRoulette({
+  store,
+  onState: (s) => broadcast({ type: 'roulette_state', ...s }),
+});
+store.addReserver(roulette.reserved);
+
 // Покер: каждому своё состояние (свои кубики видны только себе).
 let pokerTimer = null;
 function broadcastPoker() {
@@ -217,6 +224,7 @@ const handlers = {
     send(ws, balanceMsg(player));
     send(ws, leaderboardMsg());
     send(ws, { type: 'crash_state', ...crash.state() });
+    send(ws, { type: 'roulette_state', ...roulette.state() });
     table.setConnected(player, true);
     send(ws, { type: 'poker_state', ...table.view(player) });
     send(ws, { type: 'chat_history', messages: chatLog });
@@ -233,6 +241,14 @@ const handlers = {
 
   crash_cashout(ws) {
     reply(ws, crash.cashout(ws.player));
+  },
+
+  roulette_bet(ws, msg) {
+    reply(ws, roulette.bet(ws.player, msg.betType, msg.number, msg.amount));
+  },
+
+  roulette_clear(ws) {
+    reply(ws, roulette.clear(ws.player));
   },
 
   poker_join(ws, msg) {
@@ -328,6 +344,8 @@ function shutdown() {
   try {
     crash.stop();
     crash.refundActive();
+    roulette.stop();
+    roulette.refundActive();
     table.stop();
     table.refundAll();
     store.flush();
@@ -344,17 +362,23 @@ app.use('/admin/api', createAdminRouter({
   store,
   crash,
   table,
+  roulette,
   chat: { log: () => chatLog, post: postChat },
   mutes,
   cleanText: cleanChat,
   onlineIds,
   sendToPlayer,
   broadcast,
-  refreshLists: () => { broadcastOnline(); broadcastPoker(); },
+  refreshLists: () => { broadcastOnline(); broadcastPoker(); scheduleLeaderboard(); },
+  // Удалённого игрока выкидываем: при переподключении его токен уже не узнают, клиент покажет вход.
+  disconnectPlayer: (player) => {
+    for (const ws of clients) if (ws.player === player) ws.close(4001, 'deleted');
+  },
 }));
 
 crash.start();
 table.start();
+roulette.start();
 
 server.listen(PORT, HOST, () => {
   console.log(`Казино-зал: http://${HOST === '0.0.0.0' ? 'localhost' : HOST}:${PORT}`);

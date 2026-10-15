@@ -24,8 +24,8 @@ function tokenMatches(given, expected) {
 }
 
 function createAdminRouter({
-  adminToken, store, crash, table, chat, mutes, cleanText,
-  onlineIds, sendToPlayer, broadcast, refreshLists,
+  adminToken, store, crash, table, roulette, chat, mutes, cleanText,
+  onlineIds, sendToPlayer, broadcast, refreshLists, disconnectPlayer = () => {},
 }) {
   const router = express.Router();
   router.use(express.json({ limit: '4kb' }));
@@ -65,7 +65,7 @@ function createAdminRouter({
         createdAt: p.createdAt,
       }))
       .sort((a, b) => b.online - a.online || b.capital - a.capital);
-    res.json({ players, crash: crash.adminState(), poker: table.adminView(), chat: chat.log() });
+    res.json({ players, crash: crash.adminState(), roulette: roulette.adminState(), poker: table.adminView(), chat: chat.log() });
   });
 
   // { amount, target: "online" | "all" | "player", playerId? }
@@ -127,6 +127,19 @@ function createAdminRouter({
     ok(res);
   });
 
+  // Удалить игрока: встаёт из-за стола, отключается, пропадает из списков. Фишки пропадают вместе с ним.
+  router.post('/delete-player', (req, res) => {
+    const p = findPlayer(req.body.playerId);
+    if (!p) return fail(res, 'Игрок не найден', 404);
+    if (table.isSeated(p)) table.leave(p);
+    mutes.delete(p.id);
+    const result = store.remove(p);
+    if (result.error) return fail(res, result.error);
+    disconnectPlayer(p);
+    refreshLists();
+    ok(res, { name: p.name });
+  });
+
   router.post('/reset-bonus', (req, res) => {
     const p = findPlayer(req.body.playerId);
     if (!p) return fail(res, 'Игрок не найден', 404);
@@ -172,6 +185,13 @@ function createAdminRouter({
 
   router.post('/crash/now', (req, res) => {
     const result = crash.crashNow();
+    if (result.error) return fail(res, result.error);
+    ok(res, result);
+  });
+
+  // { number: 0..36 } — номер следующего вращения.
+  router.post('/roulette/rig', (req, res) => {
+    const result = roulette.rig(req.body.number);
     if (result.error) return fail(res, result.error);
     ok(res, result);
   });

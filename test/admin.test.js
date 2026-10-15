@@ -6,6 +6,7 @@ const { createStore } = require('../server/players');
 const { createCrashGame, BETTING_MS } = require('../server/crash');
 const { createTable, START_DELAY_MS } = require('../server/dicepoker');
 const { createAdminRouter } = require('../server/admin');
+const { createRoulette } = require('../server/roulette');
 
 test('краш: подкрутка текущего раунда во время ставок, иначе следующего', () => {
   const clock = { t: 0 };
@@ -82,6 +83,7 @@ async function withServer(fn) {
     store,
     crash,
     table,
+    roulette: createRoulette({ store }),
     chat: { log: () => chatLog, post: (playerId, name, text) => chatLog.push({ playerId, name, text }) },
     mutes: new Map(),
     cleanText: (t) => (typeof t === 'string' && t.trim() ? t.trim() : null),
@@ -144,5 +146,10 @@ test('API: начислить, забрать больше, чем есть, т�
     assert.ok(chatLog.some((m) => m.playerId === null && /помолчит/.test(m.text)));
 
     assert.equal((await post(`${base}/grant`, { target: 'player', playerId: '999', amount: 5 })).status, 404);
+
+    assert.equal((await post(`${base}/delete-player`, { playerId: a.id })).status, 200);
+    const st = await (await fetch(`${base}/state`)).json();
+    assert.equal(st.players.length, 0, 'удалённого нет в списке');
+    assert.equal((await post(`${base}/delete-player`, { playerId: a.id })).status, 404);
   });
 });
