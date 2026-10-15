@@ -187,7 +187,11 @@
   <aside class="music" id="music" hidden>
     <span class="music-title" id="music-title"></span>
     <button type="button" class="music-play" id="music-start" hidden>▶ слушать</button>
-    <input type="range" id="music-volume" min="0" max="1" step="0.05" aria-label="Громкость">
+    <span class="volume" id="music-volume-box">
+      <span aria-hidden="true">🔉</span>
+      <input type="range" id="music-volume" min="0" max="100" step="1" aria-label="Громкость">
+    </span>
+    <span class="muted volume-hint" id="music-volume-hint" hidden>громкость кнопками телефона</span>
     <button type="button" class="link" id="music-toggle"></button>
     <audio id="music-audio" preload="auto"></audio>
   </aside>

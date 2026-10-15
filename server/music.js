@@ -5,6 +5,28 @@ const path = require('node:path');
 
 const AUDIO_EXT = new Set(['.mp3', '.m4a', '.aac', '.ogg', '.oga', '.opus', '.wav', '.flac', '.webm']);
 
+// Настоящий тип аудио по первым байтам: файлы часто бывают m4a под именем .mp3,
+// а строгие браузеры (Safari, Firefox) не играют их с заголовком audio/mpeg.
+function sniffAudioType(file) {
+  let fd;
+  try {
+    fd = fs.openSync(file, 'r');
+    const b = Buffer.alloc(12);
+    fs.readSync(fd, b, 0, 12, 0);
+    const at = (start, end) => b.toString('latin1', start, end);
+    if (at(4, 8) === 'ftyp') return 'audio/mp4';
+    if (at(0, 4) === 'OggS') return 'audio/ogg';
+    if (at(0, 4) === 'RIFF') return 'audio/wav';
+    if (at(0, 4) === 'fLaC') return 'audio/flac';
+    if (at(0, 3) === 'ID3' || (b[0] === 0xff && (b[1] & 0xe0) === 0xe0)) return 'audio/mpeg';
+    return null;
+  } catch {
+    return null;
+  } finally {
+    if (fd !== undefined) fs.closeSync(fd);
+  }
+}
+
 // dir: папка с треками. onChange(track | null): разослать всем.
 function createMusic({ dir, urlPrefix = '/music-files/', onChange = () => {}, now = Date.now }) {
   let current = null;  // { id, title, url, startedAt }
@@ -55,4 +77,4 @@ function createMusic({ dir, urlPrefix = '/music-files/', onChange = () => {}, no
   return { play, stop, state, playlist };
 }
 
-module.exports = { createMusic, AUDIO_EXT };
+module.exports = { createMusic, sniffAudioType, AUDIO_EXT };

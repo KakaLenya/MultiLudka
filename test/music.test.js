@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
-const { createMusic } = require('../server/music');
+const { createMusic, sniffAudioType } = require('../server/music');
 
 function musicDir(files) {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'casino-music-'));
@@ -39,4 +39,15 @@ test('play, смещение для зашедших позже, stop; чужи�
   assert.equal(m.state().offset, 65, 'зашедший через минуту начнёт с 1:05');
   m.stop();
   assert.equal(events.at(-1), null);
+});
+
+test('тип аудио по содержимому, а не по расширению', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'casino-sniff-'));
+  const put = (name, bytes) => { const p = path.join(dir, name); fs.writeFileSync(p, Buffer.from(bytes)); return p; };
+  assert.equal(sniffAudioType(put('m4a под видом.mp3', [0, 0, 0, 0x1c, ...Buffer.from('ftypisom')])), 'audio/mp4');
+  assert.equal(sniffAudioType(put('id3.mp3', [...Buffer.from('ID3'), 4, 0, 0, 0, 0, 0, 0, 0, 0])), 'audio/mpeg');
+  assert.equal(sniffAudioType(put('raw.mp3', [0xff, 0xfb, 0x90, 0x64, 0, 0, 0, 0, 0, 0, 0, 0])), 'audio/mpeg');
+  assert.equal(sniffAudioType(put('a.ogg', [...Buffer.from('OggS'), 0, 0, 0, 0, 0, 0, 0, 0])), 'audio/ogg');
+  assert.equal(sniffAudioType(put('мусор.mp3', [1, 2, 3])), null);
+  assert.equal(sniffAudioType(path.join(dir, 'нет файла.mp3')), null);
 });

@@ -9,7 +9,7 @@ const { createCrashGame } = require('./crash');
 const { createTable } = require('./dicepoker');
 const { createAdminRouter } = require('./admin');
 const { createRoulette } = require('./roulette');
-const { createMusic } = require('./music');
+const { createMusic, sniffAudioType } = require('./music');
 
 const PORT = Number(process.env.PORT) || 3000;
 // По умолчанию слушаем только локально: наружу пускает cloudflared.
@@ -45,7 +45,15 @@ const adminToken = (() => {
 
 const app = express();
 app.use(express.static(path.join(__dirname, '..', 'public')));
-app.use('/music-files', express.static(MUSIC_DIR, { index: false, dotfiles: 'ignore', maxAge: '1h' }));
+app.use('/music-files', express.static(MUSIC_DIR, {
+  index: false,
+  dotfiles: 'ignore',
+  maxAge: '1h',
+  setHeaders: (res, file) => {
+    const type = sniffAudioType(file);
+    if (type) res.setHeader('Content-Type', type);
+  },
+}));
 
 const server = http.createServer(app);
 const wss = new WebSocketServer({ server, maxPayload: 4096 });

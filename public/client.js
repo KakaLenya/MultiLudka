@@ -975,7 +975,7 @@ requestAnimationFrame(rouletteFrame);
 // ---------- Музыка (включает админ, файлы из папки music на сервере) ----------
 
 const MUSIC_KEY = 'casino.music';
-const VOLUME_KEY = 'casino.volume';
+const VOLUME_KEY = 'casino.volume.pos';  // положение ползунка 0..100
 const music = {
   track: null,          // { id, title, url, offset }
   recvAt: 0,
@@ -983,8 +983,25 @@ const music = {
   loadedId: null,       // какой трек сейчас в <audio>
 };
 const audioEl = $('music-audio');
-audioEl.volume = Number(storage.get(VOLUME_KEY) ?? 0.6);
-$('music-volume').value = audioEl.volume;
+// Слух логарифмический: при линейной громкости почти весь ход ползунка звучит одинаково,
+// а у нуля звук резко пропадает. Квадрат даёт ровное «тише-громче» по всей длине.
+const volumeFromSlider = (pos) => (pos / 100) ** 2;
+function applyVolume() {
+  audioEl.volume = volumeFromSlider(Number($('music-volume').value));
+}
+const savedPos = Number(storage.get(VOLUME_KEY));
+$('music-volume').value = Number.isFinite(savedPos) && storage.get(VOLUME_KEY) !== null ? savedPos : 70;
+applyVolume();
+
+// iPhone/iPad не дают странице менять громкость (volume всегда 1): прячем ползунок.
+(function detectFixedVolume() {
+  const probe = new Audio();
+  probe.volume = 0.5;
+  if (probe.volume === 1) {
+    $('music-volume-box').hidden = true;
+    $('music-volume-hint').hidden = false;
+  }
+})();
 
 // Где сейчас трек у всех: смещение от сервера + сколько прошло с получения.
 function musicPosition() {
@@ -1043,8 +1060,8 @@ $('music-toggle').addEventListener('click', () => {
 });
 
 $('music-volume').addEventListener('input', () => {
-  audioEl.volume = Number($('music-volume').value);
-  storage.set(VOLUME_KEY, String(audioEl.volume));
+  applyVolume();
+  storage.set(VOLUME_KEY, $('music-volume').value);
 });
 
 // ---------- Объявления и эффекты от админа ----------

@@ -505,10 +505,13 @@ body.fx-disco { animation: fx-disco .5s linear infinite; }
   font-size: 14px;
 }
 .music.off { border-color: var(--line); opacity: .8; }
-.music.off #music-volume { display: none; }
+.music.off .volume, .music.off .volume-hint { display: none; }
 .music-title { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .music-play { padding: 4px 10px; font-size: 13px; }
-#music-volume { width: 80px; flex: none; accent-color: var(--gold); }
+.volume { display: flex; align-items: center; gap: 4px; flex: none; }
+#music-volume { width: 130px; height: 24px; margin: 0; cursor: pointer; accent-color: var(--gold); }
+.volume-hint { font-size: 12px; white-space: nowrap; }
+@media (max-width: 420px) { #music-volume { width: 90px; } }
 .music .link { white-space: nowrap; }
 @media (max-width: 700px) {
   .music { left: 8px; right: 8px; bottom: 8px; }
