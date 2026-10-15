@@ -1,4 +1,3 @@
-const crypto = require('node:crypto');
 const fs = require('node:fs');
 const http = require('node:http');
 const path = require('node:path');
@@ -8,6 +7,7 @@ const { createStore } = require('./players');
 const { randomToken } = require('./rng');
 const { createCrashGame } = require('./crash');
 const { createTable } = require('./dicepoker');
+const { createAdminRouter } = require('./admin');
 
 const PORT = Number(process.env.PORT) || 3000;
 // По умолчанию слушаем только локально: наружу пускает cloudflared.
@@ -25,11 +25,10 @@ const REG_PER_IP = 10;
 const REG_WINDOW_MS = 60 * 60 * 1000;
 
 const DATA_DIR = process.env.DATA_DIR || path.join(__dirname, '..', 'data');
-const ADMIN_GRANT_MAX = 1_000_000;
 
 const store = createStore({ file: path.join(DATA_DIR, 'players.json') });
 
-// Секрет для /admin/*: лежит только локально в data/admin.token, создаётся при первом старте.
+// Секрет для /admin/api (нужен только при входе не с этого компьютера): лежит только локально в data/admin.token, создаётся при первом старте.
 const adminToken = (() => {
   const file = path.join(DATA_DIR, 'admin.token');
   if (fs.existsSync(file)) return fs.readFileSync(file, 'utf8').trim();
@@ -38,12 +37,6 @@ const adminToken = (() => {
   fs.writeFileSync(file, token);
   return token;
 })();
-
-function isAdmin(req) {
-  const given = Buffer.from(String(req.get('x-admin-token') || ''));
-  const expected = Buffer.from(adminToken);
-  return given.length === expected.length && crypto.timingSafeEqual(given, expected);
-}
 
 const app = express();
 app.use(express.static(path.join(__dirname, '..', 'public')));
@@ -76,6 +69,7 @@ function cleanChat(raw) {
 
 const chatLog = [];
 let chatSeq = 0;
+const mutes = new Map();  // playerId -> до какого времени молчит (админ)
 
 const registrations = new Map();  // ip -> [время регистрации, ...]
 
@@ -260,6 +254,8 @@ const handlers = {
   chat(ws, msg) {
     const text = cleanChat(msg.text);
     if (!text) return;
+    const mutedFor = (mutes.get(ws.player.id) || 0) - Date.now();
+    if (mutedFor > 0) return send(ws, { type: 'error', message: `Ты в муте ещё ${Math.ceil(mutedFor / 60000)} мин` });
     if (!allow(ws.chatRate, CHAT_LIMIT)) return send(ws, { type: 'error', message: 'Не так быстро, чат отдыхает' });
     postChat(ws.player.id, ws.player.name, text);
   },
@@ -343,26 +339,19 @@ process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);
 process.on('SIGHUP', shutdown);
 
-// Админ: начислить фишки. body: { amount, target: "online" | "all" }. Заголовок X-Admin-Token.
-app.post('/admin/grant', express.json({ limit: '1kb' }), (req, res) => {
-  if (!isAdmin(req)) return res.status(403).json({ error: 'forbidden' });
-  const { amount, target = 'online' } = req.body || {};
-  if (!Number.isSafeInteger(amount) || amount < 1 || amount > ADMIN_GRANT_MAX) {
-    return res.status(400).json({ error: `amount: целое от 1 до ${ADMIN_GRANT_MAX}` });
-  }
-  if (target !== 'online' && target !== 'all') return res.status(400).json({ error: 'target: online или all' });
-
-  const ids = target === 'online' ? [...onlineIds()] : store.leaderboard(Infinity).map((p) => p.id);
-  const granted = ids.map((id) => store.get(id)).map((p) => {
-    store.adjust(p, amount);
-    return { name: p.name, balance: p.balance };
-  });
-  if (granted.length) {
-    postChat(null, '🎰 Зал', `Подарок: ${target === 'online' ? 'всем онлайн' : 'всем'} по ${amount} фишек!`);
-  }
-  console.log(`Админ: начислено по ${amount} → ${granted.map((g) => g.name).join(', ') || 'никому'}`);
-  res.json({ amount, target, granted });
-});
+app.use('/admin/api', createAdminRouter({
+  adminToken,
+  store,
+  crash,
+  table,
+  chat: { log: () => chatLog, post: postChat },
+  mutes,
+  cleanText: cleanChat,
+  onlineIds,
+  sendToPlayer,
+  broadcast,
+  refreshLists: () => { broadcastOnline(); broadcastPoker(); },
+}));
 
 crash.start();
 table.start();

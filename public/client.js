@@ -664,7 +664,8 @@ $('keep-all-btn').addEventListener('click', () => {
 
 function chatItem(m) {
   const li = document.createElement('li');
-  if (state.me && m.playerId === state.me.playerId) li.className = 'self';
+  if (m.playerId === null) li.className = 'system';
+  else if (state.me && m.playerId === state.me.playerId) li.className = 'self';
   const time = document.createElement('span');
   time.className = 'time';
   time.textContent = new Date(m.at).toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit' });
@@ -702,6 +703,56 @@ $('chat-form').addEventListener('submit', (ev) => {
   $('chat-input').value = '';
 });
 
+// ---------- Объявления и эффекты от админа ----------
+
+function showBanner(text) {
+  const el = document.createElement('div');
+  el.className = 'banner';
+  const inner = document.createElement('div');
+  inner.className = 'banner-text';
+  inner.textContent = text;
+  el.append(inner);
+  el.addEventListener('click', () => el.remove());
+  document.body.append(el);
+  beep([[660, 0.15], [880, 0.15], [1320, 0.3]], 'triangle');
+  setTimeout(() => el.remove(), 7000);
+}
+
+// Падающие частицы: цветные бумажки или эмодзи.
+function rain(symbols, count) {
+  const layer = document.createElement('div');
+  layer.className = 'fx-layer';
+  const colors = ['#f2c14e', '#4fd18b', '#e5615b', '#6fa8ff', '#d77bff'];
+  for (let i = 0; i < count; i++) {
+    const p = document.createElement('span');
+    p.className = symbols ? 'fx-emoji' : 'fx-confetti';
+    if (symbols) p.textContent = symbols[i % symbols.length];
+    else p.style.background = colors[i % colors.length];
+    p.style.left = `${Math.random() * 100}vw`;
+    p.style.animationDelay = `${Math.random() * 1.2}s`;
+    p.style.animationDuration = `${2 + Math.random() * 1.5}s`;
+    p.style.setProperty('--spin', `${(Math.random() - 0.5) * 1440}deg`);
+    layer.append(p);
+  }
+  document.body.append(layer);
+  setTimeout(() => layer.remove(), 5000);
+}
+
+function bodyEffect(cls, ms) {
+  document.body.classList.remove(cls);
+  void document.body.offsetWidth;  // перезапуск анимации, если эффект прислали дважды
+  document.body.classList.add(cls);
+  setTimeout(() => document.body.classList.remove(cls), ms);
+}
+
+const effects = {
+  confetti: () => { rain(null, 140); sounds.win(); },
+  money: () => { rain(['💸', '💰', '🪙', '💵'], 70); sounds.win(); },
+  shake: () => { bodyEffect('fx-shake', 900); beep([[90, 0.4]], 'sawtooth'); },
+  flip: () => bodyEffect('fx-flip', 6000),
+  disco: () => { bodyEffect('fx-disco', 6000); beep([[523, 0.1], [659, 0.1], [523, 0.1], [784, 0.2]], 'square'); },
+};
+
 // ---------- Сообщения сервера ----------
 
 const handlers = {
@@ -716,6 +767,14 @@ const handlers = {
     $('me-name').textContent = msg.name;
     $('me-balance').textContent = msg.balance;
     state.balance = msg.balance;
+  },
+
+  announce(msg) {
+    showBanner(msg.text);
+  },
+
+  fx(msg) {
+    if (Object.hasOwn(effects, msg.effect)) effects[msg.effect]();
   },
 
   chat_history(msg) {

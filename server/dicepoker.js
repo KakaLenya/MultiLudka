@@ -113,8 +113,17 @@ function createTable({
   let raises = 0;
   let result = null;       // итог последней раздачи (для показа в showdown)
   let timer = null;
+  const rigged = new Map();  // админ: playerId -> кубики на ближайший бросок (раздача или перебросок)
 
   const roll5 = () => Array.from({ length: 5 }, () => rollDie());
+
+  // Подкрученные кубики, если есть (и снимаем подкрутку), иначе null.
+  function takeRig(player) {
+    const dice = rigged.get(player.id);
+    if (!dice) return null;
+    rigged.delete(player.id);
+    return [...dice];
+  }
   const isActive = (s) => !!s && s.inHand && !s.folded;
   const activeSeats = () => seats.filter(isActive);
   const isEligible = (s) => !!s && !s.leaving && s.connected && s.stack >= ANTE;
@@ -171,7 +180,7 @@ function createTable({
         s.stack -= ANTE;
         s.totalBet = ANTE;
         pot += ANTE;
-        s.dice = roll5();
+        s.dice = takeRig(s.player) || roll5();
       }
     }
     phase = 'bet1';
@@ -221,6 +230,8 @@ function createTable({
       const keep = s.keep || [true, true, true, true, true];
       s.dice = s.dice.map((v, i) => (keep[i] ? v : rollDie()));
       s.rerolled = keep.filter((k) => !k).length;
+      const rig = takeRig(s.player);
+      if (rig) s.dice = rig;
     }
     phase = 'bet2';
     startBettingRound();
@@ -529,7 +540,37 @@ function createTable({
     pot = 0;
   }
 
+  // ---------- Админ ----------
+
+  // Кубики игроку на ближайший бросок: раздачу или перебросок, что наступит раньше.
+  function rigDice(player, dice) {
+    if (!isValidDice(dice)) return { error: 'Кубики: 5 чисел от 1 до 6' };
+    rigged.set(player.id, [...dice]);
+    return { ok: true };
+  }
+
+  function adminView() {
+    return {
+      ...view(null),
+      seats: seats.map((s, i) => s && {
+        seat: i,
+        id: s.player.id,
+        name: s.player.name,
+        stack: s.stack,
+        inHand: s.inHand,
+        folded: s.folded,
+        connected: s.connected,
+        dice: s.dice,
+        hand: s.dice ? evaluate(s.dice).name : null,
+        lastAction: s.lastAction,
+      }),
+      rigged: [...rigged].map(([id, dice]) => ({ id, dice })),
+    };
+  }
+
   return {
+    rigDice,
+    adminView,
     join,
     leave,
     act,

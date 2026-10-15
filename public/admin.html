@@ -1,0 +1,154 @@
+<!doctype html>
+<html lang="ru">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Админка зала</title>
+  <link rel="stylesheet" href="style.css">
+  <link rel="stylesheet" href="admin.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="logo">🎰 Админка зала</div>
+    <a class="link" href="/" target="_blank">открыть зал ↗</a>
+    <div class="conn" id="conn" data-state="connecting">загрузка…</div>
+  </header>
+
+  <main class="admin">
+    <section class="card login" id="auth" hidden>
+      <h1>Нужен токен</h1>
+      <p class="muted">С этого компьютера (http://127.0.0.1:3000/admin.html) вход без токена.
+        С другого устройства вставь содержимое файла <code>data/admin.token</code>.</p>
+      <form id="auth-form" autocomplete="off">
+        <input id="token" type="password" placeholder="Админский токен" required>
+        <button type="submit">Войти</button>
+      </form>
+      <p class="error" id="auth-error"></p>
+    </section>
+
+    <div class="admin-grid" id="panel" hidden>
+      <!-- Игроки -->
+      <section class="card players-card">
+        <h2>Игроки <span class="count" id="online-count">0</span></h2>
+        <p class="muted small">Нажми на игрока, чтобы выбрать его для действий справа.</p>
+        <table class="ptable">
+          <thead><tr><th></th><th>Имя</th><th>Баланс</th><th>В играх</th><th>Итого</th></tr></thead>
+          <tbody id="players"></tbody>
+        </table>
+      </section>
+
+      <div class="admin-col">
+        <!-- Фишки -->
+        <section class="card">
+          <h2>💰 Фишки</h2>
+          <div class="row">
+            <input id="amount" type="number" step="1" value="1000" inputmode="numeric">
+            <button type="button" class="ghost" data-amount="100">100</button>
+            <button type="button" class="ghost" data-amount="1000">1k</button>
+            <button type="button" class="ghost" data-amount="15000">15k</button>
+            <button type="button" class="ghost" data-amount="100000">100k</button>
+          </div>
+          <div class="row">
+            <select id="grant-target">
+              <option value="player">Выбранному игроку</option>
+              <option value="online">Всем онлайн</option>
+              <option value="all">Всем зарегистрированным</option>
+            </select>
+          </div>
+          <div class="row">
+            <button type="button" id="give">Дать</button>
+            <button type="button" class="danger" id="take">Забрать</button>
+            <button type="button" class="ghost" id="set-balance" title="Только выбранному">Сделать баланс ровно</button>
+          </div>
+        </section>
+
+        <!-- Выбранный игрок -->
+        <section class="card">
+          <h2>👤 <span id="sel-name">Игрок не выбран</span></h2>
+          <div id="sel-box" hidden>
+            <p class="muted small" id="sel-info"></p>
+            <div class="row">
+              <input id="rename" maxlength="20" placeholder="Новое имя">
+              <button type="button" class="ghost" id="rename-btn">Переименовать</button>
+            </div>
+            <div class="row">
+              <span class="label">Мут в чате:</span>
+              <button type="button" class="ghost" data-mute="5">5 мин</button>
+              <button type="button" class="ghost" data-mute="30">30 мин</button>
+              <button type="button" class="ghost" data-mute="1440">сутки</button>
+              <button type="button" class="ghost" data-mute="0">снять</button>
+            </div>
+            <div class="row">
+              <button type="button" class="ghost" id="reset-bonus">Сбросить таймер пособия</button>
+              <button type="button" class="ghost" id="kick-table">Выгнать из-за стола</button>
+            </div>
+            <div class="row">
+              <span class="label">Кубики:</span>
+              <input id="rig-dice" maxlength="5" placeholder="66666" inputmode="numeric" class="short">
+              <button type="button" class="ghost" id="rig-dice-btn">Подкрутить</button>
+            </div>
+            <p class="muted small">Сработает на ближайший бросок игрока: следующую раздачу или перебросок.</p>
+            <div class="row">
+              <span class="label">Эффект ему:</span>
+              <span class="fx-buttons" data-fx-target="player"></span>
+            </div>
+          </div>
+        </section>
+
+        <!-- Приколы -->
+        <section class="card">
+          <h2>🎉 Приколы для всех</h2>
+          <textarea id="announce" maxlength="200" rows="2" placeholder="Текст объявления"></textarea>
+          <div class="row">
+            <button type="button" id="announce-banner">Баннером на весь экран</button>
+            <button type="button" class="ghost" id="announce-chat">В чат от зала</button>
+          </div>
+          <div class="row">
+            <span class="label">Эффект всем:</span>
+            <span class="fx-buttons" data-fx-target="all"></span>
+          </div>
+        </section>
+      </div>
+
+      <!-- Краш -->
+      <section class="card">
+        <h2>📈 Краш</h2>
+        <div class="stat-row">
+          <div><span class="muted">Фаза</span> <b id="c-phase">…</b></div>
+          <div><span class="muted">Сейчас</span> <b id="c-mult">…</b></div>
+          <div><span class="muted">Точка краха</span> <b class="secret" id="c-point">…</b></div>
+        </div>
+        <p class="muted small" id="c-rigged"></p>
+        <div class="row">
+          <input id="rig-mult" type="number" min="1" max="100" step="0.01" placeholder="например 1.00 или 50" class="short">
+          <button type="button" class="ghost" id="rig-crash">Подкрутить краш</button>
+          <button type="button" class="danger" id="crash-now">Крашнуть сейчас</button>
+        </div>
+        <ul class="list" id="c-bets"></ul>
+      </section>
+
+      <!-- Покер -->
+      <section class="card">
+        <h2>🎲 Покер</h2>
+        <div class="stat-row">
+          <div><span class="muted">Фаза</span> <b id="p-phase">…</b></div>
+          <div><span class="muted">Банк</span> <b id="p-pot">…</b></div>
+        </div>
+        <ul class="list" id="p-seats"></ul>
+        <p class="muted small" id="p-rigged"></p>
+      </section>
+
+      <!-- Чат -->
+      <section class="card">
+        <h2>💬 Чат</h2>
+        <ul class="chat-log" id="a-chat"></ul>
+      </section>
+    </div>
+
+    <p class="admin-toast" id="toast"></p>
+  </main>
+
+  <script src="admin.js"></script>
+</body>
+</html>

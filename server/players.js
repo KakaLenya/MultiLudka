@@ -182,6 +182,25 @@ function createStore({ file = null, now = Date.now, saveDelayMs = SAVE_DELAY_MS 
     return { ok: true };
   }
 
+  // Админ: новое имя (те же правила, что при регистрации). -> { ok } или { error }
+  function rename(player, rawName) {
+    const name = cleanName(rawName);
+    if (!name) return { error: 'Имя: 1-20 символов' };
+    const owner = byName.get(nameKey(name));
+    if (owner && owner !== player) return { error: 'Это имя уже занято' };
+    byName.delete(nameKey(player.name));
+    player.name = name;
+    byName.set(nameKey(name), player);
+    changed(player);
+    return { ok: true };
+  }
+
+  // Админ: пособие снова доступно сразу.
+  function resetBonus(player) {
+    player.lastBonusAt = null;
+    changed(player);
+  }
+
   function leaderboard(limit = 20) {
     return [...byId.values()]
       .map((p) => ({ id: p.id, name: p.name, capital: capital(p) }))
@@ -201,6 +220,9 @@ function createStore({ file = null, now = Date.now, saveDelayMs = SAVE_DELAY_MS 
     bonusStatus,
     claimBonus,
     leaderboard,
+    rename,
+    resetBonus,
+    all: () => [...byId.values()],
     flush,
     // Баланс тот же, но изменились фишки в играх (например, ставка сгорела): разослать заново.
     notify: (player) => changed(player),

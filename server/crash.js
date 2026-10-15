@@ -48,12 +48,14 @@ function createCrashGame({ store, onState = () => {}, now = Date.now, random = r
   let bets = new Map();     // playerId -> { player, amount, autoCents, cashedOutCents, payout }
   const history = [];
   let timer = null;
+  let riggedCents = null;   // админ: точка краха следующего раунда
 
   function newRound(t) {
     roundId += 1;
     phase = 'betting';
     phaseStartedAt = t;
-    crashCents = crashPointCents(random());
+    crashCents = riggedCents ?? crashPointCents(random());
+    riggedCents = null;
     currentCents = 100;
     bets = new Map();
   }
@@ -177,6 +179,40 @@ function createCrashGame({ store, onState = () => {}, now = Date.now, random = r
     }
   }
 
+  // ---------- Админ ----------
+
+  // Подкрутка: если ставки ещё принимаются, меняем текущий раунд, иначе следующий.
+  function rig(multiplier) {
+    const cents = Math.round(Number(multiplier) * 100);
+    if (!Number.isSafeInteger(cents) || cents < 100 || cents > MAX_CENTS) return { error: 'Множитель от 1.00 до 100' };
+    advance();
+    if (phase === 'betting') {
+      crashCents = cents;
+      return { ok: true, round: 'current' };
+    }
+    riggedCents = cents;
+    return { ok: true, round: 'next' };
+  }
+
+  // Крашнуть прямо сейчас на текущем множителе.
+  function crashNow() {
+    advance();
+    if (phase !== 'running') return { error: 'Сейчас ничего не летит' };
+    crashCents = currentCents;
+    crash(now());
+    emit();
+    return { ok: true, at: crashCents / 100 };
+  }
+
+  function adminState() {
+    const s = publicState();
+    return {
+      ...s,
+      crashPoint: crashCents / 100,
+      rigged: riggedCents === null ? null : riggedCents / 100,
+    };
+  }
+
   function start() {
     newRound(now());
     // Ошибка в одном тике не должна ронять сервер.
@@ -203,6 +239,9 @@ function createCrashGame({ store, onState = () => {}, now = Date.now, random = r
     reserved,
     refundActive,
     state: () => { advance(); return publicState(); },
+    rig,
+    crashNow,
+    adminState: () => { advance(); return adminState(); },
     // Только для тестов.
     _reset: (t = now()) => newRound(t),
   };

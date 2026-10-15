@@ -1,0 +1,65 @@
+.admin { max-width: 1280px; }
+.admin-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+.admin-col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.small { font-size: 13px; margin: 4px 0 10px; }
+.row { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; margin-top: 8px; }
+.row input { flex: 1 1 120px; }
+.row input.short { flex: 0 1 140px; }
+.label { color: var(--muted); font-size: 14px; }
+select, textarea {
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  width: 100%;
+}
+textarea { resize: vertical; }
+a.link { color: var(--muted); font-size: 14px; }
+code { background: var(--bg); padding: 1px 5px; border-radius: 4px; }
+
+.ptable { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+.ptable th { text-align: left; font-weight: 400; font-size: 13px; color: var(--muted); padding: 4px 6px; }
+.ptable td { padding: 8px 6px; border-top: 1px solid var(--line); }
+.ptable th:nth-child(n+3), .ptable td:nth-child(n+3) { text-align: right; }
+.ptable tbody tr { cursor: pointer; }
+.ptable tbody tr:hover { background: rgba(255, 255, 255, .03); }
+.ptable tr.selected { background: rgba(242, 193, 78, .12); }
+.ptable tr.selected td:nth-child(2) { color: var(--gold); font-weight: 600; }
+.ptable .muted-tag { color: var(--red); font-size: 12px; margin-left: 4px; }
+.dot-online, .dot-offline { display: inline-block; width: 8px; height: 8px; border-radius: 50%; }
+.dot-online { background: var(--green); }
+.dot-offline { background: var(--line); }
+
+.stat-row { display: flex; flex-wrap: wrap; gap: 18px; margin-bottom: 6px; font-variant-numeric: tabular-nums; }
+.stat-row b { font-size: 18px; }
+.secret { color: var(--red); }
+.dice-text { font-size: 22px; letter-spacing: 2px; }
+
+.admin-toast {
+  position: fixed;
+  left: 50%;
+  bottom: 20px;
+  transform: translateX(-50%);
+  margin: 0;
+  padding: 10px 16px;
+  border-radius: 10px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  opacity: 0;
+  transition: opacity .2s;
+  pointer-events: none;
+  max-width: calc(100vw - 32px);
+}
+.admin-toast.show { opacity: 1; }
+.admin-toast.err { border-color: var(--red); color: var(--red); }
+
+@media (max-width: 900px) {
+  .admin-grid { grid-template-columns: 1fr; }
+}
