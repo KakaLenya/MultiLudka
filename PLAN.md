@@ -43,7 +43,8 @@ MultiLidka/           # корень проекта
 Каждое сообщение: `{ "type": "...", ...поля }`.
 
 Клиент -> сервер:
-- `hello` { token?, name } : вход; сервер отвечает `welcome`
+- `hello` { token } или { name } : вход по токену или регистрация; сервер отвечает `welcome`
+- `claim_bonus` {} : суточное пособие
 - `crash_bet` { amount, autoCashout? }
 - `crash_cashout` {}
 - `poker_join` { buyIn } / `poker_leave`
@@ -53,12 +54,14 @@ MultiLidka/           # корень проекта
 
 Сервер -> клиент:
 - `welcome` { playerId, token, name, balance }
-- `online` [ { id, name } ]
-- `balance` { balance, atTable }
-- `leaderboard` [ { name, balance } ]
+- `online` { players: [ { id, name } ] }
+- `balance` { balance, reserved, bonus: { amount, eligible, availableIn } } : reserved = фишки в играх
+- `leaderboard` { players: [ { id, name, capital, online } ] }
 - `crash_state` { phase: "betting" | "running" | "crashed", multiplier, endsAt?, players: [...] }
 - `poker_state` { phase, pot, players (свои кубики видны только тебе), turn, dealer, turnEndsAt, ... }
-- `error` { message }
+- `error` { message, code? } : code `bad_token` (токен не найден, показать вход), `bad_name`
+
+Имена уникальны без учёта регистра. Токен отдаётся только владельцу и не попадает в рейтинг.
 
 Важно: чужие кубики в `poker_state` не отправлять до вскрытия.
 

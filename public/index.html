@@ -12,12 +12,13 @@
     <div class="me" id="me" hidden>
       <span id="me-name"></span>
       <span class="chips" id="me-balance"></span>
+      <button class="link" id="logout" type="button" title="Выйти из этого игрока">выйти</button>
     </div>
     <div class="conn" id="conn" data-state="connecting">подключение…</div>
   </header>
 
   <main>
-    <section class="card login" id="login">
+    <section class="card login" id="login" hidden>
       <h1>Заходи</h1>
       <p class="muted">Фишки виртуальные. Играем на интерес.</p>
       <form id="login-form" autocomplete="off">
@@ -28,19 +29,35 @@
     </section>
 
     <section class="lobby" id="lobby" hidden>
-      <div class="games">
-        <div class="card game soon">
-          <h2>📈 Краш</h2>
-          <p class="muted">Скоро</p>
+      <div class="main-col">
+        <div class="card bonus" id="bonus" hidden>
+          <div>
+            <h2>Фишки кончились</h2>
+            <p class="muted" id="bonus-text"></p>
+          </div>
+          <button type="button" id="bonus-btn">Забрать</button>
         </div>
-        <div class="card game soon">
-          <h2>🎲 Покер на кубиках</h2>
-          <p class="muted">Скоро</p>
+        <div class="games">
+          <div class="card game soon">
+            <h2>📈 Краш</h2>
+            <p class="muted">Скоро</p>
+          </div>
+          <div class="card game soon">
+            <h2>🎲 Покер на кубиках</h2>
+            <p class="muted">Скоро</p>
+          </div>
         </div>
+        <p class="error toast" id="toast"></p>
       </div>
-      <aside class="card online">
-        <h2>Онлайн <span class="count" id="online-count">0</span></h2>
-        <ul id="online-list"></ul>
+      <aside class="side-col">
+        <div class="card">
+          <h2>Онлайн <span class="count" id="online-count">0</span></h2>
+          <ul class="list" id="online-list"></ul>
+        </div>
+        <div class="card">
+          <h2>Рейтинг</h2>
+          <ol class="list leaderboard" id="leaderboard"></ol>
+        </div>
       </aside>
     </section>
   </main>

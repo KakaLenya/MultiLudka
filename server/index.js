@@ -2,12 +2,15 @@ const http = require('node:http');
 const path = require('node:path');
 const express = require('express');
 const { WebSocketServer } = require('ws');
-const players = require('./players');
+const { createStore } = require('./players');
 
 const PORT = Number(process.env.PORT) || 3000;
 // По умолчанию слушаем только локально: наружу пускает cloudflared.
 const HOST = process.env.HOST || '127.0.0.1';
 const HEARTBEAT_MS = 30_000;
+const LEADERBOARD_THROTTLE_MS = 300;
+
+const store = createStore({ file: path.join(__dirname, '..', 'data', 'players.json') });
 
 const app = express();
 app.use(express.static(path.join(__dirname, '..', 'public')));
@@ -29,28 +32,70 @@ function broadcast(msg) {
   }
 }
 
-// Список онлайн без дублей: один игрок может быть открыт в нескольких вкладках.
-function onlineList() {
-  const seen = new Map();
+// Всем вкладкам одного игрока.
+function sendToPlayer(player, msg) {
   for (const ws of clients) {
-    if (ws.player) seen.set(ws.player.id, { id: ws.player.id, name: ws.player.name });
+    if (ws.player === player) send(ws, msg);
   }
-  return [...seen.values()];
+}
+
+function onlineIds() {
+  const ids = new Set();
+  for (const ws of clients) if (ws.player) ids.add(ws.player.id);
+  return ids;
 }
 
 function broadcastOnline() {
-  broadcast({ type: 'online', players: onlineList() });
+  const players = [...onlineIds()].map((id) => ({ id, name: store.get(id).name }));
+  broadcast({ type: 'online', players });
+  scheduleLeaderboard();
 }
+
+function balanceMsg(player) {
+  return {
+    type: 'balance',
+    balance: player.balance,
+    reserved: store.reserved(player),
+    bonus: store.bonusStatus(player),
+  };
+}
+
+function leaderboardMsg() {
+  const online = onlineIds();
+  return {
+    type: 'leaderboard',
+    players: store.leaderboard().map((p) => ({ ...p, online: online.has(p.id) })),
+  };
+}
+
+// Балансы в играх меняются пачками: рассылаем лидерборд не чаще раза в LEADERBOARD_THROTTLE_MS.
+let leaderboardTimer = null;
+function scheduleLeaderboard() {
+  if (leaderboardTimer) return;
+  leaderboardTimer = setTimeout(() => {
+    leaderboardTimer = null;
+    broadcast(leaderboardMsg());
+  }, LEADERBOARD_THROTTLE_MS);
+}
+
+store.onChange((player) => {
+  sendToPlayer(player, balanceMsg(player));
+  scheduleLeaderboard();
+});
 
 const handlers = {
   hello(ws, msg) {
     if (ws.player) return send(ws, { type: 'error', message: 'Уже вошёл' });
 
-    let player = players.findByToken(msg.token);
+    let player = store.findByToken(msg.token);
     if (!player) {
-      const name = players.cleanName(msg.name);
-      if (!name) return send(ws, { type: 'error', message: 'Введи имя (1-20 символов)' });
-      player = players.create(name);
+      if (msg.name === undefined) {
+        // Токен из localStorage не узнали (например, удалили data/). Клиент покажет форму входа.
+        return send(ws, { type: 'error', code: 'bad_token', message: 'Сессия не найдена, войди заново' });
+      }
+      const result = store.register(msg.name);
+      if (result.error) return send(ws, { type: 'error', code: 'bad_name', message: result.error });
+      player = result.player;
     }
 
     ws.player = player;
@@ -61,7 +106,14 @@ const handlers = {
       name: player.name,
       balance: player.balance,
     });
+    send(ws, balanceMsg(player));
+    send(ws, leaderboardMsg());
     broadcastOnline();
+  },
+
+  claim_bonus(ws) {
+    const result = store.claimBonus(ws.player);
+    if (result.error) send(ws, { type: 'error', message: result.error });
   },
 };
 
@@ -88,7 +140,12 @@ wss.on('connection', (ws) => {
     if (msg.type !== 'hello' && !ws.player) {
       return send(ws, { type: 'error', message: 'Сначала hello' });
     }
-    handler(ws, msg);
+    try {
+      handler(ws, msg);
+    } catch (err) {
+      console.error(`Ошибка в обработчике ${msg.type}:`, err);
+      send(ws, { type: 'error', message: 'Ошибка сервера' });
+    }
   });
 
   ws.on('close', () => {
@@ -108,6 +165,18 @@ setInterval(() => {
     ws.ping();
   }
 }, HEARTBEAT_MS);
+
+// Не теряем изменения, которые ещё ждут дебаунса.
+function shutdown() {
+  try {
+    store.flush();
+  } finally {
+    process.exit(0);
+  }
+}
+process.on('SIGINT', shutdown);
+process.on('SIGTERM', shutdown);
+process.on('SIGHUP', shutdown);
 
 server.listen(PORT, HOST, () => {
   console.log(`Казино-зал: http://${HOST === '0.0.0.0' ? 'localhost' : HOST}:${PORT}`);

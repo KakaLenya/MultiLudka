@@ -12,6 +12,7 @@
 }
 
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 
 body {
   margin: 0;
@@ -82,15 +83,51 @@ button {
 button:disabled { opacity: .5; cursor: default; }
 .error { color: var(--red); min-height: 1.4em; margin: 12px 0 0; }
 
+button.link {
+  padding: 0;
+  background: none;
+  color: var(--muted);
+  font-weight: 400;
+  font-size: 13px;
+  text-decoration: underline;
+}
+
 .lobby { display: grid; grid-template-columns: 1fr 260px; gap: 16px; }
-.games { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; align-content: start; }
+.main-col, .side-col { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.games { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
 .game { min-height: 160px; }
 .game.soon { opacity: .6; }
 
-.online ul { list-style: none; margin: 0; padding: 0; }
-.online li { padding: 6px 0; border-top: 1px solid var(--line); }
-.online li.self { color: var(--gold); }
-.online li.self::after { content: " (ты)"; color: var(--muted); }
+.bonus {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border-color: var(--gold);
+}
+.bonus .muted { margin: 0; }
+.toast { margin: 0; }
+
+.list { list-style: none; margin: 0; padding: 0; }
+.list li {
+  display: flex;
+  gap: 8px;
+  padding: 6px 0;
+  border-top: 1px solid var(--line);
+}
+.list .name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.list li.self .name { color: var(--gold); }
+.list li.self .name::after { content: " (ты)"; color: var(--muted); }
+.leaderboard { counter-reset: place; }
+.leaderboard li::before {
+  counter-increment: place;
+  content: counter(place);
+  width: 1.5em;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.leaderboard li.offline .name { opacity: .55; }
+.leaderboard .score { color: var(--gold); font-variant-numeric: tabular-nums; }
 .count {
   font-size: 13px;
   background: var(--line);
