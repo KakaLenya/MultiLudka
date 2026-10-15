@@ -24,7 +24,7 @@ function tokenMatches(given, expected) {
 }
 
 function createAdminRouter({
-  adminToken, store, crash, table, roulette, music, chat, mutes, cleanText,
+  adminToken, store, crash, table, roulette, music, songRequests, chat, mutes, cleanText,
   onlineIds, sendToPlayer, broadcast, refreshLists, disconnectPlayer = () => {},
 }) {
   const router = express.Router();
@@ -66,7 +66,8 @@ function createAdminRouter({
       }))
       .sort((a, b) => b.online - a.online || b.capital - a.capital);
     res.json({ players, crash: crash.adminState(), roulette: roulette.adminState(), poker: table.adminView(), chat: chat.log(),
-      music: { current: music.state(), playlist: music.playlist() } });
+      music: { current: music.state(), playlist: music.playlist() },
+      requests: songRequests.list() });
   });
 
   // { amount, target: "online" | "all" | "player", playerId? }
@@ -134,6 +135,7 @@ function createAdminRouter({
     if (!p) return fail(res, 'Игрок не найден', 404);
     if (table.isSeated(p)) table.leave(p);
     mutes.delete(p.id);
+    songRequests.forget(p.id);
     const result = store.remove(p);
     if (result.error) return fail(res, result.error);
     disconnectPlayer(p);
@@ -198,6 +200,23 @@ function createAdminRouter({
   });
 
   router.post('/music/stop', (req, res) => ok(res, music.stop()));
+
+  // { id, trackId? } — включить заказ сразу у всех (trackId, если админ выбрал другой трек).
+  router.post('/requests/approve', (req, res) => {
+    const trackId = typeof req.body.trackId === 'string' && req.body.trackId ? req.body.trackId : undefined;
+    const result = songRequests.approve(req.body.id, trackId);
+    if (result.error) return fail(res, result.error);
+    chat.post(null, SYSTEM_NAME, `🎵 Включаю заказ ${result.request.name}: ${result.track.title}`);
+    ok(res, result);
+  });
+
+  router.post('/requests/reject', (req, res) => {
+    const result = songRequests.reject(req.body.id);
+    if (result.error) return fail(res, result.error);
+    const p = findPlayer(result.request.playerId);
+    if (p) sendToPlayer(p, { type: 'error', message: `Админ не стал включать «${result.request.text}»` });
+    ok(res, result);
+  });
 
   router.post('/chat/clear', (req, res) => {
     chat.clear();

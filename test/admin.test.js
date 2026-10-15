@@ -11,6 +11,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const { createMusic } = require('../server/music');
+const { createSongRequests } = require('../server/requests');
 
 const MUSIC_DIR = fs.mkdtempSync(path.join(os.tmpdir(), 'casino-admin-music-'));
 for (const f of ['Алкоголичка.mp3', 'Зацепила.mp3']) fs.writeFileSync(path.join(MUSIC_DIR, f), 'x');
@@ -84,6 +85,7 @@ async function withServer(fn) {
   const table = createTable({ store });
   const chatLog = [];
   const sent = [];
+  const music = createMusic({ dir: MUSIC_DIR, onChange: (track) => sent.push({ type: 'music', track }) });
   const app = express();
   app.use('/admin/api', createAdminRouter({
     adminToken: 'secret-token',
@@ -91,7 +93,8 @@ async function withServer(fn) {
     crash,
     table,
     roulette: createRoulette({ store }),
-    music: createMusic({ dir: MUSIC_DIR, onChange: (track) => sent.push({ type: 'music', track }) }),
+    music,
+    songRequests: createSongRequests({ playlist: music.playlist, play: music.play }),
     chat: {
       log: () => chatLog,
       post: (playerId, name, text) => chatLog.push({ playerId, name, text }),
@@ -109,7 +112,7 @@ async function withServer(fn) {
   await new Promise((r) => server.once('listening', r));
   const base = `http://127.0.0.1:${server.address().port}/admin/api`;
   try {
-    await fn({ base, a, store, chatLog, sent });
+    await fn({ base, a, store, chatLog, sent, router: app });
   } finally {
     server.close();
   }

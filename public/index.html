@@ -176,8 +176,14 @@
           <h2>Чат</h2>
           <ul class="chat-log" id="chat-log"></ul>
           <form class="chat-form" id="chat-form" autocomplete="off">
-            <input id="chat-input" maxlength="200" placeholder="Написать…">
+            <input id="chat-input" maxlength="200" placeholder="Написать… (!песня название)">
             <button type="submit">↵</button>
+          </form>
+          <form class="order-form" id="order-form" autocomplete="off" hidden>
+            <select id="order-track" aria-label="Песня">
+              <option value="">🎵 Заказать песню…</option>
+            </select>
+            <button type="submit" class="ghost">Заказать</button>
           </form>
         </div>
       </aside>

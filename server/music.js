@@ -74,7 +74,16 @@ function createMusic({ dir, urlPrefix = '/music-files/', onChange = () => {}, no
     return { ok: true };
   }
 
-  return { play, stop, state, playlist };
+  // После перезапуска сервера: продолжить трек с того же места, если файл ещё на месте.
+  function restore(saved) {
+    if (!saved || typeof saved.id !== 'string' || !Number.isFinite(saved.startedAt)) return false;
+    const song = playlist().find((s) => s.id === saved.id);
+    if (!song) return false;
+    current = { id: song.id, title: song.title, url: song.url, startedAt: saved.startedAt };
+    return true;
+  }
+
+  return { play, stop, state, playlist, restore };
 }
 
 module.exports = { createMusic, sniffAudioType, AUDIO_EXT };

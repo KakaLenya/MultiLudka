@@ -51,3 +51,17 @@ test('тип аудио по содержимому, а не по расшире
   assert.equal(sniffAudioType(put('мусор.mp3', [1, 2, 3])), null);
   assert.equal(sniffAudioType(path.join(dir, 'нет файла.mp3')), null);
 });
+
+test('после перезапуска трек продолжается с того же места', () => {
+  let t = 100_000;
+  const dir = musicDir(['Чика.mp3']);
+  const m1 = createMusic({ dir, now: () => t });
+  m1.play('Чика.mp3');
+  const saved = { id: m1.state().id, startedAt: m1.state().startedAt };
+  t += 30_000;
+  const m2 = createMusic({ dir, now: () => t });
+  assert.equal(m2.restore(saved), true);
+  assert.equal(m2.state().offset, 30);
+  assert.equal(createMusic({ dir, now: () => t }).restore({ id: 'удалён.mp3', startedAt: 0 }), false);
+  assert.equal(createMusic({ dir, now: () => t }).restore(null), false);
+});

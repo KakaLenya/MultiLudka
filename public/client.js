@@ -47,8 +47,9 @@ function showLogin() {
 }
 
 let toastTimer = null;
-function toast(text) {
+function toast(text, ok = false) {
   $('toast').textContent = text;
+  $('toast').classList.toggle('ok', ok);
   clearTimeout(toastTimer);
   toastTimer = setTimeout(() => { $('toast').textContent = ''; }, 4000);
 }
@@ -694,6 +695,14 @@ function renderChat(messages, append) {
   if (atBottom || !append) log.scrollTop = log.scrollHeight;
 }
 
+$('order-form').addEventListener('submit', (ev) => {
+  ev.preventDefault();
+  const trackId = $('order-track').value;
+  if (!trackId) return toast('Выбери песню из списка');
+  send({ type: 'song_request', trackId });
+  $('order-track').value = '';
+});
+
 $('chat-form').addEventListener('submit', (ev) => {
   ev.preventDefault();
   const text = $('chat-input').value.trim();
@@ -1142,6 +1151,23 @@ const handlers = {
     rl.view = msg;
     rl.recvAt = performance.now();
     renderRoulette();
+  },
+
+  notice(msg) {
+    toast(msg.message, true);
+  },
+
+  music_library(msg) {
+    const select = $('order-track');
+    const current = select.value;
+    select.replaceChildren(select.options[0], ...msg.tracks.map((t) => {
+      const o = document.createElement('option');
+      o.value = t.id;
+      o.textContent = t.title;
+      return o;
+    }));
+    select.value = msg.tracks.some((t) => t.id === current) ? current : '';
+    $('order-form').hidden = !msg.tracks.length;
   },
 
   announce(msg) {

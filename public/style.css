@@ -516,3 +516,18 @@ body.fx-disco { animation: fx-disco .5s linear infinite; }
 @media (max-width: 700px) {
   .music { left: 8px; right: 8px; bottom: 8px; }
 }
+
+.order-form { display: flex; gap: 6px; margin-top: 6px; }
+.order-form select {
+  flex: 1;
+  min-width: 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--bg);
+  color: var(--text);
+  font: inherit;
+  font-size: 14px;
+}
+.order-form button { padding: 8px 12px; font-size: 14px; }
+.toast.ok { color: var(--green); }

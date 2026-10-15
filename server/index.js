@@ -10,6 +10,7 @@ const { createTable } = require('./dicepoker');
 const { createAdminRouter } = require('./admin');
 const { createRoulette } = require('./roulette');
 const { createMusic, sniffAudioType } = require('./music');
+const { createSongRequests } = require('./requests');
 
 const PORT = Number(process.env.PORT) || 3000;
 // По умолчанию слушаем только локально: наружу пускает cloudflared.
@@ -174,7 +175,48 @@ const roulette = createRoulette({
 });
 store.addReserver(roulette.reserved);
 
-const music = createMusic({ dir: MUSIC_DIR, onChange: (track) => broadcast({ type: 'music', track }) });
+// Текущий трек переживает перезапуск сервера: пишем его в data/music-now.json.
+const MUSIC_NOW_FILE = path.join(DATA_DIR, 'music-now.json');
+const music = createMusic({
+  dir: MUSIC_DIR,
+  onChange: (track) => {
+    broadcast({ type: 'music', track });
+    try {
+      if (track) fs.writeFileSync(MUSIC_NOW_FILE, JSON.stringify({ id: track.id, startedAt: track.startedAt }));
+      else fs.rmSync(MUSIC_NOW_FILE, { force: true });
+    } catch (err) {
+      console.error('Не удалось сохранить текущий трек:', err.message);
+    }
+  },
+});
+try {
+  music.restore(JSON.parse(fs.readFileSync(MUSIC_NOW_FILE, 'utf8')));
+} catch { /* ничего не играло */ }
+const songRequests = createSongRequests({ playlist: music.playlist, play: music.play });
+
+// Список треков для кнопки «Заказать»: шлём при входе и когда в папке что-то поменялось.
+function libraryMsg() {
+  return { type: 'music_library', tracks: music.playlist().map((s) => ({ id: s.id, title: s.title })) };
+}
+let libraryKey = '';
+setInterval(() => {
+  const msg = libraryMsg();
+  const key = msg.tracks.map((t) => t.id).join('|');
+  if (key !== libraryKey) {
+    libraryKey = key;
+    broadcast(msg);
+  }
+}, 10_000);
+
+// Заказ песни от игрока: в чат уходит объявление, админ подтверждает в админке.
+function requestSong(ws, payload) {
+  const result = songRequests.request(ws.player, payload);
+  if (result.error) return send(ws, { type: 'error', message: result.error });
+  const r = result.request;
+  postChat(null, '🎰 Зал', `🎵 ${r.name} заказывает: ${r.text}${result.track ? '' : ' (такого трека пока нет)'}`);
+  send(ws, { type: 'notice', message: 'Заказ отправлен, ждём подтверждения админа' });
+}
+const SONG_COMMAND = /^[!/](песня|заказ|song|трек)\s+(.+)$/i;
 
 // Покер: каждому своё состояние (свои кубики видны только себе).
 let pokerTimer = null;
@@ -244,6 +286,7 @@ const handlers = {
     send(ws, { type: 'poker_state', ...table.view(player) });
     send(ws, { type: 'chat_history', messages: chatLog });
     send(ws, { type: 'music', track: music.state() });
+    send(ws, libraryMsg());
     broadcastOnline();
   },
 
@@ -283,11 +326,18 @@ const handlers = {
     reply(ws, table.reroll(ws.player, msg.keep));
   },
 
+  song_request(ws, msg) {
+    const trackId = typeof msg.trackId === 'string' ? msg.trackId : undefined;
+    requestSong(ws, { text: msg.text, trackId });
+  },
+
   chat(ws, msg) {
     const text = cleanChat(msg.text);
     if (!text) return;
     const mutedFor = (mutes.get(ws.player.id) || 0) - Date.now();
     if (mutedFor > 0) return send(ws, { type: 'error', message: `Ты в муте ещё ${Math.ceil(mutedFor / 60000)} мин` });
+    const command = SONG_COMMAND.exec(text);
+    if (command) return requestSong(ws, { text: command[2] });
     if (!allow(ws.chatRate, CHAT_LIMIT)) return send(ws, { type: 'error', message: 'Не так быстро, чат отдыхает' });
     postChat(ws.player.id, ws.player.name, text);
   },
@@ -380,6 +430,7 @@ app.use('/admin/api', createAdminRouter({
   table,
   roulette,
   music,
+  songRequests,
   chat: {
     log: () => chatLog,
     post: postChat,

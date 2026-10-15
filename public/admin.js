@@ -188,6 +188,77 @@ function renderMusic() {
   for (const b of list.querySelectorAll('.song')) b.classList.toggle('playing', !!m.current && m.current.id === b.dataset.id);
 }
 
+// Заказы песен от игроков: перестраиваем, только когда список поменялся (чтобы не сбивать выбор в select).
+let lastRequestCount = 0;
+function renderRequests() {
+  const reqs = admin.data.requests;
+  const box = $('m-requests');
+  const key = reqs.map((r) => `${r.id}:${r.trackId}`).join('|') + '#' + admin.data.music.playlist.length;
+  if (box.dataset.key === key) return;
+  box.dataset.key = key;
+  if (reqs.length > lastRequestCount) beepAdmin();
+  lastRequestCount = reqs.length;
+
+  box.replaceChildren(...reqs.map((r) => {
+    const row = document.createElement('div');
+    row.className = 'request';
+    const who = document.createElement('div');
+    who.className = 'request-who';
+    const name = document.createElement('b');
+    name.textContent = r.name;
+    who.append('🎵 ', name, `: «${r.text}»`);
+
+    const select = document.createElement('select');
+    const none = document.createElement('option');
+    none.value = '';
+    none.textContent = 'трек не найден, выбери';
+    select.append(none);
+    for (const s of admin.data.music.playlist) {
+      const o = document.createElement('option');
+      o.value = s.id;
+      o.textContent = s.title;
+      select.append(o);
+    }
+    select.value = r.trackId || '';
+
+    const play = document.createElement('button');
+    play.type = 'button';
+    play.textContent = '▶ Включить';
+    play.addEventListener('click', () => {
+      if (!select.value) return toast('Выбери трек для заказа', true);
+      run('/requests/approve', { id: r.id, trackId: select.value }, (x) => `Играет заказ ${r.name}: ${x.track.title}`);
+    });
+    const no = document.createElement('button');
+    no.type = 'button';
+    no.className = 'ghost';
+    no.textContent = '✕';
+    no.title = 'Отклонить';
+    no.addEventListener('click', () => run('/requests/reject', { id: r.id }, `Заказ ${r.name} отклонён`));
+
+    const actions = document.createElement('div');
+    actions.className = 'row';
+    actions.append(select, play, no);
+    row.append(who, actions);
+    return row;
+  }));
+}
+
+// Короткий сигнал о новом заказе (если вкладка админки открыта).
+let adminAudio = null;
+function beepAdmin() {
+  try {
+    adminAudio = adminAudio || new AudioContext();
+    const o = adminAudio.createOscillator();
+    const g = adminAudio.createGain();
+    o.frequency.value = 880;
+    g.gain.setValueAtTime(0.1, adminAudio.currentTime);
+    g.gain.exponentialRampToValueAtTime(0.001, adminAudio.currentTime + 0.3);
+    o.connect(g).connect(adminAudio.destination);
+    o.start();
+    o.stop(adminAudio.currentTime + 0.3);
+  } catch { /* без звука */ }
+}
+
 function renderRoulette() {
   const r = admin.data.roulette;
   $('r-phase').textContent = { betting: 'ставки', spinning: 'крутится', result: 'результат' }[r.phase] || r.phase;
@@ -254,6 +325,7 @@ function render() {
   renderPlayers();
   renderSelected();
   renderMusic();
+  renderRequests();
   renderCrash();
   renderRoulette();
   renderPoker();

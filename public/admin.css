@@ -69,3 +69,10 @@ code { background: var(--bg); padding: 1px 5px; border-radius: 4px; }
 .song .views { color: var(--muted); font-size: 12px; white-space: nowrap; }
 .song.playing { border-color: var(--gold); color: var(--gold); }
 .small-btn { padding: 4px 10px; font-size: 13px; margin-left: 8px; vertical-align: middle; }
+
+.requests { display: flex; flex-direction: column; gap: 8px; margin: 6px 0 10px; }
+.requests:empty { display: none; }
+.request { padding: 10px; border-radius: 10px; border: 1px solid var(--gold); background: rgba(242, 193, 78, .07); }
+.request .row { margin-top: 6px; }
+.request select { flex: 1 1 180px; width: auto; padding: 8px; }
+.request-who { overflow-wrap: anywhere; }
