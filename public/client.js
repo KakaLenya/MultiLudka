@@ -660,6 +660,48 @@ $('keep-all-btn').addEventListener('click', () => {
   send({ type: 'poker_reroll', keep: [true, true, true, true, true] });
 });
 
+// ---------- Чат ----------
+
+function chatItem(m) {
+  const li = document.createElement('li');
+  if (state.me && m.playerId === state.me.playerId) li.className = 'self';
+  const time = document.createElement('span');
+  time.className = 'time';
+  time.textContent = new Date(m.at).toLocaleTimeString('ru', { hour: '2-digit', minute: '2-digit' });
+  const author = document.createElement('span');
+  author.className = 'author';
+  author.textContent = m.name;
+  const text = document.createElement('span');
+  text.textContent = m.text;
+  li.append(time, author, text);
+  return li;
+}
+
+function renderChat(messages, append) {
+  const log = $('chat-log');
+  // Прокручиваем вниз, только если человек и так был внизу (не мешаем читать историю).
+  const atBottom = log.scrollHeight - log.scrollTop - log.clientHeight < 30;
+  if (!append) log.replaceChildren();
+  log.querySelector('.empty')?.remove();
+  log.append(...messages.map(chatItem));
+  if (!log.children.length) {
+    const li = document.createElement('li');
+    li.className = 'empty';
+    li.textContent = 'Пока тихо';
+    log.append(li);
+  }
+  while (log.children.length > 50) log.firstChild.remove();
+  if (atBottom || !append) log.scrollTop = log.scrollHeight;
+}
+
+$('chat-form').addEventListener('submit', (ev) => {
+  ev.preventDefault();
+  const text = $('chat-input').value.trim();
+  if (!text) return;
+  send({ type: 'chat', text });
+  $('chat-input').value = '';
+});
+
 // ---------- Сообщения сервера ----------
 
 const handlers = {
@@ -674,6 +716,14 @@ const handlers = {
     $('me-name').textContent = msg.name;
     $('me-balance').textContent = msg.balance;
     state.balance = msg.balance;
+  },
+
+  chat_history(msg) {
+    renderChat(msg.messages, false);
+  },
+
+  chat(msg) {
+    renderChat([msg.message], true);
   },
 
   poker_state(msg) {

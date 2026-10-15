@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const { createStore } = require('../server/players');
 const {
-  evaluate, compare, createTable, RANK, ANTE, START_DELAY_MS, TURN_MS, REROLL_MS, SHOWDOWN_MS,
+  evaluate, compare, createTable, RANK, ANTE, START_DELAY_MS, TURN_MS, REROLL_MS, SHOWDOWN_MS, DISCONNECT_GRACE_MS,
 } = require('../server/dicepoker');
 
 // ---------- evaluate / compare ----------
@@ -307,4 +307,20 @@ test('мало игроков: раздача не стартует, отсчё�
   wait(START_DELAY_MS);
   assert.equal(table.view(null).phase, 'waiting');
   assert.equal(a.balance, 800);
+});
+
+test('отключение вне раздачи: место держится минуту, потом стек в баланс', () => {
+  const { table, players: [a, b], wait } = setup(['Аня', 'Боря']);
+  table.setConnected(b, false);
+  wait(START_DELAY_MS);
+  assert.equal(table.view(null).phase, 'waiting', 'без Бори раздача не стартует');
+  table.setConnected(b, true);                 // обновил страницу и вернулся
+  assert.equal(table.view(null).phase, 'starting');
+  table.leave(a);
+  table.setConnected(b, false);
+  wait(DISCONNECT_GRACE_MS - 1);
+  assert.ok(table.view(null).seats[1], 'ещё держим место');
+  wait(1);
+  assert.equal(table.view(null).seats[1], null);
+  assert.equal(b.balance, 1000);
 });

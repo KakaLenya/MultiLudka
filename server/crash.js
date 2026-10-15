@@ -179,7 +179,14 @@ function createCrashGame({ store, onState = () => {}, now = Date.now, random = r
 
   function start() {
     newRound(now());
-    timer = setInterval(tick, TICK_MS);
+    // Ошибка в одном тике не должна ронять сервер.
+    timer = setInterval(() => {
+      try {
+        tick();
+      } catch (err) {
+        console.error('Краш: ошибка в тике', err);
+      }
+    }, TICK_MS);
   }
 
   function stop() {

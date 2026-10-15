@@ -273,7 +273,7 @@ button:not(.link):not(:disabled):hover { filter: brightness(1.08); }
 .seat .status { color: var(--muted); font-size: 13px; }
 .seat .bet { color: var(--text); font-size: 13px; }
 .seat .won { color: var(--green); font-weight: 700; }
-.seat .dice { margin-top: 6px; gap: 3px; }
+.seat .dice { margin-top: 6px; gap: 2px; flex-wrap: nowrap; justify-content: flex-start; }
 
 .my-hand { margin-top: 16px; text-align: center; }
 .dice { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
@@ -294,7 +294,7 @@ button:not(.link):not(:disabled):hover { filter: brightness(1.08); }
   border: 0;
   cursor: default;
 }
-.die.small { --size: 24px; border-radius: 5px; box-shadow: none; }
+.die.small { --size: 20px; border-radius: 4px; box-shadow: none; }
 .die i { width: 70%; height: 70%; margin: auto; border-radius: 50%; }
 .die i.on { background: #1d1d1d; }
 .die.pick { cursor: pointer; }
@@ -320,3 +320,22 @@ button:not(.link):not(:disabled):hover { filter: brightness(1.08); }
   .stage { height: 200px; }
   .topbar { flex-wrap: wrap; }
 }
+
+/* Чат */
+.chat-log {
+  list-style: none;
+  margin: 0 0 10px;
+  padding: 0;
+  max-height: 240px;
+  overflow-y: auto;
+  font-size: 14px;
+  overflow-wrap: anywhere;
+}
+.chat-log li { padding: 3px 0; }
+.chat-log .time { color: var(--muted); font-size: 12px; margin-right: 4px; font-variant-numeric: tabular-nums; }
+.chat-log .author { font-weight: 600; margin-right: 4px; }
+.chat-log li.self .author { color: var(--gold); }
+.chat-log .empty { color: var(--muted); }
+.chat-form { display: flex; gap: 6px; }
+.chat-form input { padding: 8px 10px; }
+.chat-form button { padding: 8px 12px; }

@@ -11,6 +11,15 @@ const PORT = Number(process.env.PORT) || 3000;
 const HOST = process.env.HOST || '127.0.0.1';
 const HEARTBEAT_MS = 30_000;
 const LEADERBOARD_THROTTLE_MS = 300;
+const CHAT_MAX_LEN = 200;
+const CHAT_HISTORY = 50;
+// Лимиты частоты (token bucket): burst сообщений подряд, дальше perSec в секунду.
+const MSG_LIMIT = { burst: 20, perSec: 10 };
+const CHAT_LIMIT = { burst: 5, perSec: 0.5 };
+const FLOOD_STRIKES = 100;   // столько отброшенных сообщений, и соединение закрывается
+// Новые игроки с одного адреса: не больше REG_PER_IP за REG_WINDOW_MS (против фермы аккаунтов).
+const REG_PER_IP = 10;
+const REG_WINDOW_MS = 60 * 60 * 1000;
 
 const store = createStore({ file: path.join(__dirname, '..', 'data', 'players.json') });
 
@@ -22,6 +31,44 @@ const wss = new WebSocketServer({ server, maxPayload: 4096 });
 
 // Все открытые соединения. У каждого: ws.player (после hello) и ws.alive (heartbeat).
 const clients = new Set();
+
+function makeBucket(limit) {
+  return { tokens: limit.burst, at: Date.now() };
+}
+
+function allow(bucket, limit) {
+  const t = Date.now();
+  bucket.tokens = Math.min(limit.burst, bucket.tokens + ((t - bucket.at) / 1000) * limit.perSec);
+  bucket.at = t;
+  if (bucket.tokens < 1) return false;
+  bucket.tokens -= 1;
+  return true;
+}
+
+// Текст чата: без управляющих символов, пробелы схлопнуты, не длиннее CHAT_MAX_LEN.
+function cleanChat(raw) {
+  if (typeof raw !== 'string') return null;
+  const text = raw.replace(/[\u0000-\u001f\u007f]/g, ' ').replace(/\s+/g, ' ').trim().slice(0, CHAT_MAX_LEN);
+  return text || null;
+}
+
+const chatLog = [];
+let chatSeq = 0;
+
+const registrations = new Map();  // ip -> [время регистрации, ...]
+
+function canRegister(ip) {
+  const t = Date.now();
+  const recent = (registrations.get(ip) || []).filter((at) => t - at < REG_WINDOW_MS);
+  registrations.set(ip, recent);
+  return recent.length < REG_PER_IP;
+}
+
+// За cloudflared настоящий адрес в CF-Connecting-IP; локально берём адрес сокета.
+function clientIp(req) {
+  const cf = req.headers['cf-connecting-ip'];
+  return typeof cf === 'string' && cf ? cf : req.socket.remoteAddress;
+}
 
 function send(ws, msg) {
   if (ws.readyState === ws.OPEN) ws.send(JSON.stringify(msg));
@@ -126,8 +173,12 @@ const handlers = {
         // Токен из localStorage не узнали (например, удалили data/). Клиент покажет форму входа.
         return send(ws, { type: 'error', code: 'bad_token', message: 'Сессия не найдена, войди заново' });
       }
+      if (!canRegister(ws.ip)) {
+        return send(ws, { type: 'error', code: 'bad_name', message: 'Слишком много новых игроков с этого адреса, попробуй позже' });
+      }
       const result = store.register(msg.name);
       if (result.error) return send(ws, { type: 'error', code: 'bad_name', message: result.error });
+      registrations.get(ws.ip).push(Date.now());
       player = result.player;
     }
 
@@ -144,6 +195,7 @@ const handlers = {
     send(ws, { type: 'crash_state', ...crash.state() });
     table.setConnected(player, true);
     send(ws, { type: 'poker_state', ...table.view(player) });
+    send(ws, { type: 'chat_history', messages: chatLog });
     broadcastOnline();
   },
 
@@ -174,16 +226,36 @@ const handlers = {
   poker_reroll(ws, msg) {
     reply(ws, table.reroll(ws.player, msg.keep));
   },
+
+  chat(ws, msg) {
+    const text = cleanChat(msg.text);
+    if (!text) return;
+    if (!allow(ws.chatRate, CHAT_LIMIT)) return send(ws, { type: 'error', message: 'Не так быстро, чат отдыхает' });
+    const message = { id: ++chatSeq, playerId: ws.player.id, name: ws.player.name, text, at: Date.now() };
+    chatLog.push(message);
+    if (chatLog.length > CHAT_HISTORY) chatLog.shift();
+    broadcast({ type: 'chat', message });
+  },
 };
 
-wss.on('connection', (ws) => {
+wss.on('connection', (ws, req) => {
+  ws.ip = clientIp(req);
   ws.alive = true;
+  ws.rate = makeBucket(MSG_LIMIT);
+  ws.chatRate = makeBucket(CHAT_LIMIT);
+  ws.strikes = 0;
   clients.add(ws);
 
   ws.on('pong', () => { ws.alive = true; });
 
   ws.on('message', (data, isBinary) => {
     if (isBinary) return;
+    if (!allow(ws.rate, MSG_LIMIT)) {
+      ws.strikes += 1;
+      if (ws.strikes >= FLOOD_STRIKES) ws.close(1008, 'flood');
+      else if (ws.strikes % 10 === 1) send(ws, { type: 'error', message: 'Слишком много сообщений, притормози' });
+      return;
+    }
     let msg;
     try {
       msg = JSON.parse(data.toString());

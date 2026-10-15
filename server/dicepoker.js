@@ -79,6 +79,7 @@ const TURN_MS = 30_000;
 const REROLL_MS = 30_000;
 const START_DELAY_MS = 5000;
 const SHOWDOWN_MS = 7000;
+const DISCONNECT_GRACE_MS = 60_000;  // столько ждём вернувшегося вне раздачи, потом поднимаем из-за стола
 
 const BET_PHASES = new Set(['bet1', 'bet2']);
 const HAND_PHASES = new Set(['bet1', 'reroll', 'bet2']);
@@ -97,6 +98,7 @@ function createTable({
     rerollMs: REROLL_MS,
     startDelayMs: START_DELAY_MS,
     showdownMs: SHOWDOWN_MS,
+    disconnectGraceMs: DISCONNECT_GRACE_MS,
     ...timings,
   };
 
@@ -403,14 +405,35 @@ function createTable({
     const idx = seatOf(player);
     if (idx < 0) return;
     seats[idx].connected = connected;
+    seats[idx].disconnectedAt = connected ? null : now();
     if (connected) maybeStart();
     onChange();
   }
 
   // ---------- Время ----------
 
+  // Отключившиеся вне раздачи слишком долго: встают, стек в баланс.
+  function dropIdle() {
+    let dropped = false;
+    seats.forEach((s, i) => {
+      if (!s || s.connected || now() - s.disconnectedAt < T.disconnectGraceMs) return;
+      if (s.inHand && HAND_PHASES.has(phase)) return;  // в раздаче: встанет после неё
+      standUp(i);
+      dropped = true;
+    });
+    if (dropped && phase === 'starting' && seats.filter(isEligible).length < 2) {
+      phase = 'waiting';
+      deadline = null;
+    }
+    return dropped;
+  }
+
   function tick() {
-    if (deadline === null || now() < deadline) return;
+    const dropped = dropIdle();
+    if (deadline === null || now() < deadline) {
+      if (dropped) onChange();
+      return;
+    }
     if (phase === 'starting') {
       startHand();
     } else if (BET_PHASES.has(phase)) {
@@ -517,7 +540,16 @@ function createTable({
     reserved,
     refundAll,
     isSeated: (player) => seatOf(player) >= 0,
-    start: () => { timer = setInterval(tick, 250); },
+    start: () => {
+      // Ошибка в одном тике не должна ронять сервер.
+      timer = setInterval(() => {
+        try {
+          tick();
+        } catch (err) {
+          console.error('Покер: ошибка в тике', err);
+        }
+      }, 250);
+    },
     stop: () => { clearInterval(timer); timer = null; },
     // Только для тестов.
     _debug: () => ({ phase, pot, dealer, turn, currentBet, seats }),
@@ -537,6 +569,7 @@ module.exports = {
   MAX_RAISES,
   TURN_MS,
   REROLL_MS,
+  DISCONNECT_GRACE_MS,
   START_DELAY_MS,
   SHOWDOWN_MS,
 };

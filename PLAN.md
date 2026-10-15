@@ -59,6 +59,7 @@ MultiLidka/           # корень проекта
 - `leaderboard` { players: [ { id, name, capital, online } ] }
 - `crash_state` { phase: "betting" | "running" | "crashed", multiplier, endsAt?, players: [...] }
 - `poker_state` { phase, handId, pot, dealer, turn, currentBet, timeLeft, seats[6] (без кубиков), you { dice, hand, myTurn, toCall, canCheck/Call/Bet/Raise, maxRaise, needReroll, ... }, result (только в showdown: победители и вскрытые кубики) }
+- `chat` { message: { id, playerId, name, text, at } }, `chat_history` { messages }
 - `error` { message, code? } : code `bad_token` (токен не найден, показать вход), `bad_name`
 
 Имена уникальны без учёта регистра. Токен отдаётся только владельцу и не попадает в рейтинг.
