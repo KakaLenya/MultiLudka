@@ -4,6 +4,7 @@ const express = require('express');
 const { WebSocketServer } = require('ws');
 const { createStore } = require('./players');
 const { createCrashGame } = require('./crash');
+const { createTable } = require('./dicepoker');
 
 const PORT = Number(process.env.PORT) || 3000;
 // По умолчанию слушаем только локально: наружу пускает cloudflared.
@@ -90,6 +91,31 @@ const crash = createCrashGame({
 });
 store.addReserver(crash.reserved);
 
+// Покер: каждому своё состояние (свои кубики видны только себе).
+let pokerTimer = null;
+function broadcastPoker() {
+  // Несколько изменений за один тик сервера уходят одной рассылкой.
+  if (pokerTimer) return;
+  pokerTimer = setImmediate(() => {
+    pokerTimer = null;
+    for (const ws of clients) {
+      if (ws.player) send(ws, { type: 'poker_state', ...table.view(ws.player) });
+    }
+  });
+}
+const table = createTable({ store, onChange: broadcastPoker });
+store.addReserver(table.reserved);
+
+function isOnline(player) {
+  for (const ws of clients) if (ws.player === player) return true;
+  return false;
+}
+
+// Ответ на команду: ошибку показываем игроку, успех виден из рассылки состояния.
+function reply(ws, result) {
+  if (result && result.error) send(ws, { type: 'error', message: result.error });
+}
+
 const handlers = {
   hello(ws, msg) {
     if (ws.player) return send(ws, { type: 'error', message: 'Уже вошёл' });
@@ -116,22 +142,37 @@ const handlers = {
     send(ws, balanceMsg(player));
     send(ws, leaderboardMsg());
     send(ws, { type: 'crash_state', ...crash.state() });
+    table.setConnected(player, true);
+    send(ws, { type: 'poker_state', ...table.view(player) });
     broadcastOnline();
   },
 
   claim_bonus(ws) {
-    const result = store.claimBonus(ws.player);
-    if (result.error) send(ws, { type: 'error', message: result.error });
+    reply(ws, store.claimBonus(ws.player));
   },
 
   crash_bet(ws, msg) {
-    const result = crash.bet(ws.player, msg.amount, msg.autoCashout);
-    if (result.error) send(ws, { type: 'error', message: result.error });
+    reply(ws, crash.bet(ws.player, msg.amount, msg.autoCashout));
   },
 
   crash_cashout(ws) {
-    const result = crash.cashout(ws.player);
-    if (result.error) send(ws, { type: 'error', message: result.error });
+    reply(ws, crash.cashout(ws.player));
+  },
+
+  poker_join(ws, msg) {
+    reply(ws, table.join(ws.player, msg.buyIn));
+  },
+
+  poker_leave(ws) {
+    reply(ws, table.leave(ws.player));
+  },
+
+  poker_action(ws, msg) {
+    reply(ws, table.act(ws.player, msg.action, msg.amount));
+  },
+
+  poker_reroll(ws, msg) {
+    reply(ws, table.reroll(ws.player, msg.keep));
   },
 };
 
@@ -168,7 +209,10 @@ wss.on('connection', (ws) => {
 
   ws.on('close', () => {
     clients.delete(ws);
-    if (ws.player) broadcastOnline();
+    if (ws.player) {
+      if (!isOnline(ws.player)) table.setConnected(ws.player, false);
+      broadcastOnline();
+    }
   });
 });
 
@@ -189,6 +233,8 @@ function shutdown() {
   try {
     crash.stop();
     crash.refundActive();
+    table.stop();
+    table.refundAll();
     store.flush();
   } finally {
     process.exit(0);
@@ -199,6 +245,7 @@ process.on('SIGTERM', shutdown);
 process.on('SIGHUP', shutdown);
 
 crash.start();
+table.start();
 
 server.listen(PORT, HOST, () => {
   console.log(`Казино-зал: http://${HOST === '0.0.0.0' ? 'localhost' : HOST}:${PORT}`);

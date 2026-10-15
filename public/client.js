@@ -330,6 +330,336 @@ document.addEventListener('keydown', (ev) => {
   $('crash-form').requestSubmit();
 });
 
+// ---------- Вкладки ----------
+
+const TAB_KEY = 'casino.tab';
+
+function showTab(name) {
+  document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t.dataset.tab === name));
+  $('crash').hidden = name !== 'crash';
+  $('poker').hidden = name !== 'poker';
+  storage.set(TAB_KEY, name);
+}
+document.querySelectorAll('.tab').forEach((t) => t.addEventListener('click', () => showTab(t.dataset.tab)));
+showTab(storage.get(TAB_KEY) === 'poker' ? 'poker' : 'crash');
+
+// ---------- Звуки (WebAudio, без файлов) ----------
+
+const SOUND_KEY = 'casino.sound';
+let soundOn = storage.get(SOUND_KEY) !== 'off';
+let audio = null;
+
+function renderSoundBtn() {
+  $('sound').textContent = soundOn ? '🔊' : '🔇';
+}
+renderSoundBtn();
+$('sound').addEventListener('click', () => {
+  soundOn = !soundOn;
+  storage.set(SOUND_KEY, soundOn ? 'on' : 'off');
+  renderSoundBtn();
+});
+
+// notes: [[частота Гц, длительность с], ...]
+function beep(notes, type = 'sine') {
+  if (!soundOn) return;
+  try {
+    audio = audio || new AudioContext();
+    let t = audio.currentTime;
+    for (const [freq, dur] of notes) {
+      const osc = audio.createOscillator();
+      const gain = audio.createGain();
+      osc.type = type;
+      osc.frequency.value = freq;
+      gain.gain.setValueAtTime(0.12, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
+      osc.connect(gain).connect(audio.destination);
+      osc.start(t);
+      osc.stop(t + dur);
+      t += dur * 0.9;
+    }
+  } catch { /* без звука */ }
+}
+
+const sounds = {
+  win: () => beep([[523, 0.12], [659, 0.12], [784, 0.25]], 'triangle'),
+  lose: () => beep([[220, 0.25], [165, 0.35]], 'sawtooth'),
+  turn: () => beep([[880, 0.08], [1175, 0.12]]),
+  dice: () => beep([[300, 0.04], [420, 0.04], [360, 0.05]], 'square'),
+};
+
+// ---------- Покер на кубиках ----------
+
+const PIPS = { 1: [4], 2: [0, 8], 3: [0, 4, 8], 4: [0, 2, 6, 8], 5: [0, 2, 4, 6, 8], 6: [0, 2, 3, 5, 6, 8] };
+
+function dieEl(value, { small = false, rolling = false } = {}) {
+  const el = document.createElement('button');
+  el.type = 'button';
+  el.className = 'die' + (small ? ' small' : '') + (rolling ? ' rolling' : '');
+  el.setAttribute('aria-label', `кубик ${value}`);
+  for (let i = 0; i < 9; i++) {
+    const pip = document.createElement('i');
+    if (PIPS[value].includes(i)) pip.className = 'on';
+    el.append(pip);
+  }
+  return el;
+}
+
+const poker = {
+  view: null,
+  recvAt: 0,
+  pick: new Set(),        // индексы кубиков, отмеченных на перебросок
+  shownDice: null,        // что уже нарисовано (для анимации только изменившихся)
+  lastResultHand: 0,
+  wasMyTurn: false,
+};
+
+function pokerTimeLeft() {
+  const v = poker.view;
+  if (!v || v.timeLeft === null) return 0;
+  return Math.max(0, v.timeLeft - (performance.now() - poker.recvAt));
+}
+
+function seatName(i) {
+  const s = poker.view.seats[i];
+  return s ? s.name : '?';
+}
+
+function renderPokerPhase() {
+  const v = poker.view;
+  if (!v) return;
+  const secs = Math.ceil(pokerTimeLeft() / 1000);
+  const text = {
+    waiting: 'Ждём игроков: нужно двое за столом',
+    starting: `Раздача через ${secs} с`,
+    bet1: `Круг ставок 1 · ходит ${v.turn !== null ? seatName(v.turn) : ''} · ${secs} с`,
+    reroll: `Перебросок · ${secs} с`,
+    bet2: `Круг ставок 2 · ходит ${v.turn !== null ? seatName(v.turn) : ''} · ${secs} с`,
+    showdown: 'Итоги раздачи',
+  }[v.phase];
+  $('poker-phase').textContent = text;
+}
+setInterval(renderPokerPhase, 250);
+
+function renderPokerSeats() {
+  const v = poker.view;
+  const result = v.result;
+  const handsBySeat = new Map((result ? result.hands : []).map((h) => [h.seat, h]));
+  const wonBySeat = new Map((result ? result.winners : []).map((w) => [w.seat, w.won]));
+  const myId = state.me && state.me.playerId;
+
+  $('poker-seats').replaceChildren(...v.seats.map((s, i) => {
+    const el = document.createElement('div');
+    if (!s) {
+      el.className = 'seat empty';
+      el.textContent = 'свободно';
+      return el;
+    }
+    el.className = 'seat';
+    if (s.id === myId) el.classList.add('mine');
+    if (v.turn === i) el.classList.add('turn');
+    if (s.folded) el.classList.add('folded');
+    if (wonBySeat.has(i)) el.classList.add('winner');
+
+    const top = document.createElement('div');
+    top.className = 'top';
+    const who = document.createElement('span');
+    who.className = 'who';
+    who.textContent = s.name;
+    top.append(who);
+    if (v.dealer === i && v.phase !== 'waiting') {
+      const d = document.createElement('span');
+      d.className = 'badge';
+      d.textContent = 'D';
+      d.title = 'Дилер';
+      top.append(d);
+    }
+    if (!s.connected) {
+      const off = document.createElement('span');
+      off.className = 'off';
+      off.textContent = 'нет связи';
+      top.append(off);
+    }
+
+    const stack = document.createElement('div');
+    stack.className = 'stack';
+    stack.textContent = `${s.stack} фишек`;
+
+    const status = document.createElement('div');
+    status.className = 'status';
+    const handActive = ['bet1', 'reroll', 'bet2'].includes(v.phase);
+    if (s.leaving) status.textContent = 'уходит';
+    else if (s.folded) status.textContent = 'пас';
+    else if (handActive && !s.inHand) status.textContent = 'ждёт раздачу';
+    else if (s.decided === false) status.textContent = 'выбирает кубики…';
+    else if (s.decided === true) status.textContent = 'готов';
+    else if (s.rerolled !== null && s.rerolled !== undefined && handActive) {
+      status.textContent = s.rerolled === 0 ? 'ничего не перебросил' : `перебросил ${s.rerolled}`;
+    }
+
+    el.append(top, stack, status);
+
+    if (s.lastAction && handActive && !s.folded) {
+      const act = document.createElement('div');
+      act.className = 'bet';
+      act.textContent = s.lastAction;
+      el.append(act);
+    }
+
+    if (s.committed > 0 && handActive) {
+      const bet = document.createElement('div');
+      bet.className = 'bet';
+      bet.textContent = `в круге: ${s.committed}`;
+      el.append(bet);
+    }
+
+    const shown = handsBySeat.get(i);
+    if (shown) {
+      const dice = document.createElement('div');
+      dice.className = 'dice';
+      dice.append(...shown.dice.map((d) => dieEl(d, { small: true })));
+      const name = document.createElement('div');
+      name.className = 'status';
+      name.textContent = shown.hand;
+      el.append(dice, name);
+    }
+    if (wonBySeat.has(i)) {
+      const won = document.createElement('div');
+      won.className = 'won';
+      won.textContent = `+${wonBySeat.get(i)}`;
+      el.append(won);
+    }
+    return el;
+  }));
+}
+
+function renderMyDice() {
+  const v = poker.view;
+  const you = v.you;
+  const box = $('my-dice');
+  if (!you || !you.dice) {
+    box.replaceChildren();
+    poker.shownDice = null;
+    return;
+  }
+  const prev = poker.shownDice;
+  const picking = you.needReroll;
+  box.replaceChildren(...you.dice.map((d, i) => {
+    // Крутим только новые кубики: при раздаче все, после переброса изменившиеся.
+    const changed = !prev || prev[i] !== d || (prev.handId !== v.handId);
+    const el = dieEl(d, { rolling: changed });
+    if (picking) {
+      el.classList.add('pick');
+      el.title = 'Нажми, чтобы перебросить';
+      if (poker.pick.has(i)) el.classList.add('reroll');
+      el.addEventListener('click', () => {
+        if (poker.pick.has(i)) poker.pick.delete(i);
+        else poker.pick.add(i);
+        renderMyDice();
+      });
+    } else if (you.keep && v.phase === 'reroll' && !you.keep[i]) {
+      el.classList.add('reroll');
+    }
+    return el;
+  }));
+  const changedAny = !prev || prev.handId !== v.handId || you.dice.some((d, i) => prev[i] !== d);
+  if (changedAny) sounds.dice();
+  poker.shownDice = Object.assign([...you.dice], { handId: v.handId });
+}
+
+function renderPoker() {
+  const v = poker.view;
+  if (!v) return;
+  const you = v.you;
+
+  $('poker-pot').textContent = v.pot;
+  renderPokerPhase();
+  renderPokerSeats();
+
+  // Итог раздачи.
+  const res = v.result;
+  if (res) {
+    const winners = res.winners.map((w) => `${w.name} +${w.won}`).join(', ');
+    const how = res.revealed
+      ? (res.hands.find((h) => h.seat === res.winners[0].seat) || {}).hand
+      : 'остальные сбросили';
+    $('poker-result').textContent = `${res.winners.length > 1 ? 'Ничья' : 'Банк забирает'}: ${winners} (${how})`;
+    $('poker-result').hidden = false;
+    if (poker.lastResultHand !== res.handId) {
+      poker.lastResultHand = res.handId;
+      if (you && res.winners.some((w) => w.seat === you.seat)) sounds.win();
+      else if (you && you.dice) sounds.lose();
+    }
+  } else {
+    $('poker-result').hidden = true;
+  }
+
+  // Мои кубики.
+  $('poker-me').hidden = !(you && you.dice);
+  if (you && you.dice) {
+    if (!you.needReroll) poker.pick.clear();
+    renderMyDice();
+    $('my-hand-name').textContent = you.hand || '';
+    $('poker-hint').textContent =
+      you.myTurn ? 'Твой ход'
+        : you.needReroll ? 'Отметь кубики, которые хочешь перебросить'
+          : v.phase === 'reroll' && you.inHand ? 'Ждём остальных'
+            : !you.inHand && v.phase !== 'showdown' ? 'Ты сбросил' : '';
+  }
+
+  // Кнопки.
+  $('poker-join').hidden = !!you;
+  $('poker-leave').hidden = !you;
+  $('poker-leave').textContent = you && you.leaving ? 'Встанешь после раздачи' : 'Встать из-за стола';
+  $('poker-leave').disabled = !!(you && you.leaving);
+
+  const acting = !!(you && you.myTurn);
+  $('poker-actions').hidden = !acting;
+  if (acting) {
+    const btn = (a) => document.querySelector(`[data-act="${a}"]`);
+    btn('check').hidden = !you.canCheck;
+    btn('call').hidden = !you.canCall;
+    btn('call').textContent = `Уравнять ${you.toCall}`;
+    btn('bet').hidden = !you.canBet;
+    btn('raise').hidden = !you.canRaise;
+    const canSize = you.canBet || you.canRaise;
+    $('raise-amount').closest('label').hidden = !canSize;
+    $('raise-amount').max = you.maxRaise;
+    $('raise-label').textContent = `${you.canBet ? 'Ставка' : 'Повысить на'} (до ${you.maxRaise})`;
+    const cur = Number($('raise-amount').value);
+    if (!(cur >= you.minRaise && cur <= you.maxRaise)) $('raise-amount').value = you.minRaise;
+  }
+  $('poker-reroll').hidden = !(you && you.needReroll);
+
+  // Мой ход: звук и точка на вкладке.
+  const myTurnNow = !!(you && (you.myTurn || you.needReroll));
+  if (myTurnNow && !poker.wasMyTurn) sounds.turn();
+  poker.wasMyTurn = myTurnNow;
+  $('poker-dot').hidden = !myTurnNow;
+}
+
+$('poker-join').addEventListener('submit', (ev) => {
+  ev.preventDefault();
+  send({ type: 'poker_join', buyIn: Math.floor(Number($('buyin').value)) });
+});
+
+$('poker-leave').addEventListener('click', () => send({ type: 'poker_leave' }));
+
+document.querySelectorAll('[data-act]').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    const action = btn.dataset.act;
+    const msg = { type: 'poker_action', action };
+    if (action === 'bet' || action === 'raise') msg.amount = Math.floor(Number($('raise-amount').value));
+    send(msg);
+  });
+});
+
+$('reroll-btn').addEventListener('click', () => {
+  send({ type: 'poker_reroll', keep: [0, 1, 2, 3, 4].map((i) => !poker.pick.has(i)) });
+});
+$('keep-all-btn').addEventListener('click', () => {
+  send({ type: 'poker_reroll', keep: [true, true, true, true, true] });
+});
+
 // ---------- Сообщения сервера ----------
 
 const handlers = {
@@ -346,7 +676,20 @@ const handlers = {
     state.balance = msg.balance;
   },
 
+  poker_state(msg) {
+    poker.view = msg;
+    poker.recvAt = performance.now();
+    renderPoker();
+  },
+
   crash_state(msg) {
+    // Звук на краше, если у меня была ставка, которую я не забрал.
+    const prev = state.crash;
+    const findMine = (s) => s && s.players.find((p) => state.me && p.id === state.me.playerId);
+    const mine = findMine(msg);
+    const minePrev = findMine(prev);
+    if (prev && prev.phase === 'running' && msg.phase === 'crashed' && mine && mine.cashout === null) sounds.lose();
+    if (mine && mine.cashout !== null && minePrev && minePrev.cashout === null) sounds.win();
     state.crash = msg;
     state.crashRecvAt = performance.now();
     renderCrash();

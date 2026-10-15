@@ -213,7 +213,109 @@ button.ghost {
   vertical-align: middle;
 }
 
+.tab .dot {
+  display: inline-block;
+  width: 8px; height: 8px;
+  margin-left: 4px;
+  border-radius: 50%;
+  background: var(--gold);
+  vertical-align: middle;
+}
+button.danger { background: var(--red); color: #2a0806; }
+button:not(.link):not(:disabled):hover { filter: brightness(1.08); }
+
+/* Покер на кубиках */
+.poker-head { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; flex-wrap: wrap; }
+.pot-box { color: var(--muted); }
+.pot { color: var(--gold); font-size: 24px; font-variant-numeric: tabular-nums; }
+.poker-phase { color: var(--muted); }
+
+.result {
+  margin-top: 12px;
+  padding: 10px 14px;
+  border-radius: 10px;
+  background: rgba(79, 209, 139, 0.12);
+  border: 1px solid var(--green);
+}
+
+.seats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-top: 14px;
+}
+.seat {
+  position: relative;
+  min-height: 92px;
+  padding: 10px;
+  border-radius: 10px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  font-size: 14px;
+}
+.seat.empty { display: grid; place-items: center; color: var(--muted); opacity: .5; }
+.seat.mine { border-color: var(--gold); }
+.seat.turn { box-shadow: 0 0 0 2px var(--gold); }
+.seat.folded { opacity: .45; }
+.seat.winner { border-color: var(--green); box-shadow: 0 0 0 2px var(--green); }
+.seat .top { display: flex; gap: 6px; align-items: center; }
+.seat .who { font-weight: 600; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.seat .badge {
+  font-size: 11px;
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--gold);
+  color: #1b1405;
+  font-weight: 700;
+}
+.seat .off { color: var(--red); font-size: 12px; }
+.seat .stack { color: var(--gold); font-variant-numeric: tabular-nums; }
+.seat .status { color: var(--muted); font-size: 13px; }
+.seat .bet { color: var(--text); font-size: 13px; }
+.seat .won { color: var(--green); font-weight: 700; }
+.seat .dice { margin-top: 6px; gap: 3px; }
+
+.my-hand { margin-top: 16px; text-align: center; }
+.dice { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
+.hand-name { margin-top: 8px; font-weight: 700; font-size: 18px; }
+.hint { margin: 4px 0 0; color: var(--muted); min-height: 1.4em; }
+
+.die {
+  --size: 52px;
+  width: var(--size);
+  height: var(--size);
+  padding: calc(var(--size) * .14);
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  grid-template-rows: repeat(3, 1fr);
+  border-radius: calc(var(--size) * .2);
+  background: #f4efe2;
+  box-shadow: inset 0 -3px 0 rgba(0, 0, 0, .18);
+  border: 0;
+  cursor: default;
+}
+.die.small { --size: 24px; border-radius: 5px; box-shadow: none; }
+.die i { width: 70%; height: 70%; margin: auto; border-radius: 50%; }
+.die i.on { background: #1d1d1d; }
+.die.pick { cursor: pointer; }
+.die.reroll { background: #f2c14e; transform: translateY(6px); opacity: .75; }
+.die.rolling { animation: roll .55s ease-out; }
+@keyframes roll {
+  0% { transform: rotate(0) scale(.6); opacity: .3; }
+  60% { transform: rotate(380deg) scale(1.08); opacity: 1; }
+  100% { transform: rotate(360deg) scale(1); }
+}
+
+.raise-field { flex: 0 1 110px; }
+.leave { display: block; margin: 14px auto 0; }
+
+.rules { margin-top: 16px; color: var(--muted); font-size: 14px; }
+.rules summary { cursor: pointer; }
+.rules .ranks { margin: 8px 0 0; padding-left: 20px; }
+
 @media (max-width: 700px) {
+  .seats { grid-template-columns: repeat(2, 1fr); }
+  .die { --size: 44px; }
   .lobby { grid-template-columns: 1fr; }
   .stage { height: 200px; }
   .topbar { flex-wrap: wrap; }

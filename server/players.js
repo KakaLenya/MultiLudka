@@ -72,11 +72,14 @@ function createStore({ file = null, now = Date.now, saveDelayMs = SAVE_DELAY_MS 
       if (typeof p.token !== 'string' || !cleanName(p.name) || !isChipAmount(p.balance)) {
         throw new Error(`${file}: некорректная запись игрока ${JSON.stringify(p.id)}`);
       }
+      // Фишки, которые были в играх, когда сервер упал без Ctrl+C: возвращаем в баланс.
+      const refund = isChipAmount(p.reserved) ? p.reserved : 0;
+      if (refund > 0) console.log(`Возврат ${refund} фишек из прерванных игр: ${p.name}`);
       index({
         id: String(p.id),
         token: p.token,
         name: p.name,
-        balance: p.balance,
+        balance: p.balance + refund,
         lastBonusAt: Number.isFinite(p.lastBonusAt) ? p.lastBonusAt : null,
         createdAt: Number.isFinite(p.createdAt) ? p.createdAt : now(),
       });
@@ -94,6 +97,7 @@ function createStore({ file = null, now = Date.now, saveDelayMs = SAVE_DELAY_MS 
       token: p.token,
       name: p.name,
       balance: p.balance,
+      reserved: reserved(p),   // фишки в играх: вернутся при следующем старте
       lastBonusAt: p.lastBonusAt,
       createdAt: p.createdAt,
     }));
@@ -199,7 +203,7 @@ function createStore({ file = null, now = Date.now, saveDelayMs = SAVE_DELAY_MS 
     leaderboard,
     flush,
     // Баланс тот же, но изменились фишки в играх (например, ставка сгорела): разослать заново.
-    notify: (player) => { for (const fn of changeListeners) fn(player); },
+    notify: (player) => changed(player),
     onChange: (fn) => changeListeners.push(fn),
     addReserver: (fn) => reservers.push(fn),
   };

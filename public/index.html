@@ -12,6 +12,7 @@
     <div class="me" id="me" hidden>
       <span id="me-name"></span>
       <span class="chips" id="me-balance"></span>
+      <button class="link" id="sound" type="button" title="Звук">🔊</button>
       <button class="link" id="logout" type="button" title="Выйти из этого игрока">выйти</button>
     </div>
     <div class="conn" id="conn" data-state="connecting">подключение…</div>
@@ -38,9 +39,68 @@
           <button type="button" id="bonus-btn">Забрать</button>
         </div>
         <nav class="tabs">
-          <button type="button" class="tab active">📈 Краш</button>
-          <button type="button" class="tab" disabled>🎲 Покер на кубиках · скоро</button>
+          <button type="button" class="tab active" data-tab="crash">📈 Краш</button>
+          <button type="button" class="tab" data-tab="poker">🎲 Покер на кубиках <span class="dot" id="poker-dot" hidden></span></button>
         </nav>
+
+        <section class="card poker" id="poker" hidden>
+          <div class="poker-head">
+            <div class="pot-box">Банк <b class="pot" id="poker-pot">0</b></div>
+            <div class="poker-phase" id="poker-phase">…</div>
+          </div>
+          <div class="result" id="poker-result" hidden></div>
+          <div class="seats" id="poker-seats"></div>
+
+          <div class="my-hand" id="poker-me" hidden>
+            <div class="dice" id="my-dice"></div>
+            <div class="hand-name" id="my-hand-name"></div>
+            <p class="hint" id="poker-hint"></p>
+          </div>
+
+          <form class="controls" id="poker-join" autocomplete="off">
+            <label class="field">
+              <span>Бай-ин (от 50)</span>
+              <input id="buyin" type="number" min="50" step="10" inputmode="numeric" value="200">
+            </label>
+            <button type="submit" class="action">Сесть за стол</button>
+          </form>
+
+          <div class="controls" id="poker-actions" hidden>
+            <button type="button" class="ghost" data-act="check">Чек</button>
+            <button type="button" data-act="call">Уравнять</button>
+            <label class="field raise-field">
+              <span id="raise-label">Сумма</span>
+              <input id="raise-amount" type="number" min="10" step="10" inputmode="numeric" value="10">
+            </label>
+            <button type="button" data-act="bet">Ставка</button>
+            <button type="button" data-act="raise">Повысить</button>
+            <button type="button" class="danger" data-act="fold">Сбросить</button>
+          </div>
+
+          <div class="controls" id="poker-reroll" hidden>
+            <button type="button" class="action" id="reroll-btn">Перебросить отмеченные</button>
+            <button type="button" class="ghost" id="keep-all-btn">Оставить все</button>
+          </div>
+
+          <button type="button" class="link leave" id="poker-leave" hidden>Встать из-за стола</button>
+
+          <details class="rules">
+            <summary>Правила и комбинации</summary>
+            <p>Анте 10. Круг ставок, затем один перебросок любых кубиков, второй круг ставок, вскрытие.
+              Ставка не может превышать наименьший стек среди игроков в раздаче, не больше 3 повышений за круг.
+              На ход 30 секунд: потом авто-чек или сброс.</p>
+            <ol class="ranks">
+              <li>Покер: пять одинаковых</li>
+              <li>Каре: четыре одинаковых</li>
+              <li>Фулл-хаус: три + два</li>
+              <li>Стрит: 2-3-4-5-6 сильнее 1-2-3-4-5</li>
+              <li>Сет: три одинаковых</li>
+              <li>Две пары</li>
+              <li>Пара</li>
+              <li>Старшая: по значениям</li>
+            </ol>
+          </details>
+        </section>
 
         <section class="card crash" id="crash">
           <div class="history" id="crash-history" aria-label="Последние раунды"></div>

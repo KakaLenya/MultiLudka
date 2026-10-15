@@ -110,6 +110,23 @@ test('сохранение и загрузка: балансы пережива�
   assert.notEqual(store2.register('Жора').player.id, player.id, 'id не повторяются');
 });
 
+test('падение сервера: фишки из игр возвращаются при загрузке', () => {
+  const file = tmpFile();
+  const store1 = createStore({ file });
+  const { player } = store1.register('Ира');
+  const atTable = new Map([[player.id, 300]]);
+  store1.addReserver((p) => atTable.get(p.id) || 0);
+  store1.adjust(player, -300);           // села за стол с 300
+  store1.flush();                        // ...и сервер умер, не вернув стек
+
+  const store2 = createStore({ file });
+  const loaded = store2.findByToken(player.token);
+  assert.equal(loaded.balance, START_BALANCE);
+  store2.flush();
+  const again = createStore({ file }).findByToken(player.token);
+  assert.equal(again.balance, START_BALANCE, 'возврат не повторяется');
+});
+
 test('дебаунс: несколько изменений дают одну запись', async () => {
   const file = tmpFile();
   const store = createStore({ file, saveDelayMs: 20 });
