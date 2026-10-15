@@ -111,8 +111,20 @@ function renderBonus() {
 }
 setInterval(renderBonus, 30_000);
 
+// Кружок с первой буквой; цвет постоянный для имени.
+function avatarEl(name) {
+  const a = document.createElement('span');
+  a.className = 'avatar';
+  a.textContent = [...name.trim()][0] || '?';
+  let h = 0;
+  for (const ch of name) h = (h * 31 + ch.codePointAt(0)) % 360;
+  a.style.setProperty('--h', h);
+  return a;
+}
+
 function listItem(name, isSelf) {
   const li = document.createElement('li');
+  li.append(avatarEl(name));
   const span = document.createElement('span');
   span.className = 'name';
   span.textContent = name;
@@ -260,13 +272,41 @@ function drawCrash(m) {
     const t = (tNow * i) / steps;
     ctx.lineTo(x(t), y(Math.exp(CRASH_GROWTH * t)));
   }
+  ctx.save();
+  ctx.shadowColor = `rgba(${color}, .8)`;
+  ctx.shadowBlur = 16;
   ctx.strokeStyle = `rgb(${color})`;
-  ctx.lineWidth = 3;
+  ctx.lineWidth = 4;
+  ctx.lineCap = 'round';
   ctx.stroke();
+  ctx.restore();
   ctx.lineTo(x(tNow), y(1));
+  ctx.lineTo(x(0), y(1));
   ctx.closePath();
-  ctx.fillStyle = `rgba(${color}, 0.12)`;
+  const fill = ctx.createLinearGradient(0, y(m), 0, y(1));
+  fill.addColorStop(0, `rgba(${color}, .35)`);
+  fill.addColorStop(1, `rgba(${color}, 0)`);
+  ctx.fillStyle = fill;
   ctx.fill();
+
+  // Ракета на кончике графика (по касательной), взрыв при краше.
+  const tipX = x(tNow);
+  const tipY = y(m);
+  const dt = Math.max(0.05, tNow * 0.02);
+  const angle = Math.atan2(y(m) - y(Math.exp(CRASH_GROWTH * Math.max(0, tNow - dt))), x(tNow) - x(Math.max(0, tNow - dt)));
+  ctx.save();
+  ctx.translate(tipX, tipY);
+  ctx.font = '30px "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  if (c.phase === 'crashed') {
+    ctx.font = '42px "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif';
+    ctx.fillText('💥', 0, 0);
+  } else {
+    ctx.rotate(angle + Math.PI / 4);  // эмодзи ракеты смотрит вверх-вправо
+    ctx.fillText('🚀', 0, 0);
+  }
+  ctx.restore();
 }
 
 function crashFrame() {
@@ -827,8 +867,7 @@ function renderRoulette() {
   $('r-history').replaceChildren(...v.history.map((h) => {
     const s = document.createElement('span');
     s.textContent = h.n;
-    s.className = h.color === 'red' ? '' : h.color === 'green' ? 'good' : 'great';
-    s.style.color = h.color === 'red' ? '#ff6b61' : h.color === 'green' ? 'var(--green)' : '#ddd';
+    s.className = `rn ${h.color}`;
     return s;
   }));
 
@@ -886,80 +925,253 @@ function renderRoulette() {
   }));
 }
 
-// Колесо: рисуем каждый кадр, во время вращения плавно доводим до выпавшего номера.
+// Колесо и шарик. Колесо крутится по часовой, шарик бежит по дорожке против часовой,
+// замедляется, скатывается к карманам, отскакивает по перегородкам и оседает в выпавшем номере.
+// Номер выбирает сервер, анимация только красиво доводит шарик до него.
 const rCanvas = $('r-wheel');
 const rCtx = rCanvas.getContext('2d');
+const W_SIZE = 300;
+const W_C = W_SIZE / 2;
+const R_DISK = 116;       // вращающийся диск
+const R_NUM = 106;        // кольцо с номерами
+const R_WELL = 96;        // карманы
+const R_CONE = 80;        // центральный конус
+const R_TRACK = 126;      // дорожка шарика
+const R_POCKET = 88;      // шарик в кармане
+const BALL_R = 6.5;
 
-function drawWheel(rotation) {
-  const dpr = window.devicePixelRatio || 1;
-  const size = 260;
-  if (rCanvas.width !== size * dpr) {
-    rCanvas.width = size * dpr;
-    rCanvas.height = size * dpr;
+// Неподвижная часть (обод и дорожка) и вращающийся диск рисуются один раз в offscreen-канвасы
+// с запасом по разрешению, а при выводе растягиваются на точный размер канваса:
+// масштаб экрана (devicePixelRatio) может поменяться после загрузки страницы.
+const LAYER_SCALE = Math.max(2, window.devicePixelRatio || 1);
+function makeLayer(draw) {
+  const cv = document.createElement('canvas');
+  cv.width = W_SIZE * LAYER_SCALE;
+  cv.height = W_SIZE * LAYER_SCALE;
+  const ctx = cv.getContext('2d');
+  ctx.scale(LAYER_SCALE, LAYER_SCALE);
+  ctx.translate(W_C, W_C);
+  draw(ctx);
+  return cv;
+}
+
+const wheelBase = makeLayer((ctx) => {
+  // Деревянный обод.
+  const wood = ctx.createRadialGradient(0, 0, 130, 0, 0, 150);
+  wood.addColorStop(0, '#2b140a');
+  wood.addColorStop(0.35, '#7a4220');
+  wood.addColorStop(0.7, '#a35f2f');
+  wood.addColorStop(1, '#4a250f');
+  ctx.beginPath();
+  ctx.arc(0, 0, 148, 0, 2 * Math.PI);
+  ctx.fillStyle = wood;
+  ctx.fill();
+  // Полированная дорожка шарика.
+  const track = ctx.createRadialGradient(0, 0, R_DISK, 0, 0, 136);
+  track.addColorStop(0, '#120b07');
+  track.addColorStop(0.6, '#3a2618');
+  track.addColorStop(1, '#1c120b');
+  ctx.beginPath();
+  ctx.arc(0, 0, 136, 0, 2 * Math.PI);
+  ctx.fillStyle = track;
+  ctx.fill();
+  // Блик на дорожке.
+  ctx.beginPath();
+  ctx.arc(0, 0, 131, Math.PI * 1.1, Math.PI * 1.6);
+  ctx.strokeStyle = 'rgba(255, 230, 190, .18)';
+  ctx.lineWidth = 4;
+  ctx.stroke();
+  // Золотые кольца.
+  for (const r of [136, 147]) {
+    ctx.beginPath();
+    ctx.arc(0, 0, r, 0, 2 * Math.PI);
+    ctx.strokeStyle = '#d9a93c';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
   }
-  const ctx = rCtx;
-  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-  ctx.clearRect(0, 0, size, size);
-  const c = size / 2;
-  const outer = c - 4;
-  const inner = outer - 34;
-  ctx.save();
-  ctx.translate(c, c);
-  ctx.rotate(rotation - Math.PI / 2 - R_STEP / 2);  // номер 0 по центру сверху при rotation = 0
+});
+
+const pocketColor = (n) => (n === 0 ? '#14894a' : R_RED.has(n) ? '#c0281f' : '#151515');
+const pocketFloor = (n) => (n === 0 ? '#0d5c32' : R_RED.has(n) ? '#7d1813' : '#0b0b0b');
+
+const wheelDisk = makeLayer((ctx) => {
+  // Номер i занимает сектор [i*STEP - STEP/2, i*STEP + STEP/2] от верха по часовой.
+  ctx.rotate(-Math.PI / 2 - R_STEP / 2);
   R_WHEEL.forEach((n, i) => {
     const a0 = i * R_STEP;
+    // Кольцо с номером.
     ctx.beginPath();
-    ctx.moveTo(0, 0);
-    ctx.arc(0, 0, outer, a0, a0 + R_STEP);
+    ctx.arc(0, 0, R_DISK, a0, a0 + R_STEP);
+    ctx.arc(0, 0, R_WELL, a0 + R_STEP, a0, true);
     ctx.closePath();
-    ctx.fillStyle = n === 0 ? '#1e7a46' : R_RED.has(n) ? '#b3261e' : '#161616';
+    ctx.fillStyle = pocketColor(n);
     ctx.fill();
-    ctx.strokeStyle = 'rgba(242, 193, 78, .5)';
-    ctx.lineWidth = 1;
+    // Карман (дно потемнее).
+    ctx.beginPath();
+    ctx.arc(0, 0, R_WELL, a0, a0 + R_STEP);
+    ctx.arc(0, 0, R_CONE, a0 + R_STEP, a0, true);
+    ctx.closePath();
+    ctx.fillStyle = pocketFloor(n);
+    ctx.fill();
+    // Перегородка.
+    ctx.beginPath();
+    ctx.moveTo(Math.cos(a0) * R_CONE, Math.sin(a0) * R_CONE);
+    ctx.lineTo(Math.cos(a0) * R_DISK, Math.sin(a0) * R_DISK);
+    ctx.strokeStyle = '#e2b54c';
+    ctx.lineWidth = 1.2;
     ctx.stroke();
+    // Номер.
     ctx.save();
     ctx.rotate(a0 + R_STEP / 2);
-    ctx.translate(outer - 15, 0);
+    ctx.translate(R_NUM, 0);
     ctx.rotate(Math.PI / 2);
     ctx.fillStyle = '#fff';
-    ctx.font = 'bold 12px system-ui, sans-serif';
+    ctx.font = '700 11px Manrope, system-ui, sans-serif';
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillText(String(n), 0, 0);
     ctx.restore();
   });
+  for (const r of [R_DISK, R_WELL]) {
+    ctx.beginPath();
+    ctx.arc(0, 0, r, 0, 2 * Math.PI);
+    ctx.strokeStyle = '#e2b54c';
+    ctx.lineWidth = 1.5;
+    ctx.stroke();
+  }
+  // Конус.
+  const cone = ctx.createRadialGradient(-12, -14, 4, 0, 0, R_CONE);
+  cone.addColorStop(0, '#d79a52');
+  cone.addColorStop(0.45, '#8a4b22');
+  cone.addColorStop(1, '#3d1d0b');
   ctx.beginPath();
-  ctx.arc(0, 0, inner, 0, 2 * Math.PI);
-  ctx.fillStyle = '#0f1a14';
+  ctx.arc(0, 0, R_CONE, 0, 2 * Math.PI);
+  ctx.fillStyle = cone;
   ctx.fill();
-  ctx.strokeStyle = 'rgba(242, 193, 78, .6)';
-  ctx.lineWidth = 2;
-  ctx.stroke();
+  // Турель: четыре золотые спицы и шишечка.
+  ctx.lineCap = 'round';
+  for (let k = 0; k < 4; k++) {
+    const a = (k * Math.PI) / 2 + R_STEP / 2;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(Math.cos(a) * 46, Math.sin(a) * 46);
+    ctx.strokeStyle = '#f4d27a';
+    ctx.lineWidth = 5;
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(Math.cos(a) * 46, Math.sin(a) * 46, 5, 0, 2 * Math.PI);
+    ctx.fillStyle = '#f4d27a';
+    ctx.fill();
+  }
+  const knob = ctx.createRadialGradient(-4, -4, 1, 0, 0, 14);
+  knob.addColorStop(0, '#fff6d6');
+  knob.addColorStop(1, '#c9962e');
+  ctx.beginPath();
+  ctx.arc(0, 0, 14, 0, 2 * Math.PI);
+  ctx.fillStyle = knob;
+  ctx.fill();
+});
+
+function drawWheel(rotation, ball) {
+  const dpr = window.devicePixelRatio || 1;
+  if (rCanvas.width !== W_SIZE * dpr) {
+    rCanvas.width = W_SIZE * dpr;
+    rCanvas.height = W_SIZE * dpr;
+  }
+  const ctx = rCtx;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, rCanvas.width, rCanvas.height);
+  const size = W_SIZE * dpr;
+  ctx.drawImage(wheelBase, 0, 0, size, size);
+  ctx.save();
+  ctx.translate(size / 2, size / 2);
+  ctx.rotate(rotation);
+  ctx.drawImage(wheelDisk, -size / 2, -size / 2, size, size);
   ctx.restore();
+  if (!ball) return;
+  // Шарик: тень и блик.
+  const x = (W_C + Math.cos(ball.angle) * ball.r) * dpr;
+  const y = (W_C + Math.sin(ball.angle) * ball.r) * dpr;
+  ctx.beginPath();
+  ctx.arc(x + 1.5 * dpr, y + 2 * dpr, BALL_R * dpr, 0, 2 * Math.PI);
+  ctx.fillStyle = 'rgba(0, 0, 0, .45)';
+  ctx.fill();
+  const g = ctx.createRadialGradient(x - 2 * dpr, y - 2.5 * dpr, 0.5 * dpr, x, y, BALL_R * dpr);
+  g.addColorStop(0, '#ffffff');
+  g.addColorStop(0.6, '#e9e9e9');
+  g.addColorStop(1, '#9a9a9a');
+  ctx.beginPath();
+  ctx.arc(x, y, BALL_R * dpr, 0, 2 * Math.PI);
+  ctx.fillStyle = g;
+  ctx.fill();
 }
 
 const easeOut = (x) => 1 - (1 - x) ** 4;
-// Поворот, при котором номер n стоит под указателем.
+// Поворот колеса, при котором номер n наверху (там шарик и останавливается).
 const restingRotation = (n) => -R_WHEEL.indexOf(n) * R_STEP;
+// Угол кармана номера n на экране при повороте колеса rotation.
+const pocketAngle = (rotation, n) => rotation - Math.PI / 2 + R_WHEEL.indexOf(n) * R_STEP;
+
+const BALL_TURNS = 7;     // сколько оборотов шарик делает относительно колеса
+const DROP_AT = 0.55;     // когда начинает скатываться с дорожки
+const BOUNCE_AT = 0.62;   // когда начинает прыгать по перегородкам
+
+// Положение шарика во время вращения: p от 0 до 1.
+function ballDuringSpin(p, rotation, result) {
+  const home = pocketAngle(rotation, result);
+  let rel = 2 * Math.PI * BALL_TURNS * (1 - p) ** 3;
+  let r = R_TRACK;
+  if (p > DROP_AT) {
+    const d = Math.min(1, (p - DROP_AT) / (0.72 - DROP_AT));
+    r = R_TRACK - (R_TRACK - R_POCKET) * d * d;
+  }
+  if (p > BOUNCE_AT) {
+    const k = (p - BOUNCE_AT) / (1 - BOUNCE_AT);
+    const fade = (1 - k) ** 2;
+    rel += 0.5 * Math.sin(k * Math.PI * 4) * fade;       // перескакивает соседние карманы
+    r += 7 * Math.abs(Math.sin(k * Math.PI * 4)) * fade; // подпрыгивает на перегородках
+  }
+  return { angle: home + rel, r };
+}
+
+let lastClick = { pocket: null, at: 0 };
+// Щелчки шарика о перегородки, пока он прыгает.
+function ballClicks(p, ball, rotation) {
+  if (p < DROP_AT || p >= 1 || !soundOn) return;
+  const pocket = Math.floor((ball.angle - rotation) / R_STEP);
+  const t = performance.now();
+  if (pocket !== lastClick.pocket && t - lastClick.at > 45) {
+    lastClick = { pocket, at: t };
+    beep([[1500 + Math.random() * 600, 0.012]], 'square');
+  }
+}
 
 function rouletteFrame() {
   const v = rl.view;
   if (v && !$('roulette').hidden) {
+    let ball = null;
     if (v.phase === 'spinning') {
       if (!rl.spin || rl.spin.roundId !== v.roundId) {
-        // Старт вращения: минимум 5 оборотов и остановка ровно на выпавшем номере.
+        // Старт вращения: минимум 4 оборота колеса и остановка выпавшего номера наверху.
         const from = rl.rotation;
         const base = restingRotation(v.result);
-        const turns = Math.ceil((from - base) / (2 * Math.PI)) + 5;
+        const turns = Math.ceil((from - base) / (2 * Math.PI)) + 4;
         rl.spin = { roundId: v.roundId, from, to: base + turns * 2 * Math.PI };
       }
       const p = Math.min(1, 1 - rouletteTimeLeft() / v.spinMs);
       rl.rotation = rl.spin.from + (rl.spin.to - rl.spin.from) * easeOut(p);
-    } else if (v.phase === 'result' && v.result !== null) {
-      // Видели вращение: стоим там, где оно закончилось; зашли позже: просто ставим на номер.
-      rl.rotation = rl.spin && rl.spin.roundId === v.roundId ? rl.spin.to : restingRotation(v.result);
+      ball = ballDuringSpin(p, rl.rotation, v.result);
+      ballClicks(p, ball, rl.rotation);
+    } else {
+      if (v.phase === 'result' && v.result !== null) {
+        // Видели вращение: стоим там, где оно закончилось; зашли позже: просто ставим на номер.
+        rl.rotation = rl.spin && rl.spin.roundId === v.roundId ? rl.spin.to : restingRotation(v.result);
+      }
+      // Шарик лежит в последнем выпавшем номере.
+      const last = v.phase === 'result' ? v.result : v.history.length ? v.history[0].n : null;
+      if (last !== null) ball = { angle: pocketAngle(rl.rotation, last), r: R_POCKET };
     }
-    drawWheel(rl.rotation);
+    drawWheel(rl.rotation, ball);
 
     const center = $('r-center');
     const secs = Math.ceil(rouletteTimeLeft() / 1000);
@@ -968,9 +1180,9 @@ function rouletteFrame() {
       center.className = 'r-center';
       $('r-phase').textContent = `Делайте ставки: ${secs} с`;
     } else if (v.phase === 'spinning') {
-      center.textContent = '…';
-      center.className = 'r-center';
-      $('r-phase').textContent = 'Ставок больше нет, колесо крутится';
+      center.textContent = '';
+      center.className = 'r-center spinning';
+      $('r-phase').textContent = 'Ставок больше нет, шарик в игре';
     } else {
       center.textContent = v.result;
       center.className = `r-center ${v.color}`;

@@ -4,11 +4,14 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Казино-зал</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@500;600;700;800&display=swap">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <header class="topbar">
-    <div class="logo">🎲 Казино-зал</div>
+    <div class="logo"><span class="logo-icon">🎰</span><span class="logo-text">Казино-зал</span></div>
     <div class="me" id="me" hidden>
       <span id="me-name"></span>
       <span class="chips" id="me-balance"></span>
@@ -20,8 +23,8 @@
 
   <main>
     <section class="card login" id="login" hidden>
-      <h1>Заходи</h1>
-      <p class="muted">Фишки виртуальные. Играем на интерес.</p>
+      <h1>Казино-зал</h1>
+      <p class="muted">Краш, рулетка и покер на кубиках с друзьями. Фишки виртуальные, азарт настоящий.</p>
       <form id="login-form" autocomplete="off">
         <input id="name" maxlength="20" placeholder="Твоё имя" required>
         <button type="submit" id="login-btn" disabled>Войти</button>
@@ -48,8 +51,8 @@
           <div class="history" id="r-history" aria-label="Последние номера"></div>
           <div class="r-top">
             <div class="wheel-box">
-              <canvas id="r-wheel" width="260" height="260"></canvas>
-              <div class="r-pointer"></div>
+              <canvas id="r-wheel" width="300" height="300"></canvas>
+
               <div class="r-center" id="r-center">…</div>
             </div>
             <div class="r-side">
