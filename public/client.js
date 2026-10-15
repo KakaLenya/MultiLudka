@@ -377,11 +377,11 @@ const TAB_KEY = 'casino.tab';
 
 function showTab(name) {
   document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t.dataset.tab === name));
-  for (const id of ['crash', 'roulette', 'poker']) $(id).hidden = name !== id;
+  for (const id of ['crash', 'roulette', 'bomb', 'poker']) $(id).hidden = name !== id;
   storage.set(TAB_KEY, name);
 }
 document.querySelectorAll('.tab').forEach((t) => t.addEventListener('click', () => showTab(t.dataset.tab)));
-showTab(['roulette', 'poker'].includes(storage.get(TAB_KEY)) ? storage.get(TAB_KEY) : 'crash');
+showTab(['roulette', 'bomb', 'poker'].includes(storage.get(TAB_KEY)) ? storage.get(TAB_KEY) : 'crash');
 
 // ---------- Звуки (WebAudio, без файлов) ----------
 
@@ -1288,6 +1288,202 @@ $('music-volume').addEventListener('input', () => {
   storage.set(VOLUME_KEY, $('music-volume').value);
 });
 
+// ---------- Бомба в банке ----------
+
+const bomb = {
+  view: null,
+  recvAt: 0,
+  lastResultRound: 0,
+  wasMyTurn: false,
+  lastBank: 0,
+};
+
+function bombTimeLeft() {
+  const v = bomb.view;
+  return v && v.timeLeft !== null ? Math.max(0, v.timeLeft - (performance.now() - bomb.recvAt)) : 0;
+}
+
+const bombMe = () => (bomb.view && state.me ? bomb.view.players.find((p) => p.id === state.me.playerId) || null : null);
+
+// «Накал» бомбы по тому, во сколько раз банк вырос от взносов. Фитиль игроку не известен, так что это не подсказка.
+function bombHeat(v) {
+  const entries = v.players.length * v.entry || 1;
+  const ratio = v.bank / entries;
+  return v.phase !== 'playing' ? 0 : ratio < 2 ? 1 : ratio < 4 ? 2 : 3;
+}
+
+function boomSound() {
+  if (!soundOn) return;
+  try {
+    audio = audio || new AudioContext();
+    const t = audio.currentTime;
+    const len = audio.sampleRate * 1.2;
+    const buf = audio.createBuffer(1, len, audio.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < len; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / len) ** 3;
+    const src = audio.createBufferSource();
+    src.buffer = buf;
+    const lp = audio.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.setValueAtTime(1800, t);
+    lp.frequency.exponentialRampToValueAtTime(120, t + 1);
+    const g = audio.createGain();
+    g.gain.value = 0.5;
+    src.connect(lp).connect(g).connect(audio.destination);
+    src.start(t);
+  } catch { /* без звука */ }
+}
+
+function explodeFx() {
+  const flash = document.createElement('div');
+  flash.className = 'boom-flash';
+  flash.textContent = '💥';
+  document.body.append(flash);
+  setTimeout(() => flash.remove(), 1300);
+  bodyEffect('fx-shake', 900);
+  boomSound();
+}
+
+function renderBombPhase() {
+  const v = bomb.view;
+  if (!v) return;
+  const secs = Math.ceil(bombTimeLeft() / 1000);
+  const turnName = (v.players.find((p) => p.id === v.turn) || {}).name;
+  let text;
+  if (v.phase === 'lobby') {
+    text = v.players.length < 2
+      ? `Сбор игроков: нужно минимум двое (${v.players.length}/${v.maxPlayers})`
+      : `Старт через ${secs} с · игроков ${v.players.length}/${v.maxPlayers}`;
+  } else if (v.phase === 'playing') {
+    text = `Ходит ${turnName} · ${secs} с`;
+  } else {
+    text = v.result.type === 'boom' ? `💥 ${v.result.bomberName} взорвался!` : `🏆 ${v.result.winnerName} забирает банк!`;
+  }
+  $('b-phase').textContent = text;
+  const total = v.phase === 'playing' ? v.turnMs : 15000;
+  const show = v.phase === 'playing' || (v.phase === 'lobby' && v.timeLeft !== null);
+  $('b-timer-bar').style.width = show ? `${Math.min(100, (bombTimeLeft() / total) * 100)}%` : '0%';
+  $('b-timer-bar').classList.toggle('hurry', v.phase === 'playing' && secs <= 5);
+}
+setInterval(renderBombPhase, 200);
+
+function bombPlayerCard(v, p) {
+  const d = document.createElement('div');
+  d.className = `b-player ${p.status}`;
+  if (p.id === v.turn) d.classList.add('turn');
+  if (state.me && p.id === state.me.playerId) d.classList.add('mine');
+  const name = document.createElement('span');
+  name.className = 'b-name';
+  name.textContent = p.name;
+  const sum = document.createElement('span');
+  sum.className = 'b-sum';
+  sum.textContent = `вложил ${p.contributed}`;
+  const st = document.createElement('span');
+  st.className = 'b-status';
+  if (p.status === 'boom') st.textContent = '💥 взорвался';
+  else if (p.status === 'out') st.textContent = `🏃 ${p.lastMove || 'сбежал'}`;
+  else if (p.payout) st.textContent = `+${p.payout}`;
+  else if (p.id === v.turn) st.textContent = '🔥 ходит';
+  else st.textContent = p.lastMove || '';
+  d.append(avatarEl(p.name), name, sum, st);
+  return d;
+}
+
+function renderBomb() {
+  const v = bomb.view;
+  if (!v) return;
+  const me = bombMe();
+  const myTurn = !!(v.phase === 'playing' && me && v.turn === me.id);
+  const inGame = !!(me && me.status === 'in');
+
+  $('b-bank').textContent = v.bank;
+  const el = $('b-bomb');
+  el.dataset.heat = bombHeat(v);
+  el.classList.toggle('lit', v.phase === 'playing');
+  el.classList.toggle('exploded', v.phase === 'result' && v.result.type === 'boom');
+  if (v.bank > bomb.lastBank && v.phase === 'playing') {
+    el.classList.remove('bump');
+    void el.offsetWidth;
+    el.classList.add('bump');
+  }
+  bomb.lastBank = v.bank;
+
+  $('b-history').replaceChildren(...v.history.map((h) => {
+    const s = document.createElement('span');
+    s.textContent = `${h.boom ? '💥' : '🏆'} ${h.fuse}`;
+    s.className = h.boom ? '' : 'good';
+    s.title = h.boom ? 'фитиль, на котором рвануло' : 'никто не взорвался';
+    return s;
+  }));
+
+  if (v.players.length) {
+    $('b-players').replaceChildren(...v.players.map((p) => bombPlayerCard(v, p)));
+  } else {
+    const empty = document.createElement('p');
+    empty.className = 'muted';
+    empty.textContent = 'Пока никого. Заходи первым!';
+    $('b-players').replaceChildren(empty);
+  }
+
+  // Итог раунда.
+  const r = v.result;
+  if (r) {
+    const mine = r.payouts.find((p) => state.me && p.id === state.me.playerId);
+    $('b-result').textContent = r.type === 'boom'
+      ? `Фитиль был на ${r.fuse}. Банк ${r.bank} делят: ${r.payouts.map((p) => `${p.name} +${p.amount}`).join(', ')}`
+      : `Все сбежали, ${r.winnerName} забирает ${r.bank}. Фитиль был на ${r.fuse}`;
+    $('b-result').className = `b-result ${mine ? 'win' : me ? 'lose' : ''}`;
+    if (bomb.lastResultRound !== v.roundId) {
+      bomb.lastResultRound = v.roundId;
+      if (r.type === 'boom' && !$('bomb').hidden) explodeFx();
+      else if (r.type === 'boom') boomSound();
+      if (mine) sounds.win();
+    }
+  } else {
+    $('b-result').textContent = '';
+    $('b-result').className = 'b-result';
+  }
+
+  // Кнопки.
+  $('b-join').hidden = !(v.phase === 'lobby' && !me);
+  $('b-join').disabled = v.players.length >= v.maxPlayers;
+  $('b-leave').hidden = !(v.phase === 'lobby' && me);
+  $('b-deposit').hidden = !myTurn;
+  $('b-flee').hidden = !(v.phase === 'playing' && inGame);
+  if (inGame) $('b-flee').textContent = `Сбежать (+${Math.floor(me.contributed / 2)})`;
+  let hint = '';
+  if (v.phase === 'lobby' && me) hint = 'Ты в раунде, ждём старта';
+  else if (myTurn) hint = 'Твой ход: подложи фишки или беги';
+  else if (v.phase === 'playing' && inGame) hint = 'Жди своего хода. Сбежать можно в любой момент';
+  else if (v.phase === 'playing' && me && me.status === 'boom') hint = 'Ты взорвался 💥';
+  else if (v.phase === 'playing') hint = 'Раунд идёт, войти можно в следующий';
+  $('b-hint').textContent = hint;
+
+  if (myTurn && !bomb.wasMyTurn) sounds.turn();
+  bomb.wasMyTurn = myTurn;
+  $('bomb-dot').hidden = !myTurn;
+  renderBombPhase();
+}
+
+bomb.onState = (msg) => {
+  bomb.view = msg;
+  bomb.recvAt = performance.now();
+  renderBomb();
+};
+
+$('b-join').addEventListener('click', () => send({ type: 'bomb_join' }));
+$('b-leave').addEventListener('click', () => send({ type: 'bomb_leave' }));
+$('b-flee').addEventListener('click', () => send({ type: 'bomb_flee' }));
+$('b-put').addEventListener('click', () => {
+  send({ type: 'bomb_deposit', amount: Math.floor(Number($('b-amount').value)) });
+});
+document.querySelectorAll('[data-dep]').forEach((b) => {
+  b.addEventListener('click', () => {
+    $('b-amount').value = b.dataset.dep;
+    send({ type: 'bomb_deposit', amount: Number(b.dataset.dep) });
+  });
+});
+
 // ---------- Объявления и эффекты от админа ----------
 
 function showBanner(text) {
@@ -1360,6 +1556,10 @@ const handlers = {
     music.track = msg.track;
     music.recvAt = performance.now();
     renderMusic();
+  },
+
+  bomb_state(msg) {
+    bomb.onState(msg);
   },
 
   roulette_state(msg) {

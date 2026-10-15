@@ -44,6 +44,7 @@
         <nav class="tabs">
           <button type="button" class="tab active" data-tab="crash">📈 Краш</button>
           <button type="button" class="tab" data-tab="roulette">🎡 Рулетка</button>
+          <button type="button" class="tab" data-tab="bomb">💣 Бомба <span class="dot" id="bomb-dot" hidden></span></button>
           <button type="button" class="tab" data-tab="poker">🎲 Покер на кубиках <span class="dot" id="poker-dot" hidden></span></button>
         </nav>
 
@@ -70,6 +71,55 @@
             <thead><tr><th>Игрок</th><th>Ставки</th><th>Итог</th></tr></thead>
             <tbody id="r-bets"></tbody>
           </table>
+        </section>
+
+        <section class="card bombgame" id="bomb" hidden>
+          <div class="history" id="b-history" aria-label="Последние фитили"></div>
+          <div class="b-stage">
+            <div class="b-bomb" id="b-bomb" data-heat="0">
+              <div class="b-fuse"><span class="b-spark"></span></div>
+              <div class="b-body">
+                <span class="b-label">Банк</span>
+                <b id="b-bank">0</b>
+              </div>
+            </div>
+            <div class="b-info">
+              <div class="b-phase" id="b-phase">…</div>
+              <div class="b-timer"><i id="b-timer-bar"></i></div>
+              <div class="b-result" id="b-result"></div>
+            </div>
+          </div>
+          <div class="b-players" id="b-players"></div>
+
+          <div class="controls" id="b-controls">
+            <button type="button" class="action" id="b-join">Войти в раунд · 20 🪙</button>
+            <button type="button" class="ghost" id="b-leave">Передумал, вернуть 20</button>
+            <div class="b-deposit" id="b-deposit">
+              <div class="quick" id="b-quick">
+                <button type="button" class="ghost" data-dep="10">10</button>
+                <button type="button" class="ghost" data-dep="25">25</button>
+                <button type="button" class="ghost" data-dep="50">50</button>
+                <button type="button" class="ghost" data-dep="100">100</button>
+                <button type="button" class="ghost" data-dep="200">200</button>
+              </div>
+              <input id="b-amount" type="number" min="10" max="200" step="1" value="10" inputmode="numeric" aria-label="Сколько подложить">
+              <button type="button" class="action" id="b-put">Подложить</button>
+            </div>
+            <button type="button" class="danger" id="b-flee">Сбежать</button>
+          </div>
+          <p class="hint" id="b-hint"></p>
+
+          <details class="rules">
+            <summary>Правила</summary>
+            <ol class="ranks">
+              <li>Вход в раунд 20 фишек, играют от 2 до 8 человек.</li>
+              <li>Сервер тайно выбирает фитиль: при каком банке бомба рванёт.</li>
+              <li>По кругу каждый кладёт в банк от 10 до 200. Пропустить нельзя: проспал 15 секунд, и за тебя уйдёт 10.</li>
+              <li>Чей взнос дотянул банк до фитиля, тот взрывается и теряет всё вложенное. Банк делят выжившие пропорционально своим вкладам.</li>
+              <li>Сбежать можно в любой момент: заберёшь половину своих взносов.</li>
+              <li>Если все остальные сбежали, последний забирает весь банк.</li>
+            </ol>
+          </details>
         </section>
 
         <section class="card poker" id="poker" hidden>

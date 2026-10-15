@@ -275,6 +275,18 @@ function renderRoulette() {
     : [li('Ставок нет', 'muted')]));
 }
 
+function renderBombAdmin() {
+  const b = admin.data.bomb;
+  $('bo-phase').textContent = { lobby: 'сбор', playing: 'идёт', result: 'итог' }[b.phase] || b.phase;
+  $('bo-bank').textContent = b.bank;
+  $('bo-fuse').textContent = b.fuse === null ? '—' : b.fuse;
+  $('bo-rigged').textContent = b.rigged === null ? '' : `Следующий раунд подкручен: рванёт при банке ≥ ${b.rigged}`;
+  const status = { in: '', out: ' · сбежал', boom: ' · 💥' };
+  $('bo-players').replaceChildren(...(b.players.length
+    ? b.players.map((p) => li(`${p.id === b.turn ? '🔥 ' : ''}${p.name}: вложил ${p.contributed}${status[p.status]}${p.payout ? ` → +${p.payout}` : ''}`))
+    : [li('Никого', 'muted')]));
+}
+
 function renderPoker() {
   const v = admin.data.poker;
   $('p-phase').textContent = PHASES[v.phase] || v.phase;
@@ -328,6 +340,7 @@ function render() {
   renderRequests();
   renderCrash();
   renderRoulette();
+  renderBombAdmin();
   renderPoker();
   renderChat();
 }
@@ -464,6 +477,11 @@ $('m-random').addEventListener('click', () => run('/music/play', { id: 'random' 
 $('m-stop').addEventListener('click', () => run('/music/stop', {}, 'Музыка выключена'));
 $('chat-clear').addEventListener('click', () => {
   if (confirm('Очистить чат у всех?')) run('/chat/clear', {}, 'Чат очищен');
+});
+
+$('rig-bomb').addEventListener('click', () => {
+  const fuse = Math.floor(Number($('rig-fuse').value));
+  run('/bomb/rig', { fuse }, (r) => `Рванёт при банке ≥ ${fuse} ${r.round === 'current' ? 'в этом' : 'в следующем'} раунде`);
 });
 
 $('rig-roulette').addEventListener('click', () => {

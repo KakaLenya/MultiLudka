@@ -9,6 +9,7 @@ const { createCrashGame } = require('./crash');
 const { createTable } = require('./dicepoker');
 const { createAdminRouter } = require('./admin');
 const { createRoulette } = require('./roulette');
+const { createBomb } = require('./bomb');
 const { createMusic, sniffAudioType } = require('./music');
 const { createSongRequests } = require('./requests');
 
@@ -126,7 +127,8 @@ function onlineIds() {
 }
 
 function broadcastOnline() {
-  const players = [...onlineIds()].map((id) => ({ id, name: store.get(id).name }));
+  // Удалённый админом игрок может ещё долю секунды висеть в соединениях: пропускаем его.
+  const players = [...onlineIds()].map((id) => store.get(id)).filter(Boolean).map((p) => ({ id: p.id, name: p.name }));
   broadcast({ type: 'online', players });
   scheduleLeaderboard();
 }
@@ -174,6 +176,12 @@ const roulette = createRoulette({
   onState: (s) => broadcast({ type: 'roulette_state', ...s }),
 });
 store.addReserver(roulette.reserved);
+
+const bomb = createBomb({
+  store,
+  onState: (s) => broadcast({ type: 'bomb_state', ...s }),
+});
+store.addReserver(bomb.reserved);
 
 // Текущий трек переживает перезапуск сервера: пишем его в data/music-now.json.
 const MUSIC_NOW_FILE = path.join(DATA_DIR, 'music-now.json');
@@ -282,6 +290,7 @@ const handlers = {
     send(ws, leaderboardMsg());
     send(ws, { type: 'crash_state', ...crash.state() });
     send(ws, { type: 'roulette_state', ...roulette.state() });
+    send(ws, { type: 'bomb_state', ...bomb.state() });
     table.setConnected(player, true);
     send(ws, { type: 'poker_state', ...table.view(player) });
     send(ws, { type: 'chat_history', messages: chatLog });
@@ -308,6 +317,22 @@ const handlers = {
 
   roulette_clear(ws) {
     reply(ws, roulette.clear(ws.player));
+  },
+
+  bomb_join(ws) {
+    reply(ws, bomb.join(ws.player));
+  },
+
+  bomb_leave(ws) {
+    reply(ws, bomb.leave(ws.player));
+  },
+
+  bomb_deposit(ws, msg) {
+    reply(ws, bomb.deposit(ws.player, msg.amount));
+  },
+
+  bomb_flee(ws) {
+    reply(ws, bomb.flee(ws.player));
   },
 
   poker_join(ws, msg) {
@@ -412,6 +437,8 @@ function shutdown() {
     crash.refundActive();
     roulette.stop();
     roulette.refundActive();
+    bomb.stop();
+    bomb.refundAll();
     table.stop();
     table.refundAll();
     store.flush();
@@ -429,6 +456,7 @@ app.use('/admin/api', createAdminRouter({
   crash,
   table,
   roulette,
+  bomb,
   music,
   songRequests,
   chat: {
@@ -447,13 +475,18 @@ app.use('/admin/api', createAdminRouter({
   refreshLists: () => { broadcastOnline(); broadcastPoker(); scheduleLeaderboard(); },
   // Удалённого игрока выкидываем: при переподключении его токен уже не узнают, клиент покажет вход.
   disconnectPlayer: (player) => {
-    for (const ws of clients) if (ws.player === player) ws.close(4001, 'deleted');
+    for (const ws of clients) {
+      if (ws.player !== player) continue;
+      ws.player = null;  // сразу из списка онлайн, не дожидаясь закрытия сокета
+      ws.close(4001, 'deleted');
+    }
   },
 }));
 
 crash.start();
 table.start();
 roulette.start();
+bomb.start();
 
 server.listen(PORT, HOST, () => {
   console.log(`Казино-зал: http://${HOST === '0.0.0.0' ? 'localhost' : HOST}:${PORT}`);

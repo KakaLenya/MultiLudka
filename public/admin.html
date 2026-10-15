@@ -161,6 +161,22 @@
         <ul class="list" id="r-bets"></ul>
       </section>
 
+      <!-- Бомба -->
+      <section class="card">
+        <h2>💣 Бомба в банке</h2>
+        <div class="stat-row">
+          <div><span class="muted">Фаза</span> <b id="bo-phase">…</b></div>
+          <div><span class="muted">Банк</span> <b id="bo-bank">…</b></div>
+          <div><span class="muted">Фитиль</span> <b class="secret" id="bo-fuse">…</b></div>
+        </div>
+        <p class="muted small" id="bo-rigged"></p>
+        <div class="row">
+          <input id="rig-fuse" type="number" min="1" step="1" placeholder="рванёт при банке ≥" class="short">
+          <button type="button" class="ghost" id="rig-bomb">Подкрутить фитиль</button>
+        </div>
+        <ul class="list" id="bo-players"></ul>
+      </section>
+
       <!-- Покер -->
       <section class="card">
         <h2>🎲 Покер</h2>
