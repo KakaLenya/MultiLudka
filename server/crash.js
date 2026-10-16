@@ -37,7 +37,8 @@ function parseAutoCashout(raw) {
 // store: хранилище игроков. onState(state): рассылка состояния.
 // now, random, timings подменяются в тестах; там же tick() дёргается вручную.
 // onEvent: события для общей ленты ставок и выигрышей.
-function createCrashGame({ store, onState = () => {}, onEvent = () => {}, now = Date.now, random = randomFloat, timings = {} }) {
+// lucky(player): админский режим везения — повезло ли игроку в этом раунде.
+function createCrashGame({ store, onState = () => {}, onEvent = () => {}, now = Date.now, random = randomFloat, timings = {}, lucky = () => false }) {
   const bettingMs = timings.bettingMs ?? BETTING_MS;
   const pauseMs = timings.pauseMs ?? PAUSE_MS;
 
@@ -50,11 +51,13 @@ function createCrashGame({ store, onState = () => {}, onEvent = () => {}, now = 
   const history = [];
   let timer = null;
   let riggedCents = null;   // админ: точка краха следующего раунда
+  let roundRigged = false;  // в этом раунде точку задал админ: везение не трогает
 
   function newRound(t) {
     roundId += 1;
     phase = 'betting';
     phaseStartedAt = t;
+    roundRigged = riggedCents !== null;
     crashCents = riggedCents ?? crashPointCents(random());
     riggedCents = null;
     currentCents = 100;
@@ -83,6 +86,18 @@ function createCrashGame({ store, onState = () => {}, onEvent = () => {}, now = 
     }
   }
 
+  // Ставки закрыты: везунчики должны успеть забрать.
+  function favourLucky() {
+    let need = 0;
+    for (const bet of bets.values()) {
+      if (!lucky(bet.player)) continue;
+      need = Math.max(need, bet.autoCents !== null
+        ? bet.autoCents + 1 + Math.floor(random() * 50)
+        : 400 + Math.floor(random() * 1100));
+    }
+    if (need > crashCents) crashCents = Math.min(MAX_CENTS, need);
+  }
+
   // Доводит раунд до текущего момента. Вызывается тиком и перед каждой командой игрока,
   // поэтому "забрать" в момент краха сравнивается с реальным временем, а не с последним тиком.
   function advance() {
@@ -91,6 +106,7 @@ function createCrashGame({ store, onState = () => {}, onEvent = () => {}, now = 
     if (phase === 'betting' && t - phaseStartedAt >= bettingMs) {
       phase = 'running';
       phaseStartedAt += bettingMs;
+      if (!roundRigged) favourLucky();
     }
     if (phase === 'running') {
       const cents = Math.min(multiplierCents(t - phaseStartedAt), crashCents);

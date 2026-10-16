@@ -11,6 +11,7 @@ const { createBomb } = require('../server/bomb');
 const { createUpgrader } = require('../server/upgrader');
 const { createVerity } = require('../server/verity');
 const { createAchievements } = require('../server/achievements');
+const { createLuck } = require('../server/luck');
 const { createPool } = require('../server/pool');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -92,6 +93,7 @@ async function withServer(fn) {
     upgrader: createUpgrader({ store, schedule: () => {} }),
     verity: createVerity({ store, schedule: () => {} }),
     achievements: createAchievements({ store }),
+    luck: createLuck(),
     pool: createPool({ store }),
     music,
     songRequests: createSongRequests({ playlist: music.playlist, play: music.play }),
@@ -208,5 +210,18 @@ test('API: неделя — состояние и итоги досрочно', 
     assert.equal((await post(`${base}/season/end`, {})).status, 200);
     st = await (await fetch(`${base}/state`)).json();
     assert.deepEqual(st.season.season.top, []);
+  });
+});
+
+test('API: режим везения — включить, проверить, выключить', async () => {
+  await withServer(async ({ base, a }) => {
+    assert.equal((await post(`${base}/luck`, { playerId: a.id, percent: 90 })).status, 200);
+    let st = await (await fetch(`${base}/state`)).json();
+    assert.equal(st.players.find((p) => p.id === a.id).luck, 90);
+    assert.equal((await post(`${base}/luck`, { playerId: a.id, percent: 500 })).status, 400);
+    assert.equal((await post(`${base}/luck`, { playerId: '999', percent: 90 })).status, 404);
+    assert.equal((await post(`${base}/luck`, { playerId: a.id, percent: 0 })).status, 200);
+    st = await (await fetch(`${base}/state`)).json();
+    assert.equal(st.players.find((p) => p.id === a.id).luck, 0);
   });
 });

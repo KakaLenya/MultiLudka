@@ -13,6 +13,7 @@ function createVerity({
   coin = () => randomInt(0, 1) === 1,     // true = добрый
   schedule = (fn, ms) => setTimeout(fn, ms),
   spinMs = SPIN_MS,
+  lucky = () => false,     // админский режим везения
 }) {
   const busyUntil = new Map();
   const feed = [];
@@ -24,7 +25,7 @@ function createVerity({
     if ((busyUntil.get(player.id) || 0) > now()) return { error: 'Верити ещё думает' };
     if (amount > player.balance) return { error: 'Не хватает фишек' };
 
-    const good = rigged === 'good' ? true : rigged === 'evil' ? false : coin();
+    const good = rigged === 'good' ? true : rigged === 'evil' ? false : lucky(player) || coin();
     rigged = null;
     store.adjust(player, good ? amount : -amount);
     busyUntil.set(player.id, now() + spinMs);

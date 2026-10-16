@@ -19,7 +19,7 @@ function fuseFor(bank, players, r) {
 }
 
 // onEvent: события для общей ленты ставок и выигрышей.
-function createBomb({ store, onState = () => {}, onEvent = () => {}, now = Date.now, random = randomFloat, timings = {} }) {
+function createBomb({ store, onState = () => {}, onEvent = () => {}, now = Date.now, random = randomFloat, timings = {}, lucky = () => false }) {
   const T = { lobbyMs: LOBBY_MS, turnMs: TURN_MS, resultMs: RESULT_MS, ...timings };
 
   let roundId = 1;
@@ -149,6 +149,9 @@ function createBomb({ store, onState = () => {}, onEvent = () => {}, now = Date.
     bank += amount;
     s.lastMove = auto ? `+${amount} (время)` : `+${amount}`;
     store.adjust(s.player, -amount);
+    if (bank >= fuse && active().length > 1 && lucky(s.player)) {
+      fuse = bank + 1 + Math.floor(random() * Math.max(10, bank * 0.3));
+    }
     if (bank >= fuse) explode(s, t);
     else nextTurn(t);
   }

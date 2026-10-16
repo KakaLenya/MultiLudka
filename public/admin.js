@@ -109,6 +109,13 @@ function renderPlayers() {
           m.textContent = '🤐';
           frag.append(m);
         }
+        if (p.luck) {
+          const l = document.createElement('span');
+          l.className = 'muted-tag';
+          l.textContent = `🍀${p.luck}%`;
+          l.title = 'Режим везения';
+          frag.append(l);
+        }
         return frag;
       },
       () => String(p.balance),
@@ -139,6 +146,7 @@ function renderSelected() {
     `баланс ${p.balance}`,
     p.reserved ? `в играх ${p.reserved}` : null,
     p.mutedFor > 0 ? `мут ещё ${fmtMs(p.mutedFor)}` : null,
+    p.luck ? `🍀 везение ${p.luck}%` : null,
     p.bonusReadyIn > 0 ? `пособие через ${fmtMs(p.bonusReadyIn)}` : 'пособие доступно',
   ];
   $('sel-info').textContent = parts.filter(Boolean).join(' · ');
@@ -538,6 +546,13 @@ $('chat-clear').addEventListener('click', () => {
 document.querySelectorAll('[data-uprig]').forEach((b) => b.addEventListener('click', () => {
   const mode = b.dataset.uprig === 'fair' ? null : b.dataset.uprig;
   run('/upgrader/rig', { mode }, mode === 'win' ? 'Следующий апгрейд выиграет' : mode === 'lose' ? 'Следующий апгрейд проиграет' : 'Апгрейды снова честные');
+}));
+
+document.querySelectorAll('[data-luck]').forEach((b) => b.addEventListener('click', () => {
+  const p = selectedPlayer();
+  if (!p) return;
+  const percent = Number(b.dataset.luck);
+  run('/luck', { playerId: p.id, percent }, percent ? `🍀 ${p.name}: везение ${percent}%` : `${p.name}: везение выключено`);
 }));
 
 $('se-end').addEventListener('click', () => {

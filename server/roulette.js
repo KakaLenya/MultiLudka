@@ -48,7 +48,7 @@ const BET_LABELS = {
 const betLabel = (b) => (b.type === 'straight' ? `№${b.number}` : BET_LABELS[b.type]);
 
 // onEvent: события для общей ленты ставок и выигрышей.
-function createRoulette({ store, onState = () => {}, onEvent = () => {}, now = Date.now, random = () => randomInt(0, 36), timings = {} }) {
+function createRoulette({ store, onState = () => {}, onEvent = () => {}, now = Date.now, random = () => randomInt(0, 36), timings = {}, lucky = () => false }) {
   const T = { bettingMs: BETTING_MS, spinMs: SPIN_MS, resultMs: RESULT_MS, ...timings };
 
   let roundId = 0;
@@ -66,6 +66,17 @@ function createRoulette({ store, onState = () => {}, onEvent = () => {}, now = D
     phaseStartedAt = t;
     result = null;
     bets = new Map();
+  }
+
+  // Число, на котором все везунчики раунда в плюсе (или хотя бы первый). null — везения нет.
+  function luckyResult() {
+    const favoured = [...bets.values()].filter((b) => lucky(b.player));
+    if (!favoured.length) return null;
+    const net = (b, n) => b.list.reduce((sum, bet) => sum + payoutFor(bet, n), 0) - b.total;
+    let good = [];
+    for (let n = 0; n <= 36; n++) if (favoured.every((b) => net(b, n) > 0)) good.push(n);
+    if (!good.length) for (let n = 0; n <= 36; n++) if (net(favoured[0], n) > 0) good.push(n);
+    return good.length ? good[randomInt(0, good.length - 1)] : null;
   }
 
   function settle() {
@@ -91,7 +102,7 @@ function createRoulette({ store, onState = () => {}, onEvent = () => {}, now = D
     if (phase === 'betting' && t - phaseStartedAt >= T.bettingMs) {
       phase = 'spinning';
       phaseStartedAt += T.bettingMs;
-      result = rigged ?? random();
+      result = rigged ?? luckyResult() ?? random();
       rigged = null;
       // Ставки закрыты: в ленту уходит, кто сколько и на что поставил.
       for (const b of bets.values()) {

@@ -24,7 +24,7 @@ function tokenMatches(given, expected) {
 }
 
 function createAdminRouter({
-  adminToken, store, crash, table, roulette, bomb, upgrader, verity, achievements, pool, music, songRequests, chat, mutes, cleanText,
+  adminToken, store, crash, table, roulette, bomb, upgrader, verity, achievements, luck, pool, music, songRequests, chat, mutes, cleanText,
   onlineIds, sendToPlayer, broadcast, refreshLists, disconnectPlayer = () => {},
 }) {
   const router = express.Router();
@@ -62,6 +62,7 @@ function createAdminRouter({
         capital: store.capital(p),
         bonusReadyIn: store.bonusStatus(p).availableIn,
         mutedFor: Math.max(0, (mutes.get(p.id) || 0) - t),
+        luck: luck.percentOf(p.id),
         createdAt: p.createdAt,
       }))
       .sort((a, b) => b.online - a.online || b.capital - a.capital);
@@ -138,6 +139,7 @@ function createAdminRouter({
     songRequests.forget(p.id);
     pool.forget(p.id);
     achievements.forget(p.id);
+    luck.forget(p.id);
     const result = store.remove(p);
     if (result.error) return fail(res, result.error);
     disconnectPlayer(p);
@@ -233,6 +235,15 @@ function createAdminRouter({
   router.post('/chat/clear', (req, res) => {
     chat.clear();
     ok(res);
+  });
+
+  // Режим везения: { playerId, percent } — 1..100 включить, 0 выключить.
+  router.post('/luck', (req, res) => {
+    const p = findPlayer(req.body.playerId);
+    if (!p) return fail(res, 'Игрок не найден', 404);
+    const result = luck.set(p.id, req.body.percent);
+    if (result.error) return fail(res, result.error);
+    ok(res, { name: p.name, percent: luck.percentOf(p.id) });
   });
 
   // Закрыть неделю досрочно: итоги в зал славы, новая неделя.

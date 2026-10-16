@@ -120,6 +120,7 @@ const BET_STREETS = new Set(['preflop', 'flop', 'turn', 'river']);
 
 function createHoldem({
   store,
+  lucky = () => false,     // админский режим везения
   onChange = () => {},
   onEvent = () => {},
   now = Date.now,
@@ -232,6 +233,8 @@ function createHoldem({
       const i = (dealer + k) % MAX_SEATS;
       if (inHand(seats[i])) seats[i].hole = fixed.get(i) || [deck.shift(), deck.shift()];
     }
+
+    favourLucky();
 
     pay(seats[sbSeat], SMALL_BLIND, `SB ${SMALL_BLIND}`);
     pay(seats[bbSeat], BIG_BLIND, `BB ${BIG_BLIND}`);
@@ -628,6 +631,25 @@ function createHoldem({
   }
 
   // Админ: две карты игроку на следующую раздачу.
+  // Борд — следующие пять карт колоды. Если у везунчика с ним не лучшая рука, меняем его карманные
+  // карты с картами того, у кого лучшая.
+  function favourLucky() {
+    const me = seats.findIndex((s) => inHand(s) && lucky(s.player));
+    if (me < 0 || deck.length < 5) return;
+    const board5 = deck.slice(0, 5);
+    let best = me;
+    let bestH = bestHand([...seats[me].hole, ...board5]);
+    seats.forEach((s, i) => {
+      if (i === me || !inHand(s)) return;
+      const h = bestHand([...s.hole, ...board5]);
+      if (compareHands(h, bestH) > 0) {
+        best = i;
+        bestH = h;
+      }
+    });
+    if (best !== me) [seats[me].hole, seats[best].hole] = [seats[best].hole, seats[me].hole];
+  }
+
   function rigHole(player, cards) {
     if (!Array.isArray(cards) || cards.length !== 2 || !cards.every(isCard) || cards[0] === cards[1]) {
       return { error: 'Две разные карты, например As Kh' };

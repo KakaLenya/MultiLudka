@@ -13,6 +13,7 @@ const { createBomb } = require('./bomb');
 const { createUpgrader } = require('./upgrader');
 const { createVerity } = require('./verity');
 const { createAchievements, ACHIEVEMENTS } = require('./achievements');
+const { createLuck } = require('./luck');
 const { createPool } = require('./pool');
 const { createMusic, sniffAudioType } = require('./music');
 const { createSongRequests } = require('./requests');
@@ -185,6 +186,9 @@ store.onChange((player) => {
   scheduleLeaderboard();
 });
 
+// Админский режим везения.
+const luck = createLuck({ file: path.join(DATA_DIR, 'luck.json') });
+
 // Достижения и недельный сезон.
 const achievements = createAchievements({
   file: path.join(DATA_DIR, 'achievements.json'),
@@ -213,6 +217,7 @@ function scheduleSeason() {
 
 const crash = createCrashGame({
   store,
+  lucky: luck.roll,
   onEvent: onActivity,
   onState: (s) => broadcast({ type: 'crash_state', ...s }),
 });
@@ -220,6 +225,7 @@ store.addReserver(crash.reserved);
 
 const roulette = createRoulette({
   store,
+  lucky: luck.roll,
   onEvent: onActivity,
   onState: (s) => broadcast({ type: 'roulette_state', ...s }),
 });
@@ -227,6 +233,7 @@ store.addReserver(roulette.reserved);
 
 const bomb = createBomb({
   store,
+  lucky: luck.roll,
   onEvent: onActivity,
   onState: (s) => broadcast({ type: 'bomb_state', ...s }),
 });
@@ -234,12 +241,14 @@ store.addReserver(bomb.reserved);
 
 const upgrader = createUpgrader({
   store,
+  lucky: luck.roll,
   onEvent: onActivity,
   onFeed: (feed) => broadcast({ type: 'upgrade_feed', feed }),
 });
 
 const verity = createVerity({
   store,
+  lucky: luck.roll,
   onEvent: onActivity,
   onFeed: (feed) => broadcast({ type: 'verity_feed', feed }),
 });
@@ -303,7 +312,7 @@ function broadcastPoker() {
     }
   });
 }
-const table = createHoldem({ store, onChange: broadcastPoker, onEvent: onActivity });
+const table = createHoldem({ store, lucky: luck.roll, onChange: broadcastPoker, onEvent: onActivity });
 store.addReserver(table.reserved);
 
 // Пул: у каждого свои приглашения, матчи видны всем (можно смотреть).
@@ -607,6 +616,7 @@ app.use('/admin/api', createAdminRouter({
   upgrader,
   verity,
   achievements,
+  luck,
   pool,
   music,
   songRequests,

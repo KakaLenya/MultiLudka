@@ -33,6 +33,7 @@ function createUpgrader({
   random = randomFloat,
   schedule = (fn, ms) => setTimeout(fn, ms),
   spinMs = SPIN_MS,
+  lucky = () => false,     // админский режим везения
 }) {
   const busyUntil = new Map();   // playerId -> когда колесо остановится
   const feed = [];
@@ -51,6 +52,7 @@ function createUpgrader({
     let landing;
     if (rigged === 'win') landing = (start + random() * chance) % 100;
     else if (rigged === 'lose') landing = (start + chance + random() * (100 - chance)) % 100;
+    else if (lucky(player)) landing = (start + random() * chance) % 100;
     else landing = random() * 100;
     rigged = null;
 
