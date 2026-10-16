@@ -818,7 +818,8 @@ const rl = {
   recvAt: 0,
   chip: Number(storage.get(R_CHIP_KEY)) || 50,
   rotation: 0,          // текущий поворот колеса
-  spin: null,           // { roundId, from, to }
+  spin: null,           // { roundId, sim, click }
+  wheelW: 1.2,          // скорость колеса между вращениями, рад/с
   lastResultRound: 0,
   cells: [],            // [{ el, type, number }]
 };
@@ -971,8 +972,6 @@ const R_DISK = 116;       // вращающийся диск
 const R_NUM = 106;        // кольцо с номерами
 const R_WELL = 96;        // карманы
 const R_CONE = 80;        // центральный конус
-const R_TRACK = 126;      // дорожка шарика
-const R_POCKET = 88;      // шарик в кармане
 const BALL_R = 6.5;
 
 // Неподвижная часть (обод и дорожка) и вращающийся диск рисуются один раз в offscreen-канвасы
@@ -1141,70 +1140,41 @@ function drawWheel(rotation, ball) {
   ctx.fill();
 }
 
-const easeOut = (x) => 1 - (1 - x) ** 4;
-// Поворот колеса, при котором номер n наверху (там шарик и останавливается).
-const restingRotation = (n) => -R_WHEEL.indexOf(n) * R_STEP;
 // Угол кармана номера n на экране при повороте колеса rotation.
 const pocketAngle = (rotation, n) => rotation - Math.PI / 2 + R_WHEEL.indexOf(n) * R_STEP;
+const RPH = window.RoulettePhysics;
 
-const BALL_TURNS = 7;     // сколько оборотов шарик делает относительно колеса
-const DROP_AT = 0.55;     // когда начинает скатываться с дорожки
-const BOUNCE_AT = 0.62;   // когда начинает прыгать по перегородкам
-
-// Положение шарика во время вращения: p от 0 до 1.
-function ballDuringSpin(p, rotation, result) {
-  const home = pocketAngle(rotation, result);
-  let rel = 2 * Math.PI * BALL_TURNS * (1 - p) ** 3;
-  let r = R_TRACK;
-  if (p > DROP_AT) {
-    const d = Math.min(1, (p - DROP_AT) / (0.72 - DROP_AT));
-    r = R_TRACK - (R_TRACK - R_POCKET) * d * d;
-  }
-  if (p > BOUNCE_AT) {
-    const k = (p - BOUNCE_AT) / (1 - BOUNCE_AT);
-    const fade = (1 - k) ** 2;
-    rel += 0.5 * Math.sin(k * Math.PI * 4) * fade;       // перескакивает соседние карманы
-    r += 7 * Math.abs(Math.sin(k * Math.PI * 4)) * fade; // подпрыгивает на перегородках
-  }
-  return { angle: home + rel, r };
-}
-
-let lastClick = { pocket: null, at: 0 };
-// Щелчки шарика о перегородки, пока он прыгает.
-function ballClicks(p, ball, rotation) {
-  if (p < DROP_AT || p >= 1 || !soundOn) return;
-  const pocket = Math.floor((ball.angle - rotation) / R_STEP);
-  const t = performance.now();
-  if (pocket !== lastClick.pocket && t - lastClick.at > 45) {
-    lastClick = { pocket, at: t };
-    beep([[1500 + Math.random() * 600, 0.012]], 'square');
-  }
-}
-
-function rouletteFrame() {
+function rouletteFrame(now) {
+  const dt = Math.min(0.1, (now - (rl.lastFrameAt || now)) / 1000);
+  rl.lastFrameAt = now;
   const v = rl.view;
   if (v && !$('roulette').hidden) {
     let ball = null;
     if (v.phase === 'spinning') {
+      const elapsed = (v.spinMs - rouletteTimeLeft()) / 1000;
       if (!rl.spin || rl.spin.roundId !== v.roundId) {
-        // Старт вращения: минимум 4 оборота колеса и остановка выпавшего номера наверху.
-        const from = rl.rotation;
-        const base = restingRotation(v.result);
-        const turns = Math.ceil((from - base) / (2 * Math.PI)) + 4;
-        rl.spin = { roundId: v.roundId, from, to: base + turns * 2 * Math.PI };
+        // Новый бросок: случайная физика с зерном из номера раунда, у всех одинаковая.
+        const sim = RPH.spin({ seed: v.roundId, rotation: rl.rotation, slot: R_WHEEL.indexOf(v.result), spinMs: v.spinMs });
+        const already = elapsed * sim.scale;
+        rl.spin = { roundId: v.roundId, sim, click: sim.clicks.filter((c) => c <= already).length };
       }
-      const p = Math.min(1, 1 - rouletteTimeLeft() / v.spinMs);
-      rl.rotation = rl.spin.from + (rl.spin.to - rl.spin.from) * easeOut(p);
-      ball = ballDuringSpin(p, rl.rotation, v.result);
-      ballClicks(p, ball, rl.rotation);
+      const { sim } = rl.spin;
+      const tSim = elapsed * sim.scale;
+      const f = sim.frames[Math.min(sim.frames.length - 1, Math.floor(tSim / sim.frameDt))];
+      rl.rotation = f[2];
+      ball = { angle: f[0], r: f[1] };
+      // Щелчки о перегородки.
+      while (rl.spin.click < sim.clicks.length && sim.clicks[rl.spin.click] <= tSim) {
+        rl.spin.click += 1;
+        if (soundOn) beep([[1400 + Math.random() * 700, 0.014]], 'square');
+      }
+      rl.wheelW = sim.wheelSpeed * sim.scale;
     } else {
-      if (v.phase === 'result' && v.result !== null) {
-        // Видели вращение: стоим там, где оно закончилось; зашли позже: просто ставим на номер.
-        rl.rotation = rl.spin && rl.spin.roundId === v.roundId ? rl.spin.to : restingRotation(v.result);
-      }
-      // Шарик лежит в последнем выпавшем номере.
+      // Колесо докручивается по инерции, шарик лежит в последнем выпавшем номере.
+      rl.rotation += (rl.wheelW || 0) * dt;
+      rl.wheelW = (rl.wheelW || 0) * (1 - 0.06 * dt);
       const last = v.phase === 'result' ? v.result : v.history.length ? v.history[0].n : null;
-      if (last !== null) ball = { angle: pocketAngle(rl.rotation, last), r: R_POCKET };
+      if (last !== null) ball = { angle: pocketAngle(rl.rotation, last), r: RPH.R_POCKET };
     }
     drawWheel(rl.rotation, ball);
 
