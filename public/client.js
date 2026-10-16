@@ -133,6 +133,54 @@ function listItem(name, isSelf) {
   return li;
 }
 
+// ---------- Подтверждение ставок ----------
+
+// Перед каждой ставкой игрок подтверждает сумму. Можно спрашивать только про крупные (от 10% баланса).
+const CONFIRM_KEY = 'casino.confirm.bigOnly';
+let betConfirm = null;   // { resolve } — окно открыто
+$('bc-big-only').checked = storage.get(CONFIRM_KEY) === '1';
+$('bc-big-only').addEventListener('change', () => storage.set(CONFIRM_KEY, $('bc-big-only').checked ? '1' : '0'));
+
+// -> Promise<boolean>: true — ставим.
+function confirmBet(game, amount, note = '') {
+  if (!(amount > 0)) return Promise.resolve(true);
+  if (storage.get(CONFIRM_KEY) === '1' && amount < state.balance * 0.1) return Promise.resolve(true);
+  if (betConfirm) closeBetConfirm(false);
+  $('bc-game').textContent = game;
+  $('bc-amount').textContent = amount.toLocaleString('ru-RU');
+  $('bc-note').textContent = note;
+  $('bc-note').hidden = !note;
+  const share = state.balance > 0 ? Math.round((amount / state.balance) * 100) : 100;
+  $('bc-share').textContent = amount >= state.balance ? 'Это весь твой баланс!' : `Это ${share}% твоего баланса`;
+  $('bc-share').classList.toggle('warn', share >= 50);
+  $('bet-confirm').hidden = false;
+  $('bc-ok').focus();
+  return new Promise((resolve) => {
+    betConfirm = { resolve };
+  });
+}
+
+function closeBetConfirm(ok) {
+  if (!betConfirm) return;
+  const { resolve } = betConfirm;
+  betConfirm = null;
+  $('bet-confirm').hidden = true;
+  resolve(ok);
+}
+$('bc-ok').addEventListener('click', () => closeBetConfirm(true));
+$('bc-cancel').addEventListener('click', () => closeBetConfirm(false));
+$('bet-confirm').addEventListener('click', (e) => {
+  if (e.target === $('bet-confirm')) closeBetConfirm(false);
+});
+document.addEventListener('keydown', (e) => {
+  if (!betConfirm) return;
+  if (e.key === 'Escape') closeBetConfirm(false);
+  if (e.key === 'Enter') {
+    e.preventDefault();
+    closeBetConfirm(true);
+  }
+});
+
 // ---------- Краш ----------
 
 function myCrashBet() {
@@ -358,7 +406,8 @@ $('crash-form').addEventListener('submit', (ev) => {
   const autoCashout = autoRaw === '' ? undefined : Number(autoRaw);
   storage.set(BET_KEY, String(amount));
   storage.set(AUTO_KEY, autoRaw);
-  send({ type: 'crash_bet', amount, autoCashout });
+  confirmBet('📈 Краш', amount, autoCashout ? `Автовывод на ${autoCashout}×` : 'Без автовывода: забрать нужно самому')
+    .then((ok) => ok && send({ type: 'crash_bet', amount, autoCashout }));
 });
 
 document.querySelectorAll('[data-quick]').forEach((btn) => {
@@ -732,7 +781,9 @@ document.querySelectorAll('[data-rq]').forEach((b) => b.addEventListener('click'
 
 $('poker-join').addEventListener('submit', (ev) => {
   ev.preventDefault();
-  send({ type: 'poker_join', buyIn: Math.floor(Number($('buyin').value)) });
+  const buyIn = Math.floor(Number($('buyin').value));
+  confirmBet('🃏 Покер', buyIn, 'Бай-ин: фишки уходят за стол, остаток вернётся, когда встанешь')
+    .then((ok) => ok && send({ type: 'poker_join', buyIn }));
 });
 
 $('poker-leave').addEventListener('click', () => send({ type: 'poker_leave' }));
@@ -742,7 +793,15 @@ document.querySelectorAll('[data-act]').forEach((btn) => {
     const action = btn.dataset.act;
     const msg = { type: 'poker_action', action };
     if (action === 'raise') msg.amount = Math.floor(Number($('raise-amount').value));
-    send(msg);
+    const v = poker.view;
+    const you = v && v.you;
+    const seat = you && v.seats[you.seat];
+    const put = (seat && seat.committed) || 0;
+    let ask = null;
+    if (action === 'call' && you) ask = ['🃏 Покер · уравнять', you.toCall, 'Уравнять ставку'];
+    if (action === 'raise') ask = ['🃏 Покер · повысить', msg.amount - put, `Повысить до ${msg.amount}`];
+    if (!ask) return send(msg);
+    confirmBet(...ask).then((ok) => ok && send(msg));
   });
 });
 
@@ -866,7 +925,9 @@ renderChips();
     el.style.gridRow = row;
     el.textContent = label;
     el.addEventListener('click', () => {
-      send({ type: 'roulette_bet', betType: type, number, amount: rl.chip });
+      const amount = rl.chip;
+      confirmBet('🎡 Рулетка', amount, `Ставка на ${label === '◆' ? (type === 'red' ? 'красное' : 'чёрное') : label}`)
+        .then((ok) => ok && send({ type: 'roulette_bet', betType: type, number, amount }));
     });
     cells.push({ el, type, number });
   };
@@ -1621,7 +1682,10 @@ document.querySelectorAll('[data-uq]').forEach((b) => b.addEventListener('click'
   $('u-amount').value = Math.max(10, Math.min(next, Math.max(10, state.balance)));
   renderUpgradeForm();
 }));
-$('u-go').addEventListener('click', () => {
+$('u-go').addEventListener('click', async () => {
+  if (upg.spin || upg.awaiting) return;
+  const chance = upgChance();
+  if (!await confirmBet('⬆️ Апгрейд', upgAmount(), `Шанс ${chance}%, выигрыш ×${upgMult(chance).toFixed(2)}`)) return;
   if (upg.spin || upg.awaiting) return;
   upg.awaiting = true;
   upg.base = state.balance;
@@ -2036,11 +2100,13 @@ document.querySelectorAll('[data-vq]').forEach((b) => b.addEventListener('click'
   const next = { half: Math.floor(v / 2), double: v * 2, max: state.balance }[b.dataset.vq];
   $('vt-amount').value = Math.max(1, Math.min(next, Math.max(1, state.balance)));
 }));
-$('vt-go').addEventListener('click', () => {
+$('vt-go').addEventListener('click', async () => {
   if (vt.busy || vt.awaiting) return;
   const amount = vtAmount();
   if (amount < 1) return toast('Ставка — от 1 фишки');
   if (amount > state.balance) return toast('Не хватает фишек');
+  if (!await confirmBet('😊 Верити', amount, 'Добрый удвоит, злой съест')) return;
+  if (vt.busy || vt.awaiting) return;
   vt.awaiting = true;
   vt.base = state.balance;
   $('vt-go').disabled = true;
@@ -2401,7 +2467,7 @@ function plRenderLobby() {
   $('pl-out').replaceChildren(...(out ? [plInviteRow(`Ждём ответа: ${out.toName}${out.stake ? ` · ставка ${out.stake}` : ''}`, [['Отменить', 'ghost', () => send({ type: 'pool_cancel' })]])] : []));
   $('pl-in').replaceChildren(...v.invitesIn.map((i) => plInviteRow(
     `${i.fromName} зовёт тебя${i.stake ? ` · ставка ${i.stake}` : ' · без ставки'}`,
-    [['Принять', '', () => send({ type: 'pool_accept', inviteId: i.id })], ['Отказ', 'ghost', () => send({ type: 'pool_decline', inviteId: i.id })]],
+    [['Принять', '', () => plAccept(i)], ['Отказ', 'ghost', () => send({ type: 'pool_decline', inviteId: i.id })]],
   )));
 
   $('pl-matches').replaceChildren(...(v.matches.length ? v.matches.map((m) => {
@@ -2507,14 +2573,25 @@ function plRenderPopup() {
   }
 }
 
-$('pl-popup-accept').addEventListener('click', () => send({ type: 'pool_accept', inviteId: $('pl-popup').dataset.id }));
+function plAccept(inv) {
+  confirmBet('🎱 Пул', inv.stake, `Партия против ${inv.fromName}: победитель забирает обе ставки`)
+    .then((ok) => ok && send({ type: 'pool_accept', inviteId: inv.id }));
+}
+$('pl-popup-accept').addEventListener('click', () => {
+  const inv = pl.view && pl.view.invitesIn.find((i) => i.id === $('pl-popup').dataset.id);
+  if (inv) plAccept(inv);
+  else send({ type: 'pool_accept', inviteId: $('pl-popup').dataset.id });
+});
 $('pl-popup-decline').addEventListener('click', () => send({ type: 'pool_decline', inviteId: $('pl-popup').dataset.id }));
 
 $('pl-invite-form').addEventListener('submit', (ev) => {
   ev.preventDefault();
   const toId = $('pl-opponent').value;
   if (!toId) return toast('Позвать некого: никого нет онлайн');
-  send({ type: 'pool_invite', toId, stake: Math.floor(Number($('pl-stake').value) || 0) });
+  const stake = Math.floor(Number($('pl-stake').value) || 0);
+  const opp = $('pl-opponent').selectedOptions[0];
+  confirmBet('🎱 Пул', stake, `Позвать ${opp ? opp.textContent : 'соперника'}: ставка спишется, когда он примет`)
+    .then((ok) => ok && send({ type: 'pool_invite', toId, stake }));
 });
 $('pl-back').addEventListener('click', () => {
   pl.watching = null;
@@ -2791,16 +2868,22 @@ bomb.onState = (msg) => {
   renderBomb();
 };
 
-$('b-join').addEventListener('click', () => send({ type: 'bomb_join' }));
+$('b-join').addEventListener('click', () => {
+  confirmBet('💣 Бомба', 20, 'Вход в раунд').then((ok) => ok && send({ type: 'bomb_join' }));
+});
+function bombDeposit(amount) {
+  confirmBet('💣 Бомба', amount, 'Взнос в банк: если рванёт у тебя, потеряешь всё вложенное')
+    .then((ok) => ok && send({ type: 'bomb_deposit', amount }));
+}
 $('b-leave').addEventListener('click', () => send({ type: 'bomb_leave' }));
 $('b-flee').addEventListener('click', () => send({ type: 'bomb_flee' }));
 $('b-put').addEventListener('click', () => {
-  send({ type: 'bomb_deposit', amount: Math.floor(Number($('b-amount').value)) });
+  bombDeposit(Math.floor(Number($('b-amount').value)));
 });
 document.querySelectorAll('[data-dep]').forEach((b) => {
   b.addEventListener('click', () => {
     $('b-amount').value = b.dataset.dep;
-    send({ type: 'bomb_deposit', amount: Number(b.dataset.dep) });
+    bombDeposit(Number(b.dataset.dep));
   });
 });
 

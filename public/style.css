@@ -1440,3 +1440,16 @@ body.fx-disco { animation: fx-disco .5s linear infinite; }
 .ach-pop b { font-family: var(--display); font-size: 17px; }
 .ach-pop span { color: var(--muted); font-size: 13px; }
 @keyframes ach-bounce { 50% { transform: translateY(-5px) rotate(-8deg) scale(1.1); } }
+
+/* ---------- Подтверждение ставки ---------- */
+#bet-confirm { z-index: 80; }
+.bet-card { width: min(380px, 100%); text-align: center; padding: 24px 22px 18px; }
+.bc-game { font-size: 13px; color: var(--muted); font-weight: 700; letter-spacing: .04em; }
+.bet-card h3 { margin: 6px 0 10px; font-family: var(--display); font-size: 18px; }
+.bc-amount b { font-family: var(--display); font-size: 34px; color: var(--gold-2); }
+.bc-amount span { color: var(--muted); }
+.bc-note { margin: 8px 0 0; font-size: 14px; }
+.bc-share { margin: 6px 0 0; font-size: 13px; color: var(--muted); }
+.bc-share.warn { color: var(--red); font-weight: 700; }
+.bc-actions { display: grid; grid-template-columns: 1fr 1.4fr; gap: 10px; margin-top: 18px; }
+.bc-opt { display: flex; gap: 8px; align-items: center; justify-content: center; margin-top: 14px; font-size: 12px; color: var(--muted); cursor: pointer; }

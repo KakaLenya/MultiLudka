@@ -25,7 +25,7 @@
   <main>
     <section class="card login" id="login" hidden>
       <h1>Казино-зал</h1>
-      <p class="muted">Краш, рулетка и покер на кубиках с друзьями. Фишки виртуальные, азарт настоящий.</p>
+      <p class="muted">Краш, рулетка, покер, пул и ещё три игры с друзьями. Фишки виртуальные, азарт настоящий.</p>
       <form id="login-form" autocomplete="off">
         <input id="name" maxlength="20" placeholder="Твоё имя" required>
         <button type="submit" id="login-btn" disabled>Войти</button>
@@ -412,6 +412,21 @@
       </aside>
     </section>
   </main>
+
+  <div class="modal" id="bet-confirm" hidden>
+    <div class="modal-card bet-card" role="dialog" aria-modal="true" aria-labelledby="bc-title">
+      <div class="bc-game" id="bc-game"></div>
+      <h3 id="bc-title">Подтверди ставку</h3>
+      <div class="bc-amount"><b id="bc-amount"></b> <span>фишек</span></div>
+      <p class="bc-note" id="bc-note"></p>
+      <p class="bc-share" id="bc-share"></p>
+      <div class="bc-actions">
+        <button type="button" class="ghost" id="bc-cancel">Отмена</button>
+        <button type="button" class="action" id="bc-ok">Поставить</button>
+      </div>
+      <label class="bc-opt"><input type="checkbox" id="bc-big-only"> Спрашивать только крупные ставки (от 10% баланса)</label>
+    </div>
+  </div>
 
   <div class="modal" id="profile" hidden>
     <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="prof-name">
