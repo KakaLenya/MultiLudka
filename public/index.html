@@ -44,6 +44,7 @@
         <nav class="tabs">
           <button type="button" class="tab active" data-tab="crash">📈 Краш</button>
           <button type="button" class="tab" data-tab="roulette">🎡 Рулетка</button>
+          <button type="button" class="tab" data-tab="upgrade">⬆️ Апгрейд</button>
           <button type="button" class="tab" data-tab="bomb">💣 Бомба <span class="dot" id="bomb-dot" hidden></span></button>
           <button type="button" class="tab" data-tab="poker">🎲 Покер на кубиках <span class="dot" id="poker-dot" hidden></span></button>
         </nav>
@@ -71,6 +72,44 @@
             <thead><tr><th>Игрок</th><th>Ставки</th><th>Итог</th></tr></thead>
             <tbody id="r-bets"></tbody>
           </table>
+        </section>
+
+        <section class="card upgrader" id="upgrade" hidden>
+          <div class="u-stage">
+            <div class="u-wheel-box">
+              <canvas id="u-wheel" width="280" height="280"></canvas>
+              <div class="u-center">
+                <b id="u-chance-big">30%</b>
+                <span id="u-mult-big">×3.30</span>
+              </div>
+            </div>
+            <div class="u-side">
+              <label class="field">
+                <span>Ставка</span>
+                <input id="u-amount" type="number" min="10" step="1" value="100" inputmode="numeric">
+              </label>
+              <div class="quick">
+                <button type="button" class="ghost" data-uq="half">½</button>
+                <button type="button" class="ghost" data-uq="double">×2</button>
+                <button type="button" class="ghost" data-uq="max">макс</button>
+              </div>
+              <label class="field">
+                <span>Шанс апгрейда: <b class="u-chance-label" id="u-chance-label">30%</b></span>
+                <input type="range" id="u-chance" min="1" max="95" step="1" value="30" aria-label="Шанс апгрейда">
+              </label>
+              <div class="quick u-presets">
+                <button type="button" class="ghost" data-uc="10">10%</button>
+                <button type="button" class="ghost" data-uc="25">25%</button>
+                <button type="button" class="ghost" data-uc="50">50%</button>
+                <button type="button" class="ghost" data-uc="75">75%</button>
+              </div>
+              <div class="u-win">Получишь <b id="u-payout">330</b> <span id="u-mult">×3.30</span></div>
+              <button type="button" class="action" id="u-go">⬆️ Апгрейд!</button>
+              <div class="u-result" id="u-result"></div>
+            </div>
+          </div>
+          <h2 class="u-feed-title">Лента апгрейдов</h2>
+          <ul class="list u-feed" id="u-feed"></ul>
         </section>
 
         <section class="card bombgame" id="bomb" hidden>

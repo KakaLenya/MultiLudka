@@ -10,6 +10,7 @@ const { createTable } = require('./dicepoker');
 const { createAdminRouter } = require('./admin');
 const { createRoulette } = require('./roulette');
 const { createBomb } = require('./bomb');
+const { createUpgrader } = require('./upgrader');
 const { createMusic, sniffAudioType } = require('./music');
 const { createSongRequests } = require('./requests');
 
@@ -183,6 +184,11 @@ const bomb = createBomb({
 });
 store.addReserver(bomb.reserved);
 
+const upgrader = createUpgrader({
+  store,
+  onFeed: (feed) => broadcast({ type: 'upgrade_feed', feed }),
+});
+
 // Текущий трек переживает перезапуск сервера: пишем его в data/music-now.json.
 const MUSIC_NOW_FILE = path.join(DATA_DIR, 'music-now.json');
 const music = createMusic({
@@ -291,6 +297,7 @@ const handlers = {
     send(ws, { type: 'crash_state', ...crash.state() });
     send(ws, { type: 'roulette_state', ...roulette.state() });
     send(ws, { type: 'bomb_state', ...bomb.state() });
+    send(ws, { type: 'upgrade_feed', feed: upgrader.feed() });
     table.setConnected(player, true);
     send(ws, { type: 'poker_state', ...table.view(player) });
     send(ws, { type: 'chat_history', messages: chatLog });
@@ -333,6 +340,12 @@ const handlers = {
 
   bomb_flee(ws) {
     reply(ws, bomb.flee(ws.player));
+  },
+
+  upgrade_spin(ws, msg) {
+    const result = upgrader.spin(ws.player, msg.amount, msg.chance);
+    if (result.error) return send(ws, { type: 'error', message: result.error });
+    send(ws, { type: 'upgrade_result', ...result.spin });
   },
 
   poker_join(ws, msg) {
@@ -457,6 +470,7 @@ app.use('/admin/api', createAdminRouter({
   table,
   roulette,
   bomb,
+  upgrader,
   music,
   songRequests,
   chat: {

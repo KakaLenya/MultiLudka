@@ -275,6 +275,15 @@ function renderRoulette() {
     : [li('Ставок нет', 'muted')]));
 }
 
+function renderUpgraderAdmin() {
+  const u = admin.data.upgrader;
+  $('up-rigged').textContent = u.rigged === 'win' ? 'Следующий апгрейд (любого игрока): выиграет'
+    : u.rigged === 'lose' ? 'Следующий апгрейд (любого игрока): проиграет' : 'Следующий апгрейд: честно';
+  $('up-feed').replaceChildren(...(u.feed.length
+    ? u.feed.slice(0, 8).map((e) => li(`${e.name}: ${e.amount} на ${e.chance}% → ${e.win ? '+' + (e.payout - e.amount) : '−' + e.amount}`))
+    : [li('Пока никто не апгрейдился', 'muted')]));
+}
+
 function renderBombAdmin() {
   const b = admin.data.bomb;
   $('bo-phase').textContent = { lobby: 'сбор', playing: 'идёт', result: 'итог' }[b.phase] || b.phase;
@@ -340,6 +349,7 @@ function render() {
   renderRequests();
   renderCrash();
   renderRoulette();
+  renderUpgraderAdmin();
   renderBombAdmin();
   renderPoker();
   renderChat();
@@ -478,6 +488,11 @@ $('m-stop').addEventListener('click', () => run('/music/stop', {}, 'Музыка
 $('chat-clear').addEventListener('click', () => {
   if (confirm('Очистить чат у всех?')) run('/chat/clear', {}, 'Чат очищен');
 });
+
+document.querySelectorAll('[data-uprig]').forEach((b) => b.addEventListener('click', () => {
+  const mode = b.dataset.uprig === 'fair' ? null : b.dataset.uprig;
+  run('/upgrader/rig', { mode }, mode === 'win' ? 'Следующий апгрейд выиграет' : mode === 'lose' ? 'Следующий апгрейд проиграет' : 'Апгрейды снова честные');
+}));
 
 $('rig-bomb').addEventListener('click', () => {
   const fuse = Math.floor(Number($('rig-fuse').value));

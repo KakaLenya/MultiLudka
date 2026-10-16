@@ -8,6 +8,7 @@ const { createTable, START_DELAY_MS } = require('../server/dicepoker');
 const { createAdminRouter } = require('../server/admin');
 const { createRoulette } = require('../server/roulette');
 const { createBomb } = require('../server/bomb');
+const { createUpgrader } = require('../server/upgrader');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
@@ -95,6 +96,7 @@ async function withServer(fn) {
     table,
     roulette: createRoulette({ store }),
     bomb: createBomb({ store }),
+    upgrader: createUpgrader({ store, schedule: () => {} }),
     music,
     songRequests: createSongRequests({ playlist: music.playlist, play: music.play }),
     chat: {

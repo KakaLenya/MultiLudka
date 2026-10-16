@@ -377,11 +377,13 @@ const TAB_KEY = 'casino.tab';
 
 function showTab(name) {
   document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t.dataset.tab === name));
-  for (const id of ['crash', 'roulette', 'bomb', 'poker']) $(id).hidden = name !== id;
+  for (const id of ['crash', 'roulette', 'upgrade', 'bomb', 'poker']) $(id).hidden = name !== id;
+  // канвас апгрейдера создаётся ниже по файлу: рисуем на следующем кадре
+  if (name === 'upgrade') requestAnimationFrame(() => drawUpgrader());
   storage.set(TAB_KEY, name);
 }
 document.querySelectorAll('.tab').forEach((t) => t.addEventListener('click', () => showTab(t.dataset.tab)));
-showTab(['roulette', 'bomb', 'poker'].includes(storage.get(TAB_KEY)) ? storage.get(TAB_KEY) : 'crash');
+showTab(['roulette', 'upgrade', 'bomb', 'poker'].includes(storage.get(TAB_KEY)) ? storage.get(TAB_KEY) : 'crash');
 
 // ---------- Звуки (WebAudio, без файлов) ----------
 
@@ -1288,6 +1290,215 @@ $('music-volume').addEventListener('input', () => {
   storage.set(VOLUME_KEY, $('music-volume').value);
 });
 
+// ---------- Апгрейдер ----------
+
+const UPG_RTP = 99;  // как на сервере: множитель = 99 / шанс
+const upgMult = (chance) => Math.floor((UPG_RTP / chance) * 100) / 100;
+
+const upg = {
+  start: 0,          // где начинается зелёный сектор (0..100, от верха по часовой)
+  needle: 0,         // где стрелка (0..100, может уходить за 100 при вращении)
+  spin: null,        // { from, to, t0, dur, result }
+  awaiting: false,   // запрос отправлен, ответа ещё нет
+  pendingBalance: null,
+};
+
+const uCanvas = $('u-wheel');
+const uCtx = uCanvas.getContext('2d');
+const U_SIZE = 280;
+
+function upgChance() {
+  return Math.max(1, Math.min(95, Math.round(Number($('u-chance').value) || 30)));
+}
+
+function upgAmount() {
+  const n = Math.floor(Number($('u-amount').value));
+  return Number.isFinite(n) ? n : 0;
+}
+
+function drawUpgrader() {
+  const dpr = window.devicePixelRatio || 1;
+  if (uCanvas.width !== Math.round(U_SIZE * dpr)) {
+    uCanvas.width = Math.round(U_SIZE * dpr);
+    uCanvas.height = Math.round(U_SIZE * dpr);
+  }
+  const ctx = uCtx;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, U_SIZE, U_SIZE);
+  const c = U_SIZE / 2;
+  const R = c - 8;
+  const toRad = (p) => (p / 100) * 2 * Math.PI - Math.PI / 2;  // 0% наверху, по часовой
+  const chance = upg.spin ? upg.spin.result.chance : upgChance();
+
+  // Кольцо.
+  ctx.beginPath();
+  ctx.arc(c, c, R, 0, 2 * Math.PI);
+  ctx.lineWidth = 22;
+  ctx.strokeStyle = 'rgba(255, 255, 255, .07)';
+  ctx.stroke();
+
+  // Зелёный сектор шанса.
+  ctx.save();
+  ctx.shadowColor = 'rgba(69, 212, 131, .8)';
+  ctx.shadowBlur = 16;
+  ctx.beginPath();
+  ctx.arc(c, c, R, toRad(upg.start), toRad(upg.start + chance));
+  ctx.lineWidth = 22;
+  const g = ctx.createLinearGradient(0, 0, U_SIZE, U_SIZE);
+  g.addColorStop(0, '#8af5b6');
+  g.addColorStop(1, '#1f9a55');
+  ctx.strokeStyle = g;
+  ctx.stroke();
+  ctx.restore();
+
+  // Риски через каждые 5%.
+  for (let p = 0; p < 100; p += 5) {
+    const a = toRad(p);
+    const r1 = R - 18;
+    const r2 = R - (p % 25 === 0 ? 30 : 24);
+    ctx.beginPath();
+    ctx.moveTo(c + Math.cos(a) * r1, c + Math.sin(a) * r1);
+    ctx.lineTo(c + Math.cos(a) * r2, c + Math.sin(a) * r2);
+    ctx.strokeStyle = 'rgba(255, 255, 255, .18)';
+    ctx.lineWidth = p % 25 === 0 ? 2 : 1;
+    ctx.stroke();
+  }
+
+  // Стрелка.
+  const a = toRad(upg.needle);
+  const tipX = c + Math.cos(a) * (R + 6);
+  const tipY = c + Math.sin(a) * (R + 6);
+  ctx.save();
+  ctx.shadowColor = 'rgba(242, 193, 78, .9)';
+  ctx.shadowBlur = 12;
+  ctx.beginPath();
+  ctx.moveTo(c + Math.cos(a) * 46, c + Math.sin(a) * 46);
+  ctx.lineTo(tipX, tipY);
+  ctx.strokeStyle = '#ffdf8a';
+  ctx.lineWidth = 4;
+  ctx.lineCap = 'round';
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(tipX, tipY, 6, 0, 2 * Math.PI);
+  ctx.fillStyle = '#fff6d6';
+  ctx.fill();
+  ctx.restore();
+}
+
+function renderUpgradeForm() {
+  const chance = upgChance();
+  const mult = upgMult(chance);
+  $('u-chance-label').textContent = `${chance}%`;
+  $('u-chance-big').textContent = `${chance}%`;
+  $('u-mult-big').textContent = `×${mult.toFixed(2)}`;
+  $('u-mult').textContent = `×${mult.toFixed(2)}`;
+  $('u-payout').textContent = Math.floor((upgAmount() * Math.round(mult * 100)) / 100);
+  document.querySelectorAll('[data-uc]').forEach((b) => b.classList.toggle('active', Number(b.dataset.uc) === chance));
+  if (!upg.spin) drawUpgrader();
+}
+
+// Баланс придерживаем, пока колесо не остановилось: иначе результат виден раньше стрелки.
+function upgradeHoldsBalance(msg) {
+  if (!upg.awaiting && !upg.spin) return false;
+  upg.pendingBalance = msg;
+  return true;
+}
+
+function releaseBalance() {
+  const msg = upg.pendingBalance;
+  upg.pendingBalance = null;
+  if (msg) handlers.balance(msg);
+}
+
+const easeOutUpg = (x) => 1 - (1 - x) ** 4;
+
+function upgradeFrame() {
+  const s = upg.spin;
+  if (s) {
+    const p = Math.min(1, (performance.now() - s.t0) / s.dur);
+    upg.needle = s.from + (s.to - s.from) * easeOutUpg(p);
+    if (!$('upgrade').hidden) drawUpgrader();
+    if (p >= 1) finishUpgrade();
+  }
+  requestAnimationFrame(upgradeFrame);
+}
+requestAnimationFrame(upgradeFrame);
+
+function finishUpgrade() {
+  const r = upg.spin.result;
+  upg.spin = null;
+  upg.needle = r.landing;
+  releaseBalance();
+  $('u-go').disabled = false;
+  const res = $('u-result');
+  if (r.win) {
+    res.textContent = `Апгрейд! ${r.amount} → ${r.payout} (+${r.payout - r.amount})`;
+    res.className = 'u-result win';
+    sounds.win();
+    if (r.multiplier >= 5) effects.confetti();
+  } else {
+    res.textContent = `Мимо: −${r.amount}`;
+    res.className = 'u-result lose';
+    sounds.lose();
+  }
+  $('upgrade').classList.toggle('won', r.win);
+  drawUpgrader();
+}
+
+function startUpgradeSpin(r) {
+  upg.awaiting = false;
+  upg.start = r.start;
+  // Минимум три оборота, остановка ровно в точке, которую выбрал сервер.
+  const from = upg.needle;
+  const base = Math.floor(from / 100) * 100 + r.landing;
+  const to = base + (base - from < 300 ? 300 : 0) + 100;
+  upg.spin = { from, to, t0: performance.now(), dur: Math.max(1500, r.spinMs - 300), result: r };
+  $('u-result').textContent = '';
+  $('u-result').className = 'u-result';
+  $('upgrade').classList.remove('won');
+}
+
+function renderUpgradeFeed(feed) {
+  const myId = state.me && state.me.playerId;
+  $('u-feed').replaceChildren(...(feed.length ? feed.map((e) => {
+    const li = document.createElement('li');
+    li.className = e.win ? 'win' : 'lose';
+    if (e.playerId === myId) li.classList.add('self');
+    li.append(avatarEl(e.name));
+    const name = document.createElement('span');
+    name.className = 'name';
+    name.textContent = e.name;
+    const what = document.createElement('span');
+    what.className = 'u-what';
+    what.textContent = e.win ? `${e.amount} → ${e.payout}` : `${e.amount} ✕`;
+    const ch = document.createElement('span');
+    ch.className = 'u-ch';
+    ch.textContent = `${e.chance}% · ×${e.multiplier.toFixed(2)}`;
+    li.append(name, what, ch);
+    return li;
+  }) : [Object.assign(document.createElement('li'), { className: 'muted', textContent: 'Пока никто не апгрейдился' })]));
+}
+
+$('u-chance').addEventListener('input', renderUpgradeForm);
+$('u-amount').addEventListener('input', renderUpgradeForm);
+document.querySelectorAll('[data-uc]').forEach((b) => b.addEventListener('click', () => {
+  $('u-chance').value = b.dataset.uc;
+  renderUpgradeForm();
+}));
+document.querySelectorAll('[data-uq]').forEach((b) => b.addEventListener('click', () => {
+  const v = upgAmount();
+  const next = { half: Math.floor(v / 2), double: v * 2, max: state.balance }[b.dataset.uq];
+  $('u-amount').value = Math.max(10, Math.min(next, Math.max(10, state.balance)));
+  renderUpgradeForm();
+}));
+$('u-go').addEventListener('click', () => {
+  if (upg.spin || upg.awaiting) return;
+  upg.awaiting = true;
+  $('u-go').disabled = true;
+  send({ type: 'upgrade_spin', amount: upgAmount(), chance: upgChance() });
+});
+renderUpgradeForm();
+
 // ---------- Бомба в банке ----------
 
 const bomb = {
@@ -1558,6 +1769,14 @@ const handlers = {
     renderMusic();
   },
 
+  upgrade_result(msg) {
+    startUpgradeSpin(msg);
+  },
+
+  upgrade_feed(msg) {
+    renderUpgradeFeed(msg.feed);
+  },
+
   bomb_state(msg) {
     bomb.onState(msg);
   },
@@ -1621,6 +1840,7 @@ const handlers = {
   },
 
   balance(msg) {
+    if (upgradeHoldsBalance(msg)) return;
     state.balance = msg.balance;
     $('me-balance').textContent = msg.balance;
     state.bonus = {
@@ -1650,6 +1870,11 @@ const handlers = {
   },
 
   error(msg) {
+    if (upg.awaiting) {
+      upg.awaiting = false;
+      $('u-go').disabled = false;
+      releaseBalance();
+    }
     if (msg.code === 'bad_token') {
       state.token = null;
       storage.remove(TOKEN_KEY);

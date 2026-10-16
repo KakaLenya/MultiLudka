@@ -24,7 +24,7 @@ function tokenMatches(given, expected) {
 }
 
 function createAdminRouter({
-  adminToken, store, crash, table, roulette, bomb, music, songRequests, chat, mutes, cleanText,
+  adminToken, store, crash, table, roulette, bomb, upgrader, music, songRequests, chat, mutes, cleanText,
   onlineIds, sendToPlayer, broadcast, refreshLists, disconnectPlayer = () => {},
 }) {
   const router = express.Router();
@@ -65,7 +65,7 @@ function createAdminRouter({
         createdAt: p.createdAt,
       }))
       .sort((a, b) => b.online - a.online || b.capital - a.capital);
-    res.json({ players, crash: crash.adminState(), roulette: roulette.adminState(), bomb: bomb.adminState(), poker: table.adminView(), chat: chat.log(),
+    res.json({ players, crash: crash.adminState(), roulette: roulette.adminState(), bomb: bomb.adminState(), upgrader: upgrader.adminState(), poker: table.adminView(), chat: chat.log(),
       music: { current: music.state(), playlist: music.playlist() },
       requests: songRequests.list() });
   });
@@ -220,6 +220,14 @@ function createAdminRouter({
 
   router.post('/chat/clear', (req, res) => {
     chat.clear();
+    ok(res);
+  });
+
+  // { mode: 'win' | 'lose' | null } — исход следующего апгрейда любого игрока.
+  router.post('/upgrader/rig', (req, res) => {
+    const mode = req.body.mode === undefined ? null : req.body.mode;
+    const result = upgrader.rig(mode);
+    if (result.error) return fail(res, result.error);
     ok(res);
   });
 
