@@ -135,36 +135,41 @@ function listItem(name, isSelf) {
 
 // ---------- Подтверждение ставок ----------
 
-// Перед каждой ставкой игрок подтверждает сумму. Можно спрашивать только про крупные (от 10% баланса).
-const CONFIRM_KEY = 'casino.confirm.bigOnly';
+// Спрашиваем, только если игрок сам ввёл сумму в поле (не кнопками ½, ×2, «макс», не фишками)
+// и она больше половины баланса. В каждой игре — один раз до перезагрузки страницы.
+const BET_INPUTS = ['bet-amount', 'u-amount', 'vt-amount', 'b-amount', 'pl-stake', 'buyin', 'raise-amount'];
+const confirmedGames = new Set();
 let betConfirm = null;   // { resolve } — окно открыто
-$('bc-big-only').checked = storage.get(CONFIRM_KEY) === '1';
-$('bc-big-only').addEventListener('change', () => storage.set(CONFIRM_KEY, $('bc-big-only').checked ? '1' : '0'));
 
-// -> Promise<boolean>: true — ставим.
-function confirmBet(game, amount, note = '') {
-  if (!(amount > 0)) return Promise.resolve(true);
-  if (storage.get(CONFIRM_KEY) === '1' && amount < state.balance * 0.1) return Promise.resolve(true);
+// Запоминаем, что в поле набрал сам игрок: кнопки меняют значение без события input.
+for (const id of BET_INPUTS) $(id).addEventListener('input', () => { $(id).dataset.typed = $(id).value; });
+const typedByPlayer = (input) => !!input && input.value !== '' && input.dataset.typed === input.value;
+
+// { key, game, amount, note, input, of } -> Promise<boolean>: true — ставим.
+// of: от какой суммы считать половину (по умолчанию баланс).
+function confirmBet({ key, game, amount, note = '', input = null, of = state.balance }) {
+  if (!(amount > 0) || confirmedGames.has(key) || !typedByPlayer(input) || amount <= of / 2) return Promise.resolve(true);
   if (betConfirm) closeBetConfirm(false);
   $('bc-game').textContent = game;
   $('bc-amount').textContent = amount.toLocaleString('ru-RU');
   $('bc-note').textContent = note;
   $('bc-note').hidden = !note;
-  const share = state.balance > 0 ? Math.round((amount / state.balance) * 100) : 100;
-  $('bc-share').textContent = amount >= state.balance ? 'Это весь твой баланс!' : `Это ${share}% твоего баланса`;
-  $('bc-share').classList.toggle('warn', share >= 50);
+  const share = of > 0 ? Math.round((amount / of) * 100) : 100;
+  $('bc-share').textContent = amount >= of ? 'Это всё, что у тебя есть!' : `Это ${share}% твоего баланса`;
+  $('bc-share').classList.add('warn');
   $('bet-confirm').hidden = false;
   $('bc-ok').focus();
   return new Promise((resolve) => {
-    betConfirm = { resolve };
+    betConfirm = { resolve, key };
   });
 }
 
 function closeBetConfirm(ok) {
   if (!betConfirm) return;
-  const { resolve } = betConfirm;
+  const { resolve, key } = betConfirm;
   betConfirm = null;
   $('bet-confirm').hidden = true;
+  if (ok) confirmedGames.add(key);
   resolve(ok);
 }
 $('bc-ok').addEventListener('click', () => closeBetConfirm(true));
@@ -406,7 +411,10 @@ $('crash-form').addEventListener('submit', (ev) => {
   const autoCashout = autoRaw === '' ? undefined : Number(autoRaw);
   storage.set(BET_KEY, String(amount));
   storage.set(AUTO_KEY, autoRaw);
-  confirmBet('📈 Краш', amount, autoCashout ? `Автовывод на ${autoCashout}×` : 'Без автовывода: забрать нужно самому')
+  confirmBet({
+    key: 'crash', game: '📈 Краш', amount, input: $('bet-amount'),
+    note: autoCashout ? `Автовывод на ${autoCashout}×` : 'Без автовывода: забрать нужно самому',
+  })
     .then((ok) => ok && send({ type: 'crash_bet', amount, autoCashout }));
 });
 
@@ -764,7 +772,10 @@ function setRaise(value) {
   $('raise-btn').textContent = allIn ? `Олл-ин ${val}` : v.currentBet === 0 ? `Бет ${val}` : `Рейз до ${val}`;
 }
 
-$('raise-slider').addEventListener('input', () => setRaise(Number($('raise-slider').value)));
+$('raise-slider').addEventListener('input', () => {
+  setRaise(Number($('raise-slider').value));
+  $('raise-amount').dataset.typed = $('raise-amount').value;   // двигал ползунок сам — своя сумма
+});
 $('raise-amount').addEventListener('change', () => setRaise(Number($('raise-amount').value)));
 document.querySelectorAll('[data-rq]').forEach((b) => b.addEventListener('click', () => {
   const v = poker.view;
@@ -782,7 +793,7 @@ document.querySelectorAll('[data-rq]').forEach((b) => b.addEventListener('click'
 $('poker-join').addEventListener('submit', (ev) => {
   ev.preventDefault();
   const buyIn = Math.floor(Number($('buyin').value));
-  confirmBet('🃏 Покер', buyIn, 'Бай-ин: фишки уходят за стол, остаток вернётся, когда встанешь')
+  confirmBet({ key: 'poker', game: '🃏 Покер', amount: buyIn, input: $('buyin'), note: 'Бай-ин: фишки уходят за стол, остаток вернётся, когда встанешь' })
     .then((ok) => ok && send({ type: 'poker_join', buyIn }));
 });
 
@@ -797,11 +808,11 @@ document.querySelectorAll('[data-act]').forEach((btn) => {
     const you = v && v.you;
     const seat = you && v.seats[you.seat];
     const put = (seat && seat.committed) || 0;
-    let ask = null;
-    if (action === 'call' && you) ask = ['🃏 Покер · уравнять', you.toCall, 'Уравнять ставку'];
-    if (action === 'raise') ask = ['🃏 Покер · повысить', msg.amount - put, `Повысить до ${msg.amount}`];
-    if (!ask) return send(msg);
-    confirmBet(...ask).then((ok) => ok && send(msg));
+    if (action !== 'raise') return send(msg);
+    confirmBet({
+      key: 'poker', game: '🃏 Покер', amount: msg.amount - put, input: $('raise-amount'),
+      of: seat ? seat.stack + put : state.balance, note: `Повысить до ${msg.amount}`,
+    }).then((ok) => ok && send(msg));
   });
 });
 
@@ -925,9 +936,7 @@ renderChips();
     el.style.gridRow = row;
     el.textContent = label;
     el.addEventListener('click', () => {
-      const amount = rl.chip;
-      confirmBet('🎡 Рулетка', amount, `Ставка на ${label === '◆' ? (type === 'red' ? 'красное' : 'чёрное') : label}`)
-        .then((ok) => ok && send({ type: 'roulette_bet', betType: type, number, amount }));
+      send({ type: 'roulette_bet', betType: type, number, amount: rl.chip });
     });
     cells.push({ el, type, number });
   };
@@ -1685,7 +1694,7 @@ document.querySelectorAll('[data-uq]').forEach((b) => b.addEventListener('click'
 $('u-go').addEventListener('click', async () => {
   if (upg.spin || upg.awaiting) return;
   const chance = upgChance();
-  if (!await confirmBet('⬆️ Апгрейд', upgAmount(), `Шанс ${chance}%, выигрыш ×${upgMult(chance).toFixed(2)}`)) return;
+  if (!await confirmBet({ key: 'upgrade', game: '⬆️ Апгрейд', amount: upgAmount(), input: $('u-amount'), note: `Шанс ${chance}%, выигрыш ×${upgMult(chance).toFixed(2)}` })) return;
   if (upg.spin || upg.awaiting) return;
   upg.awaiting = true;
   upg.base = state.balance;
@@ -2105,7 +2114,7 @@ $('vt-go').addEventListener('click', async () => {
   const amount = vtAmount();
   if (amount < 1) return toast('Ставка — от 1 фишки');
   if (amount > state.balance) return toast('Не хватает фишек');
-  if (!await confirmBet('😊 Верити', amount, 'Добрый удвоит, злой съест')) return;
+  if (!await confirmBet({ key: 'verity', game: '😊 Верити', amount, input: $('vt-amount'), note: 'Добрый удвоит, злой съест' })) return;
   if (vt.busy || vt.awaiting) return;
   vt.awaiting = true;
   vt.base = state.balance;
@@ -2574,8 +2583,7 @@ function plRenderPopup() {
 }
 
 function plAccept(inv) {
-  confirmBet('🎱 Пул', inv.stake, `Партия против ${inv.fromName}: победитель забирает обе ставки`)
-    .then((ok) => ok && send({ type: 'pool_accept', inviteId: inv.id }));
+  send({ type: 'pool_accept', inviteId: inv.id });
 }
 $('pl-popup-accept').addEventListener('click', () => {
   const inv = pl.view && pl.view.invitesIn.find((i) => i.id === $('pl-popup').dataset.id);
@@ -2590,7 +2598,7 @@ $('pl-invite-form').addEventListener('submit', (ev) => {
   if (!toId) return toast('Позвать некого: никого нет онлайн');
   const stake = Math.floor(Number($('pl-stake').value) || 0);
   const opp = $('pl-opponent').selectedOptions[0];
-  confirmBet('🎱 Пул', stake, `Позвать ${opp ? opp.textContent : 'соперника'}: ставка спишется, когда он примет`)
+  confirmBet({ key: 'pool', game: '🎱 Пул', amount: stake, input: $('pl-stake'), note: `Позвать ${opp ? opp.textContent : 'соперника'}: ставка спишется, когда он примет` })
     .then((ok) => ok && send({ type: 'pool_invite', toId, stake }));
 });
 $('pl-back').addEventListener('click', () => {
@@ -2868,17 +2876,15 @@ bomb.onState = (msg) => {
   renderBomb();
 };
 
-$('b-join').addEventListener('click', () => {
-  confirmBet('💣 Бомба', 20, 'Вход в раунд').then((ok) => ok && send({ type: 'bomb_join' }));
-});
-function bombDeposit(amount) {
-  confirmBet('💣 Бомба', amount, 'Взнос в банк: если рванёт у тебя, потеряешь всё вложенное')
+$('b-join').addEventListener('click', () => send({ type: 'bomb_join' }));
+function bombDeposit(amount, input = null) {
+  confirmBet({ key: 'bomb', game: '💣 Бомба', amount, input, note: 'Взнос в банк: если рванёт у тебя, потеряешь всё вложенное' })
     .then((ok) => ok && send({ type: 'bomb_deposit', amount }));
 }
 $('b-leave').addEventListener('click', () => send({ type: 'bomb_leave' }));
 $('b-flee').addEventListener('click', () => send({ type: 'bomb_flee' }));
 $('b-put').addEventListener('click', () => {
-  bombDeposit(Math.floor(Number($('b-amount').value)));
+  bombDeposit(Math.floor(Number($('b-amount').value)), $('b-amount'));
 });
 document.querySelectorAll('[data-dep]').forEach((b) => {
   b.addEventListener('click', () => {

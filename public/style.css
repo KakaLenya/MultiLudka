@@ -1452,4 +1452,4 @@ body.fx-disco { animation: fx-disco .5s linear infinite; }
 .bc-share { margin: 6px 0 0; font-size: 13px; color: var(--muted); }
 .bc-share.warn { color: var(--red); font-weight: 700; }
 .bc-actions { display: grid; grid-template-columns: 1fr 1.4fr; gap: 10px; margin-top: 18px; }
-.bc-opt { display: flex; gap: 8px; align-items: center; justify-content: center; margin-top: 14px; font-size: 12px; color: var(--muted); cursor: pointer; }
+.bc-opt { margin: 14px 0 0; font-size: 12px; color: var(--muted); }
