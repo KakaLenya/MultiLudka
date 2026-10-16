@@ -377,13 +377,13 @@ const TAB_KEY = 'casino.tab';
 
 function showTab(name) {
   document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t.dataset.tab === name));
-  for (const id of ['crash', 'roulette', 'upgrade', 'bomb', 'poker']) $(id).hidden = name !== id;
+  for (const id of ['crash', 'roulette', 'upgrade', 'bomb', 'pool', 'poker']) $(id).hidden = name !== id;
   // канвас апгрейдера создаётся ниже по файлу: рисуем на следующем кадре
   if (name === 'upgrade') requestAnimationFrame(() => drawUpgrader());
   storage.set(TAB_KEY, name);
 }
 document.querySelectorAll('.tab').forEach((t) => t.addEventListener('click', () => showTab(t.dataset.tab)));
-showTab(['roulette', 'upgrade', 'bomb', 'poker'].includes(storage.get(TAB_KEY)) ? storage.get(TAB_KEY) : 'crash');
+showTab(['roulette', 'upgrade', 'bomb', 'pool', 'poker'].includes(storage.get(TAB_KEY)) ? storage.get(TAB_KEY) : 'crash');
 
 // ---------- Звуки (WebAudio, без файлов) ----------
 
@@ -1534,6 +1534,540 @@ $('u-go').addEventListener('click', () => {
 });
 renderUpgradeForm();
 
+// ---------- Пул (восьмёрка по приглашению) ----------
+
+const PP = window.PoolPhysics;
+const PL_RAIL = 40;                          // ширина борта на канвасе
+const PL_W = PP.W + 2 * PL_RAIL;
+const PL_H = PP.H + 2 * PL_RAIL;
+const PL_COLORS = ['#f6f3ea', '#f2c230', '#1f4fd1', '#d4302b', '#6a2fb0', '#f07a1a', '#1a8a3a', '#8b1a1a', '#111111'];
+const plColor = (id) => PL_COLORS[id > 8 ? id - 8 : id];
+
+const pl = {
+  view: null,
+  recvAt: 0,
+  watching: null,        // id матча, который показываем
+  seenShot: new Map(),   // matchId -> последний анимированный удар
+  anim: null,            // { matchId, frames, frameDt, t0, pocketedSeen }
+  aim: null,             // точка прицела в координатах стола
+  drag: null,            // { x, y, dir } при натяге
+  power: 0,
+  placed: null,          // куда игрок поставил биток (шар с руки)
+  seenInvites: new Set(),
+  wasMyMatch: null,
+  wasMyTurn: false,
+};
+
+const plCanvas = $('pl-canvas');
+const plCtx = plCanvas.getContext('2d');
+
+const plMatch = () => (pl.view && pl.watching ? pl.view.matches.find((m) => m.id === pl.watching) || null : null);
+const plMyIndex = (m) => (m && state.me ? m.players.findIndex((p) => p.id === state.me.playerId) : -1);
+const plCue = (balls) => balls.find((b) => b.id === 0);
+
+function plMyTurnNow(m) {
+  const me = plMyIndex(m);
+  return !!m && m.phase === 'playing' && me >= 0 && m.turn === me && !pl.anim && plBusyLeft(m) <= 0;
+}
+
+function plBusyLeft(m) {
+  return Math.max(0, m.busyLeft - (performance.now() - pl.recvAt));
+}
+
+function plTimeLeft(m) {
+  return m.timeLeft === null ? 0 : Math.max(0, m.timeLeft - (performance.now() - pl.recvAt));
+}
+
+// Позиция курсора в координатах игрового поля.
+function plPointer(ev) {
+  const r = plCanvas.getBoundingClientRect();
+  return {
+    x: ((ev.clientX - r.left) / r.width) * PL_W - PL_RAIL,
+    y: ((ev.clientY - r.top) / r.height) * PL_H - PL_RAIL,
+  };
+}
+
+// Луч от битка: где он встретит первый шар или борт.
+function plRay(balls, c, d) {
+  const R = PP.R;
+  let best = Infinity;
+  let target = null;
+  for (const b of balls) {
+    if (b.in || b.id === 0) continue;
+    const ox = b.x - c.x;
+    const oy = b.y - c.y;
+    const proj = ox * d.x + oy * d.y;
+    if (proj <= 0) continue;
+    const perp2 = ox * ox + oy * oy - proj * proj;
+    if (perp2 >= 4 * R * R) continue;
+    const t = proj - Math.sqrt(4 * R * R - perp2);
+    if (t > 0 && t < best) {
+      best = t;
+      target = b;
+    }
+  }
+  const walls = [
+    d.x > 0 ? (PP.W - R - c.x) / d.x : d.x < 0 ? (R - c.x) / d.x : Infinity,
+    d.y > 0 ? (PP.H - R - c.y) / d.y : d.y < 0 ? (R - c.y) / d.y : Infinity,
+  ];
+  const wall = Math.min(...walls);
+  if (wall < best) return { t: wall, target: null };
+  return { t: best, target };
+}
+
+function plDrawBall(ctx, b, x, y, alpha = 1) {
+  const R = PP.R;
+  ctx.save();
+  ctx.globalAlpha = alpha;
+  ctx.translate(x + PL_RAIL, y + PL_RAIL);
+  ctx.beginPath();
+  ctx.arc(1.5, 2.5, R, 0, 2 * Math.PI);
+  ctx.fillStyle = 'rgba(0, 0, 0, .35)';
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(0, 0, R, 0, 2 * Math.PI);
+  ctx.clip();
+  const stripe = b.id >= 9;
+  ctx.fillStyle = stripe ? '#f6f3ea' : plColor(b.id);
+  ctx.fillRect(-R, -R, 2 * R, 2 * R);
+  if (stripe) {
+    ctx.fillStyle = plColor(b.id);
+    ctx.fillRect(-R, -R * 0.55, 2 * R, R * 1.1);
+  }
+  if (b.id !== 0) {
+    ctx.beginPath();
+    ctx.arc(0, 0, R * 0.45, 0, 2 * Math.PI);
+    ctx.fillStyle = '#fff';
+    ctx.fill();
+    ctx.fillStyle = '#111';
+    ctx.font = `700 ${b.id > 9 ? 7 : 8}px Manrope, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(String(b.id), 0, 0.5);
+  }
+  const shine = ctx.createRadialGradient(-R * 0.4, -R * 0.45, 0, -R * 0.2, -R * 0.2, R * 1.2);
+  shine.addColorStop(0, 'rgba(255, 255, 255, .55)');
+  shine.addColorStop(0.35, 'rgba(255, 255, 255, 0)');
+  shine.addColorStop(1, 'rgba(0, 0, 0, .3)');
+  ctx.fillStyle = shine;
+  ctx.fillRect(-R, -R, 2 * R, 2 * R);
+  ctx.restore();
+}
+
+function plDrawTable(ctx) {
+  // Борт.
+  const wood = ctx.createLinearGradient(0, 0, 0, PL_H);
+  wood.addColorStop(0, '#6b3a1e');
+  wood.addColorStop(0.5, '#8a4b22');
+  wood.addColorStop(1, '#4a250f');
+  ctx.fillStyle = wood;
+  ctx.beginPath();
+  ctx.roundRect(0, 0, PL_W, PL_H, 22);
+  ctx.fill();
+  // Сукно.
+  const cloth = ctx.createRadialGradient(PL_W / 2, PL_H / 2, 50, PL_W / 2, PL_H / 2, PL_W * 0.6);
+  cloth.addColorStop(0, '#1f7fae');
+  cloth.addColorStop(1, '#125a80');
+  ctx.fillStyle = cloth;
+  ctx.fillRect(PL_RAIL, PL_RAIL, PP.W, PP.H);
+  ctx.strokeStyle = 'rgba(0, 0, 0, .35)';
+  ctx.lineWidth = 3;
+  ctx.strokeRect(PL_RAIL, PL_RAIL, PP.W, PP.H);
+  // Линия дома и точка пирамиды.
+  ctx.strokeStyle = 'rgba(255, 255, 255, .18)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(PL_RAIL + PP.HEAD_X, PL_RAIL);
+  ctx.lineTo(PL_RAIL + PP.HEAD_X, PL_RAIL + PP.H);
+  ctx.stroke();
+  ctx.fillStyle = 'rgba(255, 255, 255, .3)';
+  ctx.beginPath();
+  ctx.arc(PL_RAIL + PP.FOOT.x, PL_RAIL + PP.FOOT.y, 2.5, 0, 2 * Math.PI);
+  ctx.fill();
+  // Ромбики на борту.
+  ctx.fillStyle = '#f4d27a';
+  for (let k = 1; k < 8; k++) {
+    if (k === 4) continue;
+    const x = PL_RAIL + (PP.W * k) / 8;
+    for (const y of [PL_RAIL / 2, PL_H - PL_RAIL / 2]) {
+      ctx.beginPath();
+      ctx.arc(x, y, 2.5, 0, 2 * Math.PI);
+      ctx.fill();
+    }
+  }
+  // Лузы.
+  for (const p of PP.POCKETS) {
+    ctx.beginPath();
+    ctx.arc(PL_RAIL + p.x, PL_RAIL + p.y, p.r - 2, 0, 2 * Math.PI);
+    ctx.fillStyle = '#050505';
+    ctx.fill();
+    ctx.strokeStyle = '#2a1608';
+    ctx.lineWidth = 4;
+    ctx.stroke();
+  }
+}
+
+function plDraw() {
+  const ctx = plCtx;
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, PL_W, PL_H);
+  plDrawTable(ctx);
+  const m = plMatch();
+  if (!m) return;
+
+  // Шары: кадр анимации или итог с сервера.
+  let balls = m.balls;
+  if (pl.anim && pl.anim.matchId === m.id) {
+    const a = pl.anim;
+    const i = Math.min(a.frames.length - 1, Math.floor((performance.now() - a.t0) / 1000 / a.frameDt));
+    const frame = a.frames[i];
+    balls = a.ids.map((id, k) => (frame[k] ? { id, x: frame[k][0], y: frame[k][1], in: false } : { id, in: true }));
+    // Звук: шар упал в лузу.
+    frame.forEach((pos, k) => {
+      if (!pos && !a.pocketedSeen.has(k)) {
+        a.pocketedSeen.add(k);
+        beep([[180, 0.08], [120, 0.12]], 'sine');
+      }
+    });
+    if (i >= a.frames.length - 1) {
+      pl.anim = null;
+      plRender();
+    }
+  }
+
+  const myTurn = plMyTurnNow(m);
+  const handPlacing = myTurn && m.ballInHand && !pl.placed;
+  for (const b of balls) {
+    if (b.in) continue;
+    if (b.id === 0 && myTurn && m.ballInHand) continue;  // биток рисуем там, куда его ставят
+    plDrawBall(ctx, b, b.x, b.y);
+  }
+
+  if (!myTurn) return;
+  // Шар с руки: биток следует за курсором до клика.
+  let cue = plCue(balls);
+  if (m.ballInHand) {
+    const pos = pl.placed || pl.aim;
+    if (!pos) return;
+    const okPlace = pl.placed || PP.canPlaceCue(balls, pos.x, pos.y, m.ballInHand === 'kitchen');
+    plDrawBall(ctx, { id: 0 }, pos.x, pos.y, okPlace ? (handPlacing ? 0.7 : 1) : 0.35);
+    if (handPlacing) {
+      if (m.ballInHand === 'kitchen') {
+        ctx.fillStyle = 'rgba(255, 255, 255, .06)';
+        ctx.fillRect(PL_RAIL, PL_RAIL, PP.HEAD_X, PP.H);
+      }
+      return;
+    }
+    cue = { id: 0, x: pl.placed.x, y: pl.placed.y };
+  }
+  if (!pl.aim && !pl.drag) return;
+
+  // Прицел: линия до первого шара, призрачный шар и куда уйдёт прицельный.
+  const target = pl.drag ? null : pl.aim;
+  let d = pl.drag ? pl.drag.dir : { x: target.x - cue.x, y: target.y - cue.y };
+  const len = Math.hypot(d.x, d.y);
+  if (len < 1) return;
+  d = { x: d.x / len, y: d.y / len };
+  const others = balls.filter((b) => b.id !== 0);
+  const hit = plRay(others, cue, d);
+  const gx = cue.x + d.x * hit.t;
+  const gy = cue.y + d.y * hit.t;
+  ctx.save();
+  ctx.translate(PL_RAIL, PL_RAIL);
+  ctx.setLineDash([6, 6]);
+  ctx.strokeStyle = 'rgba(255, 255, 255, .55)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(cue.x, cue.y);
+  ctx.lineTo(gx, gy);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.beginPath();
+  ctx.arc(gx, gy, PP.R, 0, 2 * Math.PI);
+  ctx.strokeStyle = 'rgba(255, 255, 255, .7)';
+  ctx.stroke();
+  if (hit.target) {
+    const nx = hit.target.x - gx;
+    const ny = hit.target.y - gy;
+    const nl = Math.hypot(nx, ny) || 1;
+    ctx.strokeStyle = 'rgba(255, 230, 120, .8)';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(hit.target.x, hit.target.y);
+    ctx.lineTo(hit.target.x + (nx / nl) * 70, hit.target.y + (ny / nl) * 70);
+    ctx.stroke();
+  }
+  // Кий: отходит назад тем дальше, чем сильнее натяг.
+  const back = PP.R + 6 + pl.power * 110;
+  const sx = cue.x - d.x * back;
+  const sy = cue.y - d.y * back;
+  const ex = sx - d.x * 300;
+  const ey = sy - d.y * 300;
+  const grad = ctx.createLinearGradient(sx, sy, ex, ey);
+  grad.addColorStop(0, '#f4ead2');
+  grad.addColorStop(0.04, '#3a7bd5');
+  grad.addColorStop(0.06, '#e9c891');
+  grad.addColorStop(1, '#5a2e10');
+  ctx.strokeStyle = grad;
+  ctx.lineWidth = 6;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(sx, sy);
+  ctx.lineTo(ex, ey);
+  ctx.stroke();
+  ctx.restore();
+}
+
+function plFrame() {
+  if (!$('pool').hidden && pl.watching) plDraw();
+  const m = plMatch();
+  if (m && !$('pool').hidden) {
+    $('pl-timer').style.width = m.phase === 'playing' ? `${Math.min(100, (plTimeLeft(m) / 60000) * 100)}%` : '0%';
+  }
+  requestAnimationFrame(plFrame);
+}
+requestAnimationFrame(plFrame);
+
+// Новый удар в показываемом матче: прогоняем ту же физику и проигрываем.
+function plMaybeAnimate(m) {
+  if (!m || !m.lastShot) return;
+  const seen = pl.seenShot.get(m.id) || 0;
+  if (m.lastShot.shotNo <= seen) return;
+  pl.seenShot.set(m.id, m.lastShot.shotNo);
+  // Удар старше пары секунд (зашли посреди) не крутим, сразу показываем итог.
+  if (m.busyLeft <= 0) return;
+  const start = m.lastShot.start;
+  const sim = PP.simulate(start, m.lastShot.vel, { record: true });
+  pl.anim = { matchId: m.id, ids: start.map((b) => b.id), frames: sim.frames, frameDt: sim.frameDt, t0: performance.now(), pocketedSeen: new Set() };
+  beep([[90, 0.05], [260, 0.04]], 'triangle');
+}
+
+function plPlayerBox(el, m, i) {
+  const p = m.players[i];
+  el.replaceChildren();
+  el.classList.toggle('active', m.phase === 'playing' && m.turn === i);
+  el.classList.toggle('winner', m.phase === 'over' && m.winner === i);
+  const head = document.createElement('div');
+  head.className = 'pl-name';
+  head.append(avatarEl(p.name), document.createTextNode(p.name));
+  const g = m.groups[i];
+  const left = g ? m.balls.filter((b) => !b.in && (g === 'solids' ? b.id >= 1 && b.id <= 7 : b.id >= 9)).map((b) => b.id) : [];
+  const info = document.createElement('div');
+  info.className = 'pl-group';
+  info.textContent = g ? `${g === 'solids' ? 'сплошные' : 'полосатые'}${left.length ? '' : ' · бьёт восьмёрку'}` : 'стол открыт';
+  const mini = document.createElement('div');
+  mini.className = 'pl-mini';
+  for (const id of left) {
+    const s = document.createElement('span');
+    s.style.setProperty('--c', plColor(id));
+    s.className = id >= 9 ? 'stripe' : '';
+    s.textContent = id;
+    mini.append(s);
+  }
+  el.append(head, info, mini);
+}
+
+function plRenderLobby() {
+  const v = pl.view;
+  const myId = state.me && state.me.playerId;
+  // Кого можно позвать: онлайн, кроме себя.
+  const sel = $('pl-opponent');
+  const cur = sel.value;
+  const people = (state.onlinePlayers || []).filter((p) => p.id !== myId);
+  sel.replaceChildren(...(people.length ? people.map((p) => {
+    const o = document.createElement('option');
+    o.value = p.id;
+    o.textContent = p.name;
+    return o;
+  }) : [Object.assign(document.createElement('option'), { value: '', textContent: 'никого нет онлайн' })]));
+  if (people.some((p) => p.id === cur)) sel.value = cur;
+
+  const out = v.inviteOut;
+  $('pl-out').replaceChildren(...(out ? [plInviteRow(`Ждём ответа: ${out.toName}${out.stake ? ` · ставка ${out.stake}` : ''}`, [['Отменить', 'ghost', () => send({ type: 'pool_cancel' })]])] : []));
+  $('pl-in').replaceChildren(...v.invitesIn.map((i) => plInviteRow(
+    `${i.fromName} зовёт тебя${i.stake ? ` · ставка ${i.stake}` : ' · без ставки'}`,
+    [['Принять', '', () => send({ type: 'pool_accept', inviteId: i.id })], ['Отказ', 'ghost', () => send({ type: 'pool_decline', inviteId: i.id })]],
+  )));
+
+  $('pl-matches').replaceChildren(...(v.matches.length ? v.matches.map((m) => {
+    const li = document.createElement('li');
+    const name = document.createElement('span');
+    name.className = 'name';
+    name.textContent = `${m.players[0].name} — ${m.players[1].name}${m.stake ? ` · ${m.stake}` : ''}${m.phase === 'over' ? ' · окончен' : ''}`;
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'ghost';
+    b.textContent = plMyIndex(m) >= 0 && m.phase === 'playing' ? 'Вернуться' : 'Смотреть';
+    b.addEventListener('click', () => {
+      pl.watching = m.id;
+      plRender();
+    });
+    li.append(name, b);
+    return li;
+  }) : [Object.assign(document.createElement('li'), { className: 'muted', textContent: 'Сейчас никто не играет' })]));
+}
+
+function plInviteRow(text, buttons) {
+  const d = document.createElement('div');
+  d.className = 'pl-invite';
+  const t = document.createElement('span');
+  t.textContent = text;
+  d.append(t);
+  for (const [label, cls, fn] of buttons) {
+    const b = document.createElement('button');
+    b.type = 'button';
+    if (cls) b.className = cls;
+    b.textContent = label;
+    b.addEventListener('click', fn);
+    d.append(b);
+  }
+  return d;
+}
+
+function plRender() {
+  const v = pl.view;
+  if (!v) return;
+  // Свой матч показываем всегда; чужой — если выбрали «Смотреть».
+  if (v.myMatchId) pl.watching = v.myMatchId;
+  const m = plMatch();
+  if (pl.watching && !m) pl.watching = null;
+  $('pl-lobby').hidden = !!m;
+  $('pl-match').hidden = !m;
+  plRenderLobby();
+  plRenderPopup();
+
+  if (!m) {
+    $('pool-dot').hidden = !v.invitesIn.length;
+    return;
+  }
+  plMaybeAnimate(m);
+  const me = plMyIndex(m);
+  plPlayerBox($('pl-p0'), m, 0);
+  plPlayerBox($('pl-p1'), m, 1);
+  const turnName = m.turn >= 0 ? m.players[m.turn].name : '';
+  $('pl-status').textContent = m.phase === 'over'
+    ? `🏆 ${m.players[m.winner].name}${m.stake ? ` +${2 * m.stake}` : ''}`
+    : `${m.stake ? `Ставка ${m.stake} · ` : ''}бьёт ${turnName}`;
+  $('pl-msg').textContent = m.message || '';
+  $('pl-concede').hidden = !(me >= 0 && m.phase === 'playing');
+  $('pl-back').hidden = me >= 0 && m.phase === 'playing';
+
+  const myTurn = m.phase === 'playing' && me >= 0 && m.turn === me;
+  if (!myTurn) {
+    pl.placed = null;
+    pl.drag = null;
+    pl.power = 0;
+  }
+  $('pl-replace').hidden = !(myTurn && m.ballInHand && pl.placed);
+  $('pl-hint').textContent = m.phase === 'over' ? (me >= 0 ? (m.winner === me ? 'Победа! 🎉' : 'Поражение') : '')
+    : !myTurn ? (me >= 0 ? 'Ход соперника' : 'Ты смотришь матч')
+      : m.ballInHand && !pl.placed ? (m.ballInHand === 'kitchen' ? 'Поставь биток в дом (левее линии) кликом' : 'Шар с руки: поставь биток кликом куда угодно')
+        : 'Наведи на цель, зажми и потяни назад. Отпусти — удар';
+  if (myTurn && !pl.wasMyTurn) sounds.turn();
+  pl.wasMyTurn = myTurn;
+  $('pool-dot').hidden = !(myTurn || v.invitesIn.length);
+  if (m.phase === 'over' && me >= 0 && pl.wasMyMatch === m.id) {
+    pl.wasMyMatch = null;
+    if (m.winner === me) {
+      sounds.win();
+      effects.confetti();
+    } else {
+      sounds.lose();
+    }
+  }
+  if (m.phase === 'playing' && me >= 0) pl.wasMyMatch = m.id;
+}
+
+// Всплывающее приглашение, видно на любой вкладке.
+function plRenderPopup() {
+  const inv = pl.view.invitesIn[0];
+  $('pl-popup').hidden = !inv || !!pl.view.myMatchId;
+  if (!inv) return;
+  $('pl-popup-from').textContent = inv.fromName;
+  $('pl-popup-stake').textContent = inv.stake ? `на ${inv.stake} 🪙` : 'без ставки';
+  $('pl-popup').dataset.id = inv.id;
+  if (!pl.seenInvites.has(inv.id)) {
+    pl.seenInvites.add(inv.id);
+    beep([[660, 0.1], [880, 0.1], [990, 0.15]], 'triangle');
+  }
+}
+
+$('pl-popup-accept').addEventListener('click', () => send({ type: 'pool_accept', inviteId: $('pl-popup').dataset.id }));
+$('pl-popup-decline').addEventListener('click', () => send({ type: 'pool_decline', inviteId: $('pl-popup').dataset.id }));
+
+$('pl-invite-form').addEventListener('submit', (ev) => {
+  ev.preventDefault();
+  const toId = $('pl-opponent').value;
+  if (!toId) return toast('Позвать некого: никого нет онлайн');
+  send({ type: 'pool_invite', toId, stake: Math.floor(Number($('pl-stake').value) || 0) });
+});
+$('pl-back').addEventListener('click', () => {
+  pl.watching = null;
+  plRender();
+});
+$('pl-concede').addEventListener('click', () => {
+  if (confirm('Сдаться? Ставка уйдёт сопернику.')) send({ type: 'pool_concede' });
+});
+$('pl-replace').addEventListener('click', () => {
+  pl.placed = null;
+  plRender();
+});
+
+// Управление: навести, зажать, потянуть назад, отпустить.
+plCanvas.addEventListener('pointermove', (ev) => {
+  const p = plPointer(ev);
+  const m = plMatch();
+  if (pl.drag && m) {
+    const dx = p.x - pl.drag.x;
+    const dy = p.y - pl.drag.y;
+    pl.power = Math.max(0, Math.min(1, -(dx * pl.drag.dir.x + dy * pl.drag.dir.y) / 220));
+    $('pl-power').style.width = `${pl.power * 100}%`;
+    return;
+  }
+  pl.aim = p;
+});
+plCanvas.addEventListener('pointerleave', () => {
+  if (!pl.drag) pl.aim = null;
+});
+plCanvas.addEventListener('pointerdown', (ev) => {
+  const m = plMatch();
+  if (!plMyTurnNow(m)) return;
+  const p = plPointer(ev);
+  if (ev.pointerType !== 'mouse') pl.aim = p;  // на телефоне прицел ставится касанием
+  if (m.ballInHand && !pl.placed) {
+    if (PP.canPlaceCue(m.balls, p.x, p.y, m.ballInHand === 'kitchen')) {
+      pl.placed = { x: p.x, y: p.y };
+      pl.aim = null;
+      plRender();
+    } else {
+      toast('Сюда биток не поставить');
+    }
+    return;
+  }
+  const cue = pl.placed || plCue(m.balls);
+  const target = pl.aim || p;
+  const dx = target.x - cue.x;
+  const dy = target.y - cue.y;
+  const len = Math.hypot(dx, dy);
+  if (len < 1) return;
+  pl.drag = { x: p.x, y: p.y, dir: { x: dx / len, y: dy / len } };
+  pl.power = 0;
+  plCanvas.setPointerCapture(ev.pointerId);
+});
+plCanvas.addEventListener('pointerup', () => {
+  const m = plMatch();
+  const drag = pl.drag;
+  pl.drag = null;
+  $('pl-power').style.width = '0%';
+  if (!drag || !m || pl.power < 0.02) {
+    pl.power = 0;
+    return;
+  }
+  send({ type: 'pool_shoot', dir: drag.dir, power: Math.round(pl.power * 1000) / 1000, cue: m.ballInHand ? pl.placed : undefined });
+  pl.power = 0;
+  pl.placed = null;
+});
+
 // ---------- Бомба в банке ----------
 
 const bomb = {
@@ -1738,6 +2272,7 @@ const ACT_GAMES = {
   bomb: { icon: '💣', name: 'Бомба' },
   upgrade: { icon: '⬆️', name: 'Апгрейд' },
   poker: { icon: '🃏', name: 'Покер' },
+  pool: { icon: '🎱', name: 'Пул' },
 };
 const ACT_FILTER_KEY = 'casino.activity.filter';
 const act = { entries: [], filter: storage.get(ACT_FILTER_KEY) || 'all', freshId: 0 };
@@ -1884,6 +2419,15 @@ const handlers = {
     renderUpgradeFeed(msg.feed);
   },
 
+  pool_state(msg) {
+    const before = pl.view && pl.view.myMatchId;
+    pl.view = msg;
+    pl.recvAt = performance.now();
+    // Мой матч начался: сразу на вкладку пула.
+    if (msg.myMatchId && msg.myMatchId !== before) showTab('pool');
+    plRender();
+  },
+
   bomb_state(msg) {
     bomb.onState(msg);
   },
@@ -1959,6 +2503,8 @@ const handlers = {
   },
 
   online(msg) {
+    state.onlinePlayers = msg.players;
+    if (pl.view) plRenderLobby();
     $('online-list').replaceChildren(...msg.players.map((p) =>
       listItem(p.name, state.me && p.id === state.me.playerId)));
     $('online-count').textContent = msg.players.length;

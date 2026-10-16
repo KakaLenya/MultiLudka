@@ -9,6 +9,7 @@ const { createAdminRouter } = require('../server/admin');
 const { createRoulette } = require('../server/roulette');
 const { createBomb } = require('../server/bomb');
 const { createUpgrader } = require('../server/upgrader');
+const { createPool } = require('../server/pool');
 const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
@@ -87,6 +88,7 @@ async function withServer(fn) {
     roulette: createRoulette({ store }),
     bomb: createBomb({ store }),
     upgrader: createUpgrader({ store, schedule: () => {} }),
+    pool: createPool({ store }),
     music,
     songRequests: createSongRequests({ playlist: music.playlist, play: music.play }),
     chat: {

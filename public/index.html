@@ -46,6 +46,7 @@
           <button type="button" class="tab" data-tab="roulette">🎡 Рулетка</button>
           <button type="button" class="tab" data-tab="upgrade">⬆️ Апгрейд</button>
           <button type="button" class="tab" data-tab="bomb">💣 Бомба <span class="dot" id="bomb-dot" hidden></span></button>
+          <button type="button" class="tab" data-tab="pool">🎱 Пул <span class="dot" id="pool-dot" hidden></span></button>
           <button type="button" class="tab" data-tab="poker">🃏 Покер <span class="dot" id="poker-dot" hidden></span></button>
         </nav>
 
@@ -159,6 +160,59 @@
               <li>Если все остальные сбежали, последний забирает весь банк.</li>
             </ol>
           </details>
+        </section>
+
+        <section class="card poolgame" id="pool" hidden>
+          <div class="pl-lobby" id="pl-lobby">
+            <h2>🎱 Пул на двоих</h2>
+            <p class="muted">Позови игрока онлайн в восьмёрку. Ставка списывается с обоих, победитель забирает всё. Можно и без ставки.</p>
+            <form class="controls" id="pl-invite-form" autocomplete="off">
+              <label class="field">
+                <span>Соперник</span>
+                <select id="pl-opponent"></select>
+              </label>
+              <label class="field">
+                <span>Ставка</span>
+                <input id="pl-stake" type="number" min="0" step="10" value="100" inputmode="numeric">
+              </label>
+              <button type="submit" class="action">Позвать</button>
+            </form>
+            <div class="pl-invites" id="pl-out"></div>
+            <div class="pl-invites" id="pl-in"></div>
+            <h2 class="pl-sub">Идут матчи</h2>
+            <ul class="list" id="pl-matches"></ul>
+            <details class="rules">
+              <summary>Правила восьмёрки</summary>
+              <ol class="ranks">
+                <li>Разбивающий ставит биток в дом (левее линии) и разбивает.</li>
+                <li>Первый забитый после разбивки шар решает: ты играешь сплошными (1-7) или полосатыми (9-15).</li>
+                <li>Забил свой шар без фола: бьёшь ещё.</li>
+                <li>Фол: биток в лузе, ни во что не попал, первым задел чужой шар. Сопернику шар с руки: он ставит биток куда хочет.</li>
+                <li>Восьмёрку забиваешь последней, когда твоих шаров не осталось. Забил её раньше или с фолом — проиграл.</li>
+                <li>На удар 60 секунд. Три просрочки подряд — поражение.</li>
+              </ol>
+            </details>
+          </div>
+
+          <div class="pl-match" id="pl-match" hidden>
+            <div class="pl-top">
+              <div class="pl-player" id="pl-p0"></div>
+              <div class="pl-center">
+                <div class="pl-status" id="pl-status"></div>
+                <div class="b-timer"><i id="pl-timer"></i></div>
+              </div>
+              <div class="pl-player right" id="pl-p1"></div>
+            </div>
+            <div class="pl-msg" id="pl-msg"></div>
+            <div class="pl-table-wrap"><canvas id="pl-canvas" width="1080" height="580"></canvas></div>
+            <div class="pl-power" id="pl-power-box"><i id="pl-power"></i></div>
+            <p class="hint" id="pl-hint"></p>
+            <div class="row pl-actions">
+              <button type="button" class="ghost" id="pl-back">← К списку</button>
+              <button type="button" class="ghost" id="pl-replace" hidden>Переставить биток</button>
+              <button type="button" class="danger" id="pl-concede">Сдаться</button>
+            </div>
+          </div>
         </section>
 
         <section class="card poker" id="poker" hidden>
@@ -306,6 +360,14 @@
     </section>
   </main>
 
+  <div class="pl-popup" id="pl-popup" hidden>
+    <div>🎱 <b id="pl-popup-from"></b> зовёт тебя в пул <span id="pl-popup-stake"></span></div>
+    <div class="row">
+      <button type="button" id="pl-popup-accept">Принять</button>
+      <button type="button" class="ghost" id="pl-popup-decline">Отказ</button>
+    </div>
+  </div>
+
   <aside class="music" id="music" hidden>
     <span class="music-title" id="music-title"></span>
     <button type="button" class="music-play" id="music-start" hidden>▶ слушать</button>
@@ -336,6 +398,7 @@
     </button>
   </div>
 
+  <script src="pool-physics.js"></script>
   <script src="lounge.js"></script>
   <script src="client.js"></script>
 </body>

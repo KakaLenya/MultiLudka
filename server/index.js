@@ -11,6 +11,7 @@ const { createAdminRouter } = require('./admin');
 const { createRoulette } = require('./roulette');
 const { createBomb } = require('./bomb');
 const { createUpgrader } = require('./upgrader');
+const { createPool } = require('./pool');
 const { createMusic, sniffAudioType } = require('./music');
 const { createSongRequests } = require('./requests');
 
@@ -140,6 +141,7 @@ function onlineIds() {
 }
 
 function broadcastOnline() {
+  if (typeof broadcastPool === 'function') broadcastPool();
   // Удалённый админом игрок может ещё долю секунды висеть в соединениях: пропускаем его.
   const players = [...onlineIds()].map((id) => store.get(id)).filter(Boolean).map((p) => ({ id: p.id, name: p.name }));
   broadcast({ type: 'online', players });
@@ -267,6 +269,25 @@ function broadcastPoker() {
 const table = createHoldem({ store, onChange: broadcastPoker, onEvent: onActivity });
 store.addReserver(table.reserved);
 
+// Пул: у каждого свои приглашения, матчи видны всем (можно смотреть).
+let poolTimer = null;
+function broadcastPool() {
+  if (poolTimer) return;
+  poolTimer = setImmediate(() => {
+    poolTimer = null;
+    for (const ws of clients) {
+      if (ws.player) send(ws, { type: 'pool_state', ...pool.view(ws.player) });
+    }
+  });
+}
+const pool = createPool({
+  store,
+  isOnline: (id) => onlineIds().has(id),
+  onChange: broadcastPool,
+  onEvent: onActivity,
+});
+store.addReserver(pool.reserved);
+
 function isOnline(player) {
   for (const ws of clients) if (ws.player === player) return true;
   return false;
@@ -319,6 +340,7 @@ const handlers = {
     send(ws, { type: 'bomb_state', ...bomb.state() });
     send(ws, { type: 'upgrade_feed', feed: upgrader.feed() });
     send(ws, { type: 'activity_history', entries: activity });
+    send(ws, { type: 'pool_state', ...pool.view(player) });
     table.setConnected(player, true);
     send(ws, { type: 'poker_state', ...table.view(player) });
     send(ws, { type: 'chat_history', messages: chatLog });
@@ -361,6 +383,30 @@ const handlers = {
 
   bomb_flee(ws) {
     reply(ws, bomb.flee(ws.player));
+  },
+
+  pool_invite(ws, msg) {
+    reply(ws, pool.invite(ws.player, msg.toId, msg.stake));
+  },
+
+  pool_cancel(ws) {
+    reply(ws, pool.cancel(ws.player));
+  },
+
+  pool_accept(ws, msg) {
+    reply(ws, pool.accept(ws.player, msg.inviteId));
+  },
+
+  pool_decline(ws, msg) {
+    reply(ws, pool.decline(ws.player, msg.inviteId));
+  },
+
+  pool_shoot(ws, msg) {
+    reply(ws, pool.shoot(ws.player, { dir: msg.dir, power: msg.power, cue: msg.cue }));
+  },
+
+  pool_concede(ws) {
+    reply(ws, pool.concede(ws.player));
   },
 
   upgrade_spin(ws, msg) {
@@ -475,6 +521,8 @@ function shutdown() {
     roulette.refundActive();
     bomb.stop();
     bomb.refundAll();
+    pool.stop();
+    pool.refundAll();
     table.stop();
     table.refundAll();
     store.flush();
@@ -494,6 +542,7 @@ app.use('/admin/api', createAdminRouter({
   roulette,
   bomb,
   upgrader,
+  pool,
   music,
   songRequests,
   chat: {
@@ -524,6 +573,7 @@ crash.start();
 table.start();
 roulette.start();
 bomb.start();
+pool.start();
 
 server.listen(PORT, HOST, () => {
   console.log(`Казино-зал: http://${HOST === '0.0.0.0' ? 'localhost' : HOST}:${PORT}`);
