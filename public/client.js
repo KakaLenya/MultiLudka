@@ -249,10 +249,21 @@ function drawCrash(m) {
   if (!c) return;
 
   if (c.phase === 'betting') {
-    // Полоска обратного отсчёта приёма ставок.
+    // Полоска обратного отсчёта приёма ставок: с отступом от краёв, чтобы скругление сцены её не резало.
     const total = 8000;
-    ctx.fillStyle = 'rgba(242, 193, 78, 0.25)';
-    ctx.fillRect(0, h - 6, (w * phaseTimeLeft()) / total, 6);
+    const bx = 24;
+    const bw = w - 2 * bx;
+    const by = h - 22;
+    const left = Math.max(0, Math.min(1, phaseTimeLeft() / total));
+    const bar = (width, color) => {
+      ctx.beginPath();
+      if (ctx.roundRect) ctx.roundRect(bx, by, width, 6, 3);
+      else ctx.rect(bx, by, width, 6);
+      ctx.fillStyle = color;
+      ctx.fill();
+    };
+    bar(bw, 'rgba(255, 255, 255, 0.06)');
+    if (left > 0) bar(Math.max(6, bw * left), 'rgba(242, 193, 78, 0.55)');
     return;
   }
 
@@ -260,7 +271,7 @@ function drawCrash(m) {
   const tNow = Math.log(m) / CRASH_GROWTH;
   const tMax = Math.max(10, tNow * 1.1);
   const mMax = Math.max(2, m * 1.15);
-  const pad = 16;
+  const pad = 34;   // ракета и свечение линии не должны упираться в скруглённые края
   const x = (t) => pad + ((w - 2 * pad) * t) / tMax;
   const y = (mult) => h - pad - ((h - 2 * pad) * (mult - 1)) / (mMax - 1);
 
@@ -1306,6 +1317,7 @@ const upg = {
   spin: null,        // { from, to, t0, dur, result }
   awaiting: false,   // запрос отправлен, ответа ещё нет
   pendingBalance: null,
+  trail: [],         // прошлые положения стрелки для шлейфа
 };
 
 const uCanvas = $('u-wheel');
@@ -1331,7 +1343,7 @@ function drawUpgrader() {
   ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
   ctx.clearRect(0, 0, U_SIZE, U_SIZE);
   const c = U_SIZE / 2;
-  const R = c - 8;
+  const R = c - 24;   // кольцо толщиной 22, стрелка и свечение должны влезть в холст
   const toRad = (p) => (p / 100) * 2 * Math.PI - Math.PI / 2;  // 0% наверху, по часовой
   const chance = upg.spin ? upg.spin.result.chance : upgChance();
 
@@ -1367,6 +1379,34 @@ function drawUpgrader() {
     ctx.strokeStyle = 'rgba(255, 255, 255, .18)';
     ctx.lineWidth = p % 25 === 0 ? 2 : 1;
     ctx.stroke();
+  }
+
+  // Шлейф за стрелкой, пока она быстро крутится.
+  if (upg.spin) {
+    upg.trail.forEach((n, i) => {
+      if (Math.abs(n - upg.needle) < 0.5) return;
+      const ta = toRad(n);
+      ctx.beginPath();
+      ctx.moveTo(c + Math.cos(ta) * 50, c + Math.sin(ta) * 50);
+      ctx.lineTo(c + Math.cos(ta) * (R + 4), c + Math.sin(ta) * (R + 4));
+      ctx.strokeStyle = `rgba(255, 223, 138, ${0.22 * (1 - i / upg.trail.length)})`;
+      ctx.lineWidth = 4;
+      ctx.lineCap = 'round';
+      ctx.stroke();
+    });
+    // Стрелка над зелёным сектором: сектор вспыхивает.
+    const rel = (((upg.needle - upg.start) % 100) + 100) % 100;
+    if (rel < chance) {
+      ctx.save();
+      ctx.shadowColor = 'rgba(138, 245, 182, .95)';
+      ctx.shadowBlur = 22;
+      ctx.beginPath();
+      ctx.arc(c, c, R, toRad(upg.start), toRad(upg.start + chance));
+      ctx.lineWidth = 22;
+      ctx.strokeStyle = 'rgba(138, 245, 182, .35)';
+      ctx.stroke();
+      ctx.restore();
+    }
   }
 
   // Стрелка.
@@ -1415,13 +1455,60 @@ function releaseBalance() {
   if (msg) handlers.balance(msg);
 }
 
-const easeOutUpg = (x) => 1 - (1 - x) ** 4;
+// Стрелка как настоящая вертушка: случайная раскрутка и трение, риски через 5% отнимают скорость,
+// на малой скорости стрелка спотыкается и может отскочить от риски назад.
+// Путь просчитывается заранее и чуть растягивается, чтобы закончиться ровно там, где решил сервер.
+const UPG_DT = 1 / 240;
+function upgSimulate() {
+  const w0 = 400 + Math.random() * 180;          // %/с
+  const a = 14 + Math.random() * 12;             // постоянное трение
+  const b = 0.42 + Math.random() * 0.22;          // трение, растущее со скоростью
+  const pegLoss = 1.6 + Math.random() * 1.6;
+  const path = [0];
+  let th = 0;
+  let w = w0;
+  for (let i = 0; i < 240 * 12 && w !== 0; i++) {
+    const dir = Math.sign(w);
+    const nw = w - dir * (a + b * Math.abs(w)) * UPG_DT;
+    w = Math.sign(nw) === dir ? nw : 0;
+    const before = Math.floor(th / 5);
+    th += w * UPG_DT;
+    if (Math.floor(th / 5) !== before) {
+      const speed = Math.abs(w);
+      if (speed < 7 + Math.random() * 5) {
+        // Не хватило сил перевалить через риску: отскок назад.
+        th = (dir > 0 ? Math.max(before, Math.floor(th / 5)) : Math.min(before, Math.floor(th / 5)) + 1) * 5 - dir * 0.01;
+        w = -w * (0.35 + Math.random() * 0.25);
+      } else {
+        const loss = pegLoss * (1 + Math.random()) * (speed < 60 ? 2.4 : 1);
+        w = dir * Math.max(4, speed - loss);
+      }
+    }
+    path.push(th);
+  }
+  return path;
+}
 
 function upgradeFrame() {
   const s = upg.spin;
   if (s) {
     const p = Math.min(1, (performance.now() - s.t0) / s.dur);
-    upg.needle = s.from + (s.to - s.from) * easeOutUpg(p);
+    const i = Math.min(s.path.length - 1, Math.floor(p * (s.path.length - 1)));
+    const prev = upg.needle;
+    upg.needle = s.from + s.path[i] * s.k;
+    // Шлейф за быстрой стрелкой.
+    upg.trail.unshift(prev);
+    if (upg.trail.length > 6) upg.trail.pop();
+    // Щелчок на каждой риске, выше тон — выше скорость.
+    const peg = Math.floor(upg.needle / 5);
+    if (peg !== s.peg) {
+      s.peg = peg;
+      const t = performance.now();
+      if (t - s.clickAt > 28 && soundOn) {
+        s.clickAt = t;
+        beep([[600 + Math.min(900, Math.abs(upg.needle - prev) * 160), 0.015]], 'square');
+      }
+    }
     if (!$('upgrade').hidden) drawUpgrader();
     if (p >= 1) finishUpgrade();
   }
@@ -1432,6 +1519,7 @@ requestAnimationFrame(upgradeFrame);
 function finishUpgrade() {
   const r = upg.spin.result;
   upg.spin = null;
+  upg.trail = [];
   upg.needle = r.landing;
   releaseBalance();
   $('u-go').disabled = false;
@@ -1453,11 +1541,21 @@ function finishUpgrade() {
 function startUpgradeSpin(r) {
   upg.awaiting = false;
   upg.start = r.start;
-  // Минимум три оборота, остановка ровно в точке, которую выбрал сервер.
   const from = upg.needle;
-  const base = Math.floor(from / 100) * 100 + r.landing;
-  const to = base + (base - from < 300 ? 300 : 0) + 100;
-  upg.spin = { from, to, t0: performance.now(), dur: Math.max(1500, r.spinMs - 300), result: r };
+  const path = upgSimulate();
+  const free = path[path.length - 1];
+  // Сколько добавить к свободному пробегу, чтобы встать на точку сервера: от −50 до +50 %.
+  let delta = (((r.landing - from - free) % 100) + 100) % 100;
+  if (delta >= 50) delta -= 100;
+  let total = free + delta;
+  if (total < 200) total += 100;
+  upg.trail = [];
+  upg.spin = {
+    from, path, k: total / free, t0: performance.now(),
+    // Время как в симуляции (чуть медленнее для драмы), но не дольше, чем крутится колесо на сервере.
+    dur: Math.min(r.spinMs - 300, Math.max(1500, path.length * UPG_DT * 1000 * 1.15)),
+    result: r, peg: Math.floor(from / 5), clickAt: 0,
+  };
   $('u-result').textContent = '';
   $('u-result').className = 'u-result';
   $('upgrade').classList.remove('won');

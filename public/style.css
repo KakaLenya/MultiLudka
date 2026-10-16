@@ -235,16 +235,16 @@ button.link:not(:disabled):hover { color: var(--text); box-shadow: none; filter:
 /* ---------- Вкладки ---------- */
 
 .tabs {
-  display: flex;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(112px, 1fr));
   gap: 6px;
   padding: 6px;
   border-radius: 16px;
   background: rgba(0, 0, 0, .3);
   border: 1px solid var(--line-2);
-  flex-wrap: wrap;
 }
 .tab {
-  flex: 1 0 auto;
+  white-space: nowrap;
   padding: 11px 16px;
   border-radius: 12px;
   background: transparent;
@@ -900,7 +900,8 @@ body.fx-disco { animation: fx-disco .5s linear infinite; }
   .wheel-box, .wheel-box canvas { width: 280px; height: 280px; }
   .music { left: 8px; right: 8px; bottom: 8px; max-width: none; }
   #music-volume { width: 90px; }
-  .tab { padding: 10px 12px; font-size: 13px; }
+  .tabs { grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); }
+  .tab { padding: 10px 8px; font-size: 13px; }
 }
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
