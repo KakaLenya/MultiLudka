@@ -76,3 +76,5 @@ code { background: var(--bg); padding: 1px 5px; border-radius: 4px; }
 .request .row { margin-top: 6px; }
 .request select { flex: 1 1 180px; width: auto; padding: 8px; }
 .request-who { overflow-wrap: anywhere; }
+
+#m-autoplay.on { border-color: var(--green); color: var(--green); background: rgba(69, 212, 131, .1); }

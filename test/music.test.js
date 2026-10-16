@@ -65,3 +65,61 @@ test('после перезапуска трек продолжается с т�
   assert.equal(createMusic({ dir, now: () => t }).restore({ id: 'удалён.mp3', startedAt: 0 }), false);
   assert.equal(createMusic({ dir, now: () => t }).restore(null), false);
 });
+
+// Ручные таймеры для проверки автовыключения.
+function fakeTimers() {
+  const list = [];
+  return {
+    list,
+    set: (fn, ms) => { const t = { fn, ms, done: false }; list.push(t); return t; },
+    clear: (t) => { t.done = true; },
+    fire() { for (const t of list.splice(0)) if (!t.done) t.fn(); },
+  };
+}
+
+test('трек выключается сам, когда доиграл (длину сообщил браузер)', () => {
+  let t = 0;
+  const timers = fakeTimers();
+  const events = [];
+  const m = createMusic({ dir: musicDir(['Чика.mp3']), now: () => t, timers, onChange: (x) => events.push(x) });
+  m.play('Чика.mp3');
+  assert.equal(timers.list.length, 0, 'длина неизвестна: таймера нет');
+  assert.equal(m.reportDuration('Чика.mp3', 200), true);
+  assert.equal(m.reportDuration('Чика.mp3', 5), false, 'первое значение решает');
+  assert.equal(m.reportDuration('нет.mp3', 100), false);
+  assert.equal(m.reportDuration('Чика.mp3', NaN), false);
+  assert.equal(timers.list[0].ms, 201_500);
+  assert.equal(m.state().duration, 200);
+  timers.fire();
+  assert.equal(m.state(), null);
+  assert.equal(events.at(-1), null, 'всем разослано «ничего не играет»');
+});
+
+test('случайные подряд: следующий трек другой, стоп выключает режим', () => {
+  let t = 0;
+  const timers = fakeTimers();
+  const m = createMusic({ dir: musicDir(['А.mp3', 'Б.mp3', 'В.mp3']), now: () => t, timers, random: () => 0 });
+  assert.ok(m.setAutoplay(true).ok);
+  const first = m.state().id;
+  for (const id of ['А.mp3', 'Б.mp3', 'В.mp3']) m.reportDuration(id, 100);
+  for (let i = 0; i < 5; i++) {
+    const before = m.state().id;
+    t += 101_500;
+    timers.fire();
+    assert.notEqual(m.state().id, before, 'тот же трек подряд не повторяется');
+  }
+  assert.ok(first);
+  m.stop();
+  assert.equal(m.autoplay(), false);
+  assert.equal(m.state(), null);
+});
+
+test('после перезапуска: давно доигравший трек сразу выключается', () => {
+  let t = 1_000_000;
+  const timers = fakeTimers();
+  const m = createMusic({ dir: musicDir(['Чика.mp3']), now: () => t, timers });
+  assert.equal(m.restore({ id: 'Чика.mp3', startedAt: 0, duration: 200, autoplay: false }), true);
+  assert.equal(timers.list[0].ms, 0);
+  timers.fire();
+  assert.equal(m.state(), null);
+});

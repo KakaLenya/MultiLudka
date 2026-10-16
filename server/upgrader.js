@@ -28,6 +28,7 @@ function inZone(point, start, chance) {
 function createUpgrader({
   store,
   onFeed = () => {},
+  onEvent = () => {},   // события для общей ленты ставок и выигрышей
   now = Date.now,
   random = randomFloat,
   schedule = (fn, ms) => setTimeout(fn, ms),
@@ -74,6 +75,13 @@ function createUpgrader({
       feed.unshift(entry);
       if (feed.length > FEED_SIZE) feed.pop();
       onFeed(feed.slice());
+      onEvent({
+        game: 'upgrade',
+        kind: win ? 'win' : 'lose',
+        player,
+        amount: win ? payout - amount : amount,
+        note: `${chance}% · ×${entry.multiplier.toFixed(2)}`,
+      });
     }, spinMs);
 
     return {

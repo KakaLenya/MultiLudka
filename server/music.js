@@ -28,8 +28,20 @@ function sniffAudioType(file) {
 }
 
 // dir: папка с треками. onChange(track | null): разослать всем.
-function createMusic({ dir, urlPrefix = '/music-files/', onChange = () => {}, now = Date.now }) {
+// Длину трека сервер узнаёт от браузеров (reportDuration) и по ней сам выключает трек,
+// а в режиме «случайные подряд» включает следующий.
+function createMusic({
+  dir,
+  urlPrefix = '/music-files/',
+  onChange = () => {},
+  now = Date.now,
+  random = Math.random,
+  timers = { set: (fn, ms) => setTimeout(fn, ms), clear: (id) => clearTimeout(id) },
+}) {
   let current = null;  // { id, title, url, startedAt }
+  let autoplay = false;
+  let endTimer = null;
+  const durations = new Map();  // id -> секунды
 
   // Список читаем с диска при каждом запросе: подкинул файл в папку, и он сразу в админке.
   function playlist() {
@@ -52,25 +64,74 @@ function createMusic({ dir, urlPrefix = '/music-files/', onChange = () => {}, no
   // offset: сколько секунд трек уже играет (чтобы зашедшие позже попали в то же место).
   function state() {
     if (!current) return null;
-    return { ...current, offset: Math.floor((now() - current.startedAt) / 1000) };
+    const duration = durations.get(current.id);
+    return {
+      ...current,
+      offset: Math.floor((now() - current.startedAt) / 1000),
+      duration: duration === undefined ? null : duration,
+      autoplay,
+    };
+  }
+
+  // Когда текущий трек доиграет: следующий случайный или тишина.
+  function scheduleEnd() {
+    if (endTimer !== null) timers.clear(endTimer);
+    endTimer = null;
+    if (!current || !durations.has(current.id)) return;
+    const endsAt = current.startedAt + durations.get(current.id) * 1000 + 1500;
+    const id = current.id;
+    endTimer = timers.set(() => {
+      endTimer = null;
+      if (!current || current.id !== id) return;
+      if (autoplay) play('random');
+      else stop();
+    }, Math.max(0, endsAt - now()));
   }
 
   // id: имя файла из playlist() или "random". Чужие пути не пройдут: ищем только среди файлов папки.
   function play(id) {
     const list = playlist();
     if (!list.length) return { error: 'Папка music пустая: положи туда mp3' };
-    const song = id === 'random'
-      ? list[Math.floor(Math.random() * list.length)]
-      : list.find((s) => s.id === id);
+    let song;
+    if (id === 'random') {
+      // Тот же трек подряд не ставим, если есть из чего выбрать.
+      const pool = list.length > 1 && current ? list.filter((s) => s.id !== current.id) : list;
+      song = pool[Math.floor(random() * pool.length)];
+    } else {
+      song = list.find((s) => s.id === id);
+    }
     if (!song) return { error: 'Такого трека нет в папке music' };
     current = { id: song.id, title: song.title, url: song.url, startedAt: now() };
+    scheduleEnd();
     onChange(state());
     return { ok: true, track: state() };
   }
 
+  // Стоп выключает и режим «случайные подряд».
   function stop() {
     current = null;
+    autoplay = false;
+    if (endTimer !== null) timers.clear(endTimer);
+    endTimer = null;
     onChange(null);
+    return { ok: true };
+  }
+
+  // Браузер загрузил трек и знает его длину. Принимаем разумные значения, первое слово решает.
+  function reportDuration(id, seconds) {
+    if (typeof id !== 'string' || !Number.isFinite(seconds) || seconds < 1 || seconds > 3600) return false;
+    if (durations.has(id)) return false;
+    if (!playlist().some((s) => s.id === id)) return false;
+    durations.set(id, Math.round(seconds * 10) / 10);
+    if (current && current.id === id) scheduleEnd();
+    return true;
+  }
+
+  // Режим «случайные подряд». Включили в тишине: сразу играет случайный трек.
+  function setAutoplay(on) {
+    autoplay = !!on;
+    if (autoplay && !current) return play('random');
+    if (current) onChange(state());
     return { ok: true };
   }
 
@@ -80,10 +141,13 @@ function createMusic({ dir, urlPrefix = '/music-files/', onChange = () => {}, no
     const song = playlist().find((s) => s.id === saved.id);
     if (!song) return false;
     current = { id: song.id, title: song.title, url: song.url, startedAt: saved.startedAt };
+    autoplay = !!saved.autoplay;
+    if (Number.isFinite(saved.duration)) durations.set(song.id, saved.duration);
+    scheduleEnd();
     return true;
   }
 
-  return { play, stop, state, playlist, restore };
+  return { play, stop, state, playlist, restore, reportDuration, setAutoplay, autoplay: () => autoplay };
 }
 
 module.exports = { createMusic, sniffAudioType, AUDIO_EXT };

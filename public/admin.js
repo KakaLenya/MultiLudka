@@ -156,10 +156,27 @@ function renderCrash() {
     : [li('Ставок нет', 'muted')]));
 }
 
+// Длину трека админка узнаёт сама и сообщает серверу (на случай, если у игроков звук выключен).
+let durationAsked = null;
+function reportAdminDuration(track) {
+  if (!track || track.duration !== null || durationAsked === track.id) return;
+  durationAsked = track.id;
+  const a = new Audio();
+  a.preload = 'metadata';
+  a.onloadedmetadata = () => {
+    if (Number.isFinite(a.duration)) api('/music/duration', { id: track.id, duration: a.duration }).catch(() => {});
+    a.removeAttribute('src');
+  };
+  a.src = track.url;
+}
+
 function renderMusic() {
   const m = admin.data.music;
+  reportAdminDuration(m.current);
+  $('m-autoplay').textContent = m.autoplay ? '🔀 Подряд: включено' : '🔀 Случайные подряд';
+  $('m-autoplay').classList.toggle('on', m.autoplay);
   $('m-now').textContent = m.current
-    ? `Сейчас играет: ${m.current.title} (${Math.floor(m.current.offset / 60)}:${String(m.current.offset % 60).padStart(2, '0')})`
+    ? `Сейчас играет: ${m.current.title} (${Math.floor(m.current.offset / 60)}:${String(m.current.offset % 60).padStart(2, '0')}${m.current.duration ? ` из ${Math.floor(m.current.duration / 60)}:${String(Math.round(m.current.duration % 60)).padStart(2, '0')}` : ''})`
     : 'Ничего не играет';
   // Кнопки треков перестраиваем, только когда поменялся состав папки.
   const list = $('m-list');
@@ -485,6 +502,10 @@ $('rig-crash').addEventListener('click', () => {
 });
 $('m-random').addEventListener('click', () => run('/music/play', { id: 'random' }, (r) => `Играет: ${r.track.title}`));
 $('m-stop').addEventListener('click', () => run('/music/stop', {}, 'Музыка выключена'));
+$('m-autoplay').addEventListener('click', () => {
+  const on = !(admin.data && admin.data.music.autoplay);
+  run('/music/autoplay', { on }, on ? 'Играют случайные треки подряд' : 'Режим «подряд» выключен: текущий трек доиграет и всё');
+});
 $('chat-clear').addEventListener('click', () => {
   if (confirm('Очистить чат у всех?')) run('/chat/clear', {}, 'Чат очищен');
 });

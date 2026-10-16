@@ -40,7 +40,15 @@ function payoutFor(bet, n) {
 }
 
 // now, random, timings подменяются в тестах; tick() там дёргается вручную.
-function createRoulette({ store, onState = () => {}, now = Date.now, random = () => randomInt(0, 36), timings = {} }) {
+// Короткое название ставки для ленты.
+const BET_LABELS = {
+  red: 'красное', black: 'чёрное', even: 'чёт', odd: 'нечёт', low: '1-18', high: '19-36',
+  dozen1: '1-12', dozen2: '13-24', dozen3: '25-36', column1: 'кол. 1', column2: 'кол. 2', column3: 'кол. 3',
+};
+const betLabel = (b) => (b.type === 'straight' ? `№${b.number}` : BET_LABELS[b.type]);
+
+// onEvent: события для общей ленты ставок и выигрышей.
+function createRoulette({ store, onState = () => {}, onEvent = () => {}, now = Date.now, random = () => randomInt(0, 36), timings = {} }) {
   const T = { bettingMs: BETTING_MS, spinMs: SPIN_MS, resultMs: RESULT_MS, ...timings };
 
   let roundId = 0;
@@ -65,6 +73,10 @@ function createRoulette({ store, onState = () => {}, now = Date.now, random = ()
       b.won = b.list.reduce((sum, bet) => sum + payoutFor(bet, result), 0);
       if (b.won > 0) store.adjust(b.player, b.won);
       else store.notify(b.player);  // ставки сгорели: фишки больше не "в игре"
+      const net = b.won - b.total;
+      if (net !== 0) {
+        onEvent({ game: 'roulette', kind: net > 0 ? 'win' : 'lose', player: b.player, amount: Math.abs(net), note: `выпало ${result}` });
+      }
     }
     history.unshift(result);
     if (history.length > HISTORY_SIZE) history.pop();
@@ -77,6 +89,12 @@ function createRoulette({ store, onState = () => {}, now = Date.now, random = ()
       phaseStartedAt += T.bettingMs;
       result = rigged ?? random();
       rigged = null;
+      // Ставки закрыты: в ленту уходит, кто сколько и на что поставил.
+      for (const b of bets.values()) {
+        const labels = b.list.map(betLabel);
+        const note = labels.slice(0, 3).join(', ') + (labels.length > 3 ? ` и ещё ${labels.length - 3}` : '');
+        onEvent({ game: 'roulette', kind: 'bet', player: b.player, amount: b.total, note });
+      }
     }
     if (phase === 'spinning' && t - phaseStartedAt >= T.spinMs) {
       phase = 'result';

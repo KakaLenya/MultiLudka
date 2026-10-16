@@ -1264,6 +1264,8 @@ function renderMusic() {
   audioEl.src = t.url;
   // Перематываем, когда браузер узнал длину трека.
   audioEl.onloadedmetadata = () => {
+    // Сообщаем серверу длину трека: так он сам выключит песню, когда она доиграет.
+    if (Number.isFinite(audioEl.duration)) send({ type: 'music_duration', id: t.id, duration: audioEl.duration });
     const pos = musicPosition();
     if (Number.isFinite(audioEl.duration) && pos >= audioEl.duration) {
       audioEl.pause();  // трек у всех уже закончился
@@ -1695,6 +1697,66 @@ document.querySelectorAll('[data-dep]').forEach((b) => {
   });
 });
 
+// ---------- Лента ставок и выигрышей ----------
+
+const ACT_GAMES = {
+  crash: { icon: '📈', name: 'Краш' },
+  roulette: { icon: '🎡', name: 'Рулетка' },
+  bomb: { icon: '💣', name: 'Бомба' },
+  upgrade: { icon: '⬆️', name: 'Апгрейд' },
+  poker: { icon: '🃏', name: 'Покер' },
+};
+const ACT_FILTER_KEY = 'casino.activity.filter';
+const act = { entries: [], filter: storage.get(ACT_FILTER_KEY) || 'all', freshId: 0 };
+
+function actVisible(e) {
+  if (act.filter === 'win') return e.kind === 'win';
+  if (act.filter === 'mine') return !!state.me && e.playerId === state.me.playerId;
+  return true;
+}
+
+function renderActivity() {
+  document.querySelectorAll('[data-af]').forEach((b) => b.classList.toggle('active', b.dataset.af === act.filter));
+  const shown = act.entries.filter(actVisible).slice(0, 30);
+  if (!shown.length) {
+    const li = document.createElement('li');
+    li.className = 'muted act-empty';
+    li.textContent = act.filter === 'mine' ? 'Ты ещё ничего не ставил' : 'Пока тихо. Сделай первую ставку!';
+    $('act-list').replaceChildren(li);
+    return;
+  }
+  $('act-list').replaceChildren(...shown.map((e) => {
+    const g = ACT_GAMES[e.game] || { icon: '🎲', name: e.game };
+    const li = document.createElement('li');
+    li.className = `act-${e.kind}`;
+    if (state.me && e.playerId === state.me.playerId) li.classList.add('self');
+    if (e.id === act.freshId) li.classList.add('fresh');
+    const icon = document.createElement('span');
+    icon.className = 'act-icon';
+    icon.textContent = g.icon;
+    icon.title = g.name;
+    const body = document.createElement('span');
+    body.className = 'act-body';
+    const name = document.createElement('b');
+    name.textContent = e.name;
+    const what = document.createElement('span');
+    what.className = 'act-what';
+    what.textContent = `${e.kind === 'bet' ? 'ставка' : e.kind === 'win' ? 'выигрыш' : 'проигрыш'} · ${g.name}${e.note ? ` · ${e.note}` : ''}`;
+    body.append(name, what);
+    const amount = document.createElement('span');
+    amount.className = 'act-amount';
+    amount.textContent = e.kind === 'win' ? `+${e.amount}` : e.kind === 'lose' ? `−${e.amount}` : `${e.amount}`;
+    li.append(icon, avatarEl(e.name), body, amount);
+    return li;
+  }));
+}
+
+document.querySelectorAll('[data-af]').forEach((b) => b.addEventListener('click', () => {
+  act.filter = b.dataset.af;
+  storage.set(ACT_FILTER_KEY, act.filter);
+  renderActivity();
+}));
+
 // ---------- Объявления и эффекты от админа ----------
 
 function showBanner(text) {
@@ -1767,6 +1829,18 @@ const handlers = {
     music.track = msg.track;
     music.recvAt = performance.now();
     renderMusic();
+  },
+
+  activity_history(msg) {
+    act.entries = msg.entries;
+    renderActivity();
+  },
+
+  activity(msg) {
+    act.entries.unshift(msg.entry);
+    if (act.entries.length > 60) act.entries.pop();
+    act.freshId = msg.entry.id;
+    renderActivity();
   },
 
   upgrade_result(msg) {

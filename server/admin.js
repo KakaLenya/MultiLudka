@@ -66,7 +66,7 @@ function createAdminRouter({
       }))
       .sort((a, b) => b.online - a.online || b.capital - a.capital);
     res.json({ players, crash: crash.adminState(), roulette: roulette.adminState(), bomb: bomb.adminState(), upgrader: upgrader.adminState(), poker: table.adminView(), chat: chat.log(),
-      music: { current: music.state(), playlist: music.playlist() },
+      music: { current: music.state(), playlist: music.playlist(), autoplay: music.autoplay() },
       requests: songRequests.list() });
   });
 
@@ -200,6 +200,16 @@ function createAdminRouter({
   });
 
   router.post('/music/stop', (req, res) => ok(res, music.stop()));
+
+  // { on } — «случайные подряд»: по окончании трека сразу следующий случайный.
+  router.post('/music/autoplay', (req, res) => {
+    const result = music.setAutoplay(!!req.body.on);
+    if (result.error) return fail(res, result.error);
+    ok(res, { autoplay: music.autoplay() });
+  });
+
+  // { id, duration } — длину трека может сообщить и админка.
+  router.post('/music/duration', (req, res) => ok(res, { accepted: music.reportDuration(req.body.id, Number(req.body.duration)) }));
 
   // { id, trackId? } — включить заказ сразу у всех (trackId, если админ выбрал другой трек).
   router.post('/requests/approve', (req, res) => {

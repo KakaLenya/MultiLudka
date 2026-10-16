@@ -1038,3 +1038,26 @@ body.fx-disco { animation: fx-disco .5s linear infinite; }
 .u-feed li.win .u-what { color: var(--green); }
 .u-feed li.lose .u-what { color: var(--red); }
 .u-feed .u-ch { min-width: 92px; text-align: right; color: var(--muted); font-size: 12px; }
+
+/* ---------- Лента ставок и выигрышей ---------- */
+
+.act-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap; margin-bottom: 8px; }
+.act-head h2 { margin: 0; }
+.act-filter { display: flex; gap: 4px; }
+.act-filter button { padding: 6px 12px; font-size: 13px; }
+.act-filter button.active { border-color: var(--gold); color: var(--gold-2); background: rgba(242, 193, 78, .1); }
+.act-list { list-style: none; margin: 0; padding: 0; max-height: 360px; overflow-y: auto; scrollbar-width: thin; scrollbar-color: rgba(242, 193, 78, .3) transparent; }
+.act-list li { display: flex; align-items: center; gap: 10px; padding: 7px 6px; border-top: 1px solid var(--line-2); border-radius: 8px; font-size: 14px; }
+.act-list li:first-child { border-top: 0; }
+.act-list li.self { background: rgba(242, 193, 78, .06); }
+.act-list li.fresh { animation: act-in .5s ease-out; }
+@keyframes act-in { from { opacity: 0; transform: translateY(-8px); background: rgba(242, 193, 78, .18); } }
+.act-icon { flex: none; width: 22px; text-align: center; font-size: 16px; }
+.act-list .avatar { width: 26px; height: 26px; font-size: 12px; }
+.act-body { flex: 1; min-width: 0; display: flex; flex-direction: column; line-height: 1.25; }
+.act-body b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.act-what { color: var(--muted); font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.act-amount { flex: none; font-family: var(--display); font-weight: 700; font-size: 14px; font-variant-numeric: tabular-nums; color: var(--gold-2); }
+.act-win .act-amount { color: var(--green); }
+.act-lose .act-amount { color: var(--red); }
+.act-empty { justify-content: center; }

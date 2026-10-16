@@ -36,7 +36,8 @@ function parseAutoCashout(raw) {
 
 // store: хранилище игроков. onState(state): рассылка состояния.
 // now, random, timings подменяются в тестах; там же tick() дёргается вручную.
-function createCrashGame({ store, onState = () => {}, now = Date.now, random = randomFloat, timings = {} }) {
+// onEvent: события для общей ленты ставок и выигрышей.
+function createCrashGame({ store, onState = () => {}, onEvent = () => {}, now = Date.now, random = randomFloat, timings = {} }) {
   const bettingMs = timings.bettingMs ?? BETTING_MS;
   const pauseMs = timings.pauseMs ?? PAUSE_MS;
 
@@ -64,6 +65,7 @@ function createCrashGame({ store, onState = () => {}, now = Date.now, random = r
     bet.cashedOutCents = cents;
     bet.payout = payoutFor(bet.amount, cents);
     store.adjust(bet.player, bet.payout);
+    onEvent({ game: 'crash', kind: 'win', player: bet.player, amount: bet.payout - bet.amount, note: `забрал на ${(cents / 100).toFixed(2)}×` });
   }
 
   function crash(t) {
@@ -74,7 +76,10 @@ function createCrashGame({ store, onState = () => {}, now = Date.now, random = r
     if (history.length > HISTORY_SIZE) history.pop();
     // Проигравшие: баланс не меняется, но фишки больше не "в игре".
     for (const bet of bets.values()) {
-      if (bet.cashedOutCents === null) store.notify(bet.player);
+      if (bet.cashedOutCents === null) {
+        store.notify(bet.player);
+        onEvent({ game: 'crash', kind: 'lose', player: bet.player, amount: bet.amount, note: `краш на ${(crashCents / 100).toFixed(2)}×` });
+      }
     }
   }
 
@@ -146,6 +151,7 @@ function createCrashGame({ store, onState = () => {}, now = Date.now, random = r
     // Сначала регистрируем ставку, потом списываем: тогда капитал в рассылке баланса уже верный.
     bets.set(player.id, { player, amount, autoCents: auto.cents, cashedOutCents: null, payout: 0 });
     store.adjust(player, -amount);
+    onEvent({ game: 'crash', kind: 'bet', player, amount, note: auto.cents ? `автовывод ${(auto.cents / 100).toFixed(2)}×` : '' });
     emit();
     return { ok: true };
   }

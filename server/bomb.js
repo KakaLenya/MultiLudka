@@ -18,7 +18,8 @@ function fuseFor(bank, players, r) {
   return bank + Math.max(1, Math.round(players * (10 + r * 110)));
 }
 
-function createBomb({ store, onState = () => {}, now = Date.now, random = randomFloat, timings = {} }) {
+// onEvent: события для общей ленты ставок и выигрышей.
+function createBomb({ store, onState = () => {}, onEvent = () => {}, now = Date.now, random = randomFloat, timings = {} }) {
   const T = { lobbyMs: LOBBY_MS, turnMs: TURN_MS, resultMs: RESULT_MS, ...timings };
 
   let roundId = 1;
@@ -103,8 +104,12 @@ function createBomb({ store, onState = () => {}, now = Date.now, random = random
       left -= s.payout;
     }
     alive.sort((a, b) => b.contributed - a.contributed)[0].payout += left;
-    for (const s of alive) store.adjust(s.player, s.payout);
+    for (const s of alive) {
+      store.adjust(s.player, s.payout);
+      onEvent({ game: 'bomb', kind: 'win', player: s.player, amount: s.payout - s.contributed, note: `рвануло у ${bomber.player.name}` });
+    }
     store.notify(bomber.player);  // его фишки больше не «в игре»
+    onEvent({ game: 'bomb', kind: 'lose', player: bomber.player, amount: bomber.contributed, note: `взорвался на банке ${bank}` });
     finish(t, {
       type: 'boom',
       bomberId: bomber.player.id,
@@ -119,6 +124,7 @@ function createBomb({ store, onState = () => {}, now = Date.now, random = random
     const w = seats.get(id);
     w.payout = bank;
     store.adjust(w.player, bank);
+    onEvent({ game: 'bomb', kind: 'win', player: w.player, amount: bank - w.contributed, note: 'все остальные сбежали' });
     finish(t, { type: 'last', winnerId: w.player.id, winnerName: w.player.name, payouts: [{ id: w.player.id, name: w.player.name, amount: bank }] });
   }
 
@@ -154,6 +160,7 @@ function createBomb({ store, onState = () => {}, now = Date.now, random = random
     s.lastMove = `сбежал (+${s.refunded})`;
     bank -= s.refunded;
     store.adjust(s.player, s.refunded);
+    onEvent({ game: 'bomb', kind: 'lose', player: s.player, amount: s.contributed - s.refunded, note: 'сбежал' });
     if (active().length <= 1) return lastStanding(t);
     if (wasTurn) nextTurn(t);
   }

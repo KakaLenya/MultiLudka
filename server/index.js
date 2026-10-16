@@ -84,6 +84,18 @@ function cleanChat(raw) {
   return text || null;
 }
 
+// Общая лента ставок и выигрышей по всем играм.
+const ACTIVITY_SIZE = 40;
+const activity = [];
+let activitySeq = 0;
+function onActivity({ game, kind, player, amount, note = '' }) {
+  if (!amount) return;
+  const entry = { id: ++activitySeq, at: Date.now(), game, kind, playerId: player.id, name: player.name, amount, note };
+  activity.unshift(entry);
+  if (activity.length > ACTIVITY_SIZE) activity.pop();
+  broadcast({ type: 'activity', entry });
+}
+
 const chatLog = [];
 let chatSeq = 0;
 const mutes = new Map();  // playerId -> до какого времени молчит (админ)
@@ -168,24 +180,28 @@ store.onChange((player) => {
 
 const crash = createCrashGame({
   store,
+  onEvent: onActivity,
   onState: (s) => broadcast({ type: 'crash_state', ...s }),
 });
 store.addReserver(crash.reserved);
 
 const roulette = createRoulette({
   store,
+  onEvent: onActivity,
   onState: (s) => broadcast({ type: 'roulette_state', ...s }),
 });
 store.addReserver(roulette.reserved);
 
 const bomb = createBomb({
   store,
+  onEvent: onActivity,
   onState: (s) => broadcast({ type: 'bomb_state', ...s }),
 });
 store.addReserver(bomb.reserved);
 
 const upgrader = createUpgrader({
   store,
+  onEvent: onActivity,
   onFeed: (feed) => broadcast({ type: 'upgrade_feed', feed }),
 });
 
@@ -196,7 +212,11 @@ const music = createMusic({
   onChange: (track) => {
     broadcast({ type: 'music', track });
     try {
-      if (track) fs.writeFileSync(MUSIC_NOW_FILE, JSON.stringify({ id: track.id, startedAt: track.startedAt }));
+      if (track) {
+        fs.writeFileSync(MUSIC_NOW_FILE, JSON.stringify({
+          id: track.id, startedAt: track.startedAt, autoplay: track.autoplay, duration: track.duration,
+        }));
+      }
       else fs.rmSync(MUSIC_NOW_FILE, { force: true });
     } catch (err) {
       console.error('Не удалось сохранить текущий трек:', err.message);
@@ -298,6 +318,7 @@ const handlers = {
     send(ws, { type: 'roulette_state', ...roulette.state() });
     send(ws, { type: 'bomb_state', ...bomb.state() });
     send(ws, { type: 'upgrade_feed', feed: upgrader.feed() });
+    send(ws, { type: 'activity_history', entries: activity });
     table.setConnected(player, true);
     send(ws, { type: 'poker_state', ...table.view(player) });
     send(ws, { type: 'chat_history', messages: chatLog });
@@ -362,6 +383,11 @@ const handlers = {
 
   poker_reroll(ws, msg) {
     reply(ws, table.reroll(ws.player, msg.keep));
+  },
+
+  // Браузер загрузил трек и сообщает его длину: по ней сервер сам выключит трек.
+  music_duration(ws, msg) {
+    music.reportDuration(msg.id, Number(msg.duration));
   },
 
   song_request(ws, msg) {
