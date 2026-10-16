@@ -11,6 +11,7 @@ const { createAdminRouter } = require('./admin');
 const { createRoulette } = require('./roulette');
 const { createBomb } = require('./bomb');
 const { createUpgrader } = require('./upgrader');
+const { createVerity } = require('./verity');
 const { createPool } = require('./pool');
 const { createMusic, sniffAudioType } = require('./music');
 const { createSongRequests } = require('./requests');
@@ -207,6 +208,12 @@ const upgrader = createUpgrader({
   onFeed: (feed) => broadcast({ type: 'upgrade_feed', feed }),
 });
 
+const verity = createVerity({
+  store,
+  onEvent: onActivity,
+  onFeed: (feed) => broadcast({ type: 'verity_feed', feed }),
+});
+
 // Текущий трек переживает перезапуск сервера: пишем его в data/music-now.json.
 const MUSIC_NOW_FILE = path.join(DATA_DIR, 'music-now.json');
 const music = createMusic({
@@ -339,6 +346,7 @@ const handlers = {
     send(ws, { type: 'roulette_state', ...roulette.state() });
     send(ws, { type: 'bomb_state', ...bomb.state() });
     send(ws, { type: 'upgrade_feed', feed: upgrader.feed() });
+    send(ws, { type: 'verity_feed', feed: verity.feed() });
     send(ws, { type: 'activity_history', entries: activity });
     send(ws, { type: 'pool_state', ...pool.view(player) });
     table.setConnected(player, true);
@@ -413,6 +421,12 @@ const handlers = {
     const result = upgrader.spin(ws.player, msg.amount, msg.chance);
     if (result.error) return send(ws, { type: 'error', message: result.error });
     send(ws, { type: 'upgrade_result', ...result.spin });
+  },
+
+  verity_play(ws, msg) {
+    const result = verity.play(ws.player, msg.amount);
+    if (result.error) return send(ws, { type: 'error', message: result.error });
+    send(ws, { type: 'verity_result', ...result.result });
   },
 
   poker_join(ws, msg) {
@@ -542,6 +556,7 @@ app.use('/admin/api', createAdminRouter({
   roulette,
   bomb,
   upgrader,
+  verity,
   pool,
   music,
   songRequests,

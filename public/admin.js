@@ -300,6 +300,15 @@ function renderUpgraderAdmin() {
     : [li('Пока никто не апгрейдился', 'muted')]));
 }
 
+function renderVerityAdmin() {
+  const v = admin.data.verity;
+  $('vt-rigged').textContent = v.rigged === 'good' ? 'Следующий раз (любой игрок): добрый 😊'
+    : v.rigged === 'evil' ? 'Следующий раз (любой игрок): злой 😈' : 'Следующий раз: честно';
+  $('vt-feed').replaceChildren(...(v.feed.length
+    ? v.feed.slice(0, 8).map((e) => li(`${e.good ? '😊' : '😈'} ${e.name}: ${e.good ? '+' : '−'}${e.amount}`))
+    : [li('Пока никого не проверял', 'muted')]));
+}
+
 function renderBombAdmin() {
   const b = admin.data.bomb;
   $('bo-phase').textContent = { lobby: 'сбор', playing: 'идёт', result: 'итог' }[b.phase] || b.phase;
@@ -371,6 +380,7 @@ function render() {
   renderCrash();
   renderRoulette();
   renderUpgraderAdmin();
+  renderVerityAdmin();
   renderBombAdmin();
   renderPoker();
   renderChat();
@@ -518,6 +528,11 @@ $('chat-clear').addEventListener('click', () => {
 document.querySelectorAll('[data-uprig]').forEach((b) => b.addEventListener('click', () => {
   const mode = b.dataset.uprig === 'fair' ? null : b.dataset.uprig;
   run('/upgrader/rig', { mode }, mode === 'win' ? 'Следующий апгрейд выиграет' : mode === 'lose' ? 'Следующий апгрейд проиграет' : 'Апгрейды снова честные');
+}));
+
+document.querySelectorAll('[data-vtrig]').forEach((b) => b.addEventListener('click', () => {
+  const mode = b.dataset.vtrig === 'fair' ? null : b.dataset.vtrig;
+  run('/verity/rig', { mode }, mode === 'good' ? 'Верити будет добрым' : mode === 'evil' ? 'Верити будет злым' : 'Верити снова честный');
 }));
 
 $('rig-bomb').addEventListener('click', () => {

@@ -45,6 +45,7 @@
           <button type="button" class="tab active" data-tab="crash">📈 Краш</button>
           <button type="button" class="tab" data-tab="roulette">🎡 Рулетка</button>
           <button type="button" class="tab" data-tab="upgrade">⬆️ Апгрейд</button>
+          <button type="button" class="tab" data-tab="verity">😊 Верити</button>
           <button type="button" class="tab" data-tab="bomb">💣 Бомба <span class="dot" id="bomb-dot" hidden></span></button>
           <button type="button" class="tab" data-tab="pool">🎱 Пул <span class="dot" id="pool-dot" hidden></span></button>
           <button type="button" class="tab" data-tab="poker">🃏 Покер <span class="dot" id="poker-dot" hidden></span></button>
@@ -111,6 +112,36 @@
           </div>
           <h2 class="u-feed-title">Лента апгрейдов</h2>
           <ul class="list u-feed" id="u-feed"></ul>
+        </section>
+
+        <section class="card verity" id="verity" hidden>
+          <div class="history vt-strip" id="vt-strip" aria-label="Последние решения Верити"></div>
+          <div class="vt-stage" id="vt-stage">
+            <div class="vt-bubble" id="vt-bubble">Поставь — и я решу, добрый я сегодня или злой</div>
+            <div class="vt-float">
+              <div class="vt-hero idle" id="vt-hero"></div>
+            </div>
+            <div class="vt-table">
+              <div class="vt-pile" id="vt-pile"></div>
+              <div class="vt-pile-label" id="vt-pile-label"></div>
+            </div>
+          </div>
+          <div class="vt-controls">
+            <label class="field">
+              <span>Ставка</span>
+              <input id="vt-amount" type="number" min="1" step="1" value="100" inputmode="numeric">
+            </label>
+            <div class="quick">
+              <button type="button" class="ghost" data-vq="half">½</button>
+              <button type="button" class="ghost" data-vq="double">×2</button>
+              <button type="button" class="ghost" data-vq="max">всё</button>
+            </div>
+            <button type="button" class="action" id="vt-go">😊 Проверь меня, Верити</button>
+            <div class="vt-odds">50 на 50: добрый удвоит ставку, злой — съест</div>
+            <div class="u-result" id="vt-result"></div>
+          </div>
+          <h2 class="u-feed-title">Кого проверил Верити</h2>
+          <ul class="list u-feed" id="vt-feed"></ul>
         </section>
 
         <section class="card bombgame" id="bomb" hidden>

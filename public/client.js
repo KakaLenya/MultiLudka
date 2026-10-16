@@ -377,13 +377,13 @@ const TAB_KEY = 'casino.tab';
 
 function showTab(name) {
   document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t.dataset.tab === name));
-  for (const id of ['crash', 'roulette', 'upgrade', 'bomb', 'pool', 'poker']) $(id).hidden = name !== id;
+  for (const id of ['crash', 'roulette', 'upgrade', 'verity', 'bomb', 'pool', 'poker']) $(id).hidden = name !== id;
   // канвас апгрейдера создаётся ниже по файлу: рисуем на следующем кадре
   if (name === 'upgrade') requestAnimationFrame(() => drawUpgrader());
   storage.set(TAB_KEY, name);
 }
 document.querySelectorAll('.tab').forEach((t) => t.addEventListener('click', () => showTab(t.dataset.tab)));
-showTab(['roulette', 'upgrade', 'bomb', 'pool', 'poker'].includes(storage.get(TAB_KEY)) ? storage.get(TAB_KEY) : 'crash');
+showTab(['roulette', 'upgrade', 'verity', 'bomb', 'pool', 'poker'].includes(storage.get(TAB_KEY)) ? storage.get(TAB_KEY) : 'crash');
 
 // ---------- Звуки (WebAudio, без файлов) ----------
 
@@ -1534,6 +1534,420 @@ $('u-go').addEventListener('click', () => {
 });
 renderUpgradeForm();
 
+// ---------- Верити ----------
+
+const VT_LINES = {
+  idle: [
+    'Поставь — и я решу, добрый я сегодня или злой',
+    'Ну что, проверим тебя?',
+    'Я сегодня в настроении… наверное',
+  ],
+  think: ['Хм-м…', 'Проверяю тебя…', 'Добрый или злой?..', 'Сейчас решу…'],
+  good: [
+    'Сегодня я добрый! Держи вдвое больше 😊',
+    'Ты мне нравишься — лови фишки!',
+    'Проверка пройдена. Удваиваю!',
+    'Дождь из фишек для хорошего человека',
+    'Удваиваю, не благодари ☺️',
+  ],
+  evil: [
+    'Ням. Было вкусно 😈',
+    'Злой Верити голоден!',
+    'Хрум-хрум… спасибо за ставку',
+    'Проверка не пройдена. Съедено.',
+    'Ещё неси, я не наелся',
+  ],
+};
+
+const vt = { awaiting: false, holding: false, busy: false, pendingBalance: null, idleTimer: null, amount: 0 };
+const vtPick = (list) => list[Math.floor(Math.random() * list.length)];
+const vtSleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// Квадратичная кривая Безье: t → [x, y].
+const vtCurve = (x0, y0, cx, cy, x1, y1) => (t) => [
+  (1 - t) ** 2 * x0 + 2 * t * (1 - t) * cx + t * t * x1,
+  (1 - t) ** 2 * y0 + 2 * t * (1 - t) * cy + t * t * y1,
+];
+
+// Зубы вдоль кривой: зубцы глубиной depth, обратно — по самой кривой, чтобы не залезть на лицо.
+function vtTeeth(curve, n, depth, from = 0.06, to = 0.94) {
+  const pts = [];
+  for (let k = 0; k <= 2 * n; k++) {
+    const [x, y] = curve(from + ((to - from) * k) / (2 * n));
+    pts.push(`${x.toFixed(1)},${(k % 2 ? y + depth : y).toFixed(1)}`);
+  }
+  const back = [];
+  for (let k = 2 * n; k >= 0; k -= 2) {
+    const [x, y] = curve(from + ((to - from) * k) / (2 * n));
+    back.push(`${x.toFixed(1)},${y.toFixed(1)}`);
+  }
+  return `M${pts.join(' L')} L${back.join(' L')} Z`;
+}
+
+function verityFaceSvg() {
+  const grinTop = vtCurve(40, 112, 100, 140, 160, 112);
+  const grinBottom = vtCurve(40, 112, 100, 170, 160, 112);
+  const maw = (a0, a1, cy = 128) => (t) => {
+    const a = Math.PI * (a0 + (a1 - a0) * t);
+    return [100 + 50 * Math.cos(a), cy + 38 * Math.sin(a)];
+  };
+  return `
+<svg viewBox="-20 -20 240 240" aria-hidden="true">
+  <defs>
+    <filter id="vt-felt" x="-15%" y="-15%" width="130%" height="130%">
+      <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="3" seed="3" result="noise"/>
+      <feDisplacementMap in="SourceGraphic" in2="noise" scale="5" xChannelSelector="R" yChannelSelector="G" result="fuzzy"/>
+      <feColorMatrix in="noise" type="saturate" values="0" result="gray"/>
+      <feComponentTransfer in="gray" result="grain">
+        <feFuncR type="linear" slope="0.55" intercept="0.6"/>
+        <feFuncG type="linear" slope="0.55" intercept="0.6"/>
+        <feFuncB type="linear" slope="0.55" intercept="0.6"/>
+        <feFuncA type="linear" slope="0" intercept="1"/>
+      </feComponentTransfer>
+      <feComposite in="grain" in2="fuzzy" operator="in" result="grainIn"/>
+      <feBlend in="fuzzy" in2="grainIn" mode="multiply"/>
+    </filter>
+    <radialGradient id="vt-yellow" cx="40%" cy="35%" r="70%">
+      <stop offset="0" stop-color="#fff27e"/>
+      <stop offset="0.55" stop-color="#f7cf22"/>
+      <stop offset="1" stop-color="#cf8e00"/>
+    </radialGradient>
+    <radialGradient id="vt-red" cx="40%" cy="35%" r="70%">
+      <stop offset="0" stop-color="#ff7a52"/>
+      <stop offset="0.55" stop-color="#d42a1c"/>
+      <stop offset="1" stop-color="#5e0707"/>
+    </radialGradient>
+    <linearGradient id="vt-horn" x1="0" y1="1" x2="0" y2="0">
+      <stop offset="0" stop-color="#8f0f12"/>
+      <stop offset="1" stop-color="#2a0405"/>
+    </linearGradient>
+    <clipPath id="vt-open-clip"><path d="M48,112 Q100,196 152,112 Z"/></clipPath>
+  </defs>
+  <g filter="url(#vt-felt)">
+    <g class="vt-horns" fill="url(#vt-horn)">
+      <path d="M46,44 Q20,12 26,-14 Q46,8 72,24 Z"/>
+      <path d="M154,44 Q180,12 174,-14 Q154,8 128,24 Z"/>
+    </g>
+    <circle cx="100" cy="100" r="92" fill="url(#vt-yellow)"/>
+    <circle class="vt-redskin" cx="100" cy="100" r="92" fill="url(#vt-red)"/>
+
+    <g class="vt-face-good">
+      <g class="vt-eyes">
+        <ellipse cx="70" cy="80" rx="11" ry="19"/>
+        <ellipse cx="130" cy="80" rx="11" ry="19"/>
+      </g>
+      <g class="vt-eyes-happy" fill="none" stroke="#111" stroke-width="9" stroke-linecap="round">
+        <path d="M56,88 Q70,62 84,88"/>
+        <path d="M116,88 Q130,62 144,88"/>
+      </g>
+      <g class="vt-blush" fill="#ff6f7d">
+        <ellipse cx="46" cy="118" rx="13" ry="8"/>
+        <ellipse cx="154" cy="118" rx="13" ry="8"/>
+      </g>
+      <path class="vt-smile" d="M42,112 Q100,182 158,112 Q100,150 42,112 Z"/>
+      <g class="vt-mouth-open">
+        <path d="M48,112 Q100,196 152,112 Z"/>
+        <ellipse cx="100" cy="152" rx="24" ry="13" fill="#e2566a" clip-path="url(#vt-open-clip)"/>
+      </g>
+    </g>
+
+    <g class="vt-face-evil">
+      <g class="vt-brows" fill="none" stroke="#111" stroke-width="10" stroke-linecap="round">
+        <path d="M42,56 L94,80"/>
+        <path d="M158,56 L106,80"/>
+      </g>
+      <path d="M52,76 L92,92 Q88,108 70,106 Q54,102 52,76 Z"/>
+      <path d="M148,76 L108,92 Q112,108 130,106 Q146,102 148,76 Z"/>
+      <g class="vt-glint" fill="#ffd23a">
+        <circle cx="74" cy="96" r="4"/>
+        <circle cx="126" cy="96" r="4"/>
+      </g>
+      <g class="vt-grin">
+        <path d="M40,112 Q100,170 160,112 Q100,140 40,112 Z"/>
+        <path d="${vtTeeth(grinTop, 7, 13)}" fill="#fff4d6"/>
+        <path d="${vtTeeth(grinBottom, 5, -9, 0.2, 0.8)}" fill="#fff4d6"/>
+      </g>
+      <g class="vt-maw">
+        <ellipse cx="100" cy="128" rx="50" ry="38"/>
+        <ellipse cx="100" cy="146" rx="28" ry="14" fill="#7a1010"/>
+        <path d="${vtTeeth(maw(1.06, 1.94), 6, 15, 0, 1)}" fill="#fff4d6"/>
+        <path d="${vtTeeth(maw(0.12, 0.88), 5, -12, 0, 1)}" fill="#fff4d6"/>
+      </g>
+    </g>
+  </g>
+</svg>`;
+}
+
+const vtHero = $('vt-hero');
+vtHero.innerHTML = verityFaceSvg();
+vtHero.dataset.side = 'good';
+const vtSvg = vtHero.querySelector('svg');
+
+function vtAmount() {
+  const n = Math.floor(Number($('vt-amount').value));
+  return Number.isFinite(n) ? n : 0;
+}
+
+function vtSay(text, mood = '') {
+  const b = $('vt-bubble');
+  b.textContent = text;
+  b.className = `vt-bubble ${mood}`;
+  b.classList.remove('pop');
+  void b.offsetWidth;
+  b.classList.add('pop');
+}
+
+function vtIdle() {
+  if (vt.busy) return;
+  vtHero.className = 'vt-hero idle';
+  $('verity').classList.remove('evil-mood');
+  vtHero.dataset.side = 'good';
+  vtSvg.style.transform = '';
+  vtSay(vtPick(VT_LINES.idle));
+}
+
+// Стопка фишек ставки на столе перед Верити.
+const vtChipCount = (amount) => Math.max(2, Math.min(9, Math.round(1 + Math.log10(Math.max(1, amount)) * 1.6)));
+
+function vtChip(i, drop) {
+  const c = document.createElement('span');
+  c.className = 'vt-chip' + (i % 3 === 1 ? ' alt' : i % 3 === 2 ? ' alt2' : '') + (drop ? ' drop' : '');
+  c.style.bottom = `${i * 6}px`;
+  if (drop) c.style.animationDelay = `${i * 45}ms`;
+  return c;
+}
+
+function vtSetPile(amount, { drop = false, extra = 0, mood = '' } = {}) {
+  const n = amount ? vtChipCount(amount) + extra : 0;
+  const pile = $('vt-pile');
+  pile.getAnimations().forEach((a) => a.cancel());
+  pile.replaceChildren(...Array.from({ length: n }, (_, i) => vtChip(i, drop)));
+  const label = $('vt-pile-label');
+  label.textContent = amount ? `${amount}` : '';
+  label.className = `vt-pile-label ${mood}`;
+}
+
+function vtStagePoint(el, fx, fy) {
+  const s = $('vt-stage').getBoundingClientRect();
+  const r = el.getBoundingClientRect();
+  return { x: r.left - s.left + r.width * fx, y: r.top - s.top + r.height * fy };
+}
+
+// Подброс монетки: лицевая сторона — добрый, обратная — злой.
+function vtToss(good, ms) {
+  const halfTurns = (good ? 10 : 9) + 2 * Math.floor(Math.random() * 2);
+  const ease = (x) => 1 - (1 - x) ** 3;
+  const t0 = performance.now();
+  let lastSay = 0;
+  return new Promise((resolve) => {
+    function frame(now) {
+      const p = Math.min(1, (now - t0) / ms);
+      const angle = Math.PI * halfTurns * ease(p);
+      const cos = Math.cos(angle);
+      vtHero.dataset.side = cos >= 0 ? 'good' : 'evil';
+      const hop = Math.sin(Math.PI * Math.min(1, p * 1.15)) * 46;
+      vtSvg.style.transform = `translateY(${(-hop).toFixed(1)}px) scaleX(${Math.max(0.05, Math.abs(cos)).toFixed(3)})`;
+      if (now - lastSay > 900 && p < 0.8) {
+        lastSay = now;
+        vtSay(vtPick(VT_LINES.think), 'think');
+      }
+      if (p < 1) requestAnimationFrame(frame);
+      else {
+        vtSvg.style.transform = '';
+        resolve();
+      }
+    }
+    requestAnimationFrame(frame);
+  });
+}
+
+// Добрый: улыбается и осыпает игрока фишками.
+async function vtGoodEnding(r) {
+  vtHero.className = 'vt-hero happy jump';
+  vtSay(vtPick(VT_LINES.good), 'good');
+  beep([[784, 0.08], [988, 0.08], [1175, 0.08], [1568, 0.2]], 'triangle');
+
+  const stage = $('vt-stage');
+  const target = vtStagePoint($('vt-pile'), 0.5, 0.6);
+  const sw = stage.clientWidth;
+  const coins = [];
+  const count = Math.min(34, 12 + vtChipCount(r.amount) * 3);
+  for (let i = 0; i < count; i++) {
+    const c = document.createElement('span');
+    c.className = 'vt-coin';
+    const x0 = Math.random() * sw;
+    const y0 = -30 - Math.random() * 60;
+    const x1 = target.x + (Math.random() - 0.5) * 80;
+    const y1 = target.y + (Math.random() - 0.5) * 20;
+    stage.append(c);
+    coins.push(c);
+    c.animate([
+      { transform: `translate(${x0}px, ${y0}px) rotate(0deg)`, opacity: 1 },
+      { transform: `translate(${(x0 + x1) / 2}px, ${y1 - 40}px) rotate(${360 + Math.random() * 360}deg)`, opacity: 1, offset: 0.75 },
+      { transform: `translate(${x1}px, ${y1}px) rotate(720deg) scale(.6)`, opacity: 0 },
+    ], { duration: 650 + Math.random() * 400, delay: i * 28, easing: 'cubic-bezier(.4,.1,.6,1)', fill: 'both' });
+  }
+  // Стопка растёт по мере того, как падают фишки.
+  for (let k = 1; k <= 4; k++) {
+    await vtSleep(220);
+    beep([[1200 + k * 120, 0.05]], 'triangle');
+  }
+  vtSetPile(r.amount * 2, { extra: 3, mood: 'good' });
+  $('vt-pile').animate([{ transform: 'scale(1)' }, { transform: 'scale(1.18)' }, { transform: 'scale(1)' }], { duration: 350 });
+  sounds.win();
+  if (r.amount >= 1000) effects.confetti();
+  vtShowResult(true, r.amount);
+  await vtSleep(500);
+  coins.forEach((c) => c.remove());
+  // Выигрыш уезжает к игроку.
+  await $('vt-pile').animate([
+    { transform: 'translateY(0)', opacity: 1 },
+    { transform: 'translateY(70px) scale(.8)', opacity: 0 },
+  ], { duration: 550, easing: 'ease-in', fill: 'forwards' }).finished;
+  vtSetPile(0);
+  vtHero.classList.remove('jump');
+}
+
+// Злой: раскрывает пасть и съедает ставку.
+async function vtEvilEnding(r) {
+  vtHero.className = 'vt-hero grin';
+  $('verity').classList.add('evil-mood');
+  vtSay(vtPick(VT_LINES.evil), 'evil');
+  beep([[330, 0.12], [294, 0.12], [262, 0.12], [196, 0.3]], 'sawtooth');
+  await vtSleep(400);
+  vtHero.classList.add('eat');
+  await vtSleep(220);
+  vtHero.classList.add('chomp');
+
+  const stage = $('vt-stage');
+  const mouth = vtStagePoint(vtHero, 0.5, 0.6);
+  const chips = [...$('vt-pile').children].reverse();
+  $('vt-pile-label').classList.add('gone');
+  const flights = chips.map((chip, i) => {
+    const from = vtStagePoint(chip, 0, 0);
+    const fly = chip.cloneNode();
+    fly.classList.remove('drop');
+    fly.classList.add('fly');
+    fly.style.bottom = '';
+    stage.append(fly);
+    chip.style.visibility = 'hidden';
+    const mid = { x: (from.x + mouth.x) / 2 + (Math.random() - 0.5) * 60, y: Math.min(from.y, mouth.y) - 40 };
+    return fly.animate([
+      { transform: `translate(${from.x}px, ${from.y}px) rotate(0)`, opacity: 1 },
+      { transform: `translate(${mid.x}px, ${mid.y}px) rotate(200deg) scale(.9)`, opacity: 1, offset: 0.55 },
+      { transform: `translate(${mouth.x - 17}px, ${mouth.y - 8}px) rotate(420deg) scale(.25)`, opacity: 0 },
+    ], { duration: 520, delay: i * 110, easing: 'cubic-bezier(.5,0,.7,1)', fill: 'both' }).finished.then(() => {
+      fly.remove();
+      beep([[95 + Math.random() * 40, 0.07]], 'square');
+    });
+  });
+  await Promise.all(flights);
+  vtSetPile(0);
+  await vtSleep(260);
+  vtHero.classList.remove('chomp', 'eat');
+  vtHero.classList.add('burp');
+  sounds.lose();
+  vtShowResult(false, r.amount);
+  await vtSleep(700);
+  vtHero.classList.remove('burp');
+}
+
+function vtShowResult(good, amount) {
+  vt.holding = false;
+  const msg = vt.pendingBalance;
+  vt.pendingBalance = null;
+  if (msg) handlers.balance(msg);
+  const res = $('vt-result');
+  res.textContent = good ? `Добрый Верити: +${amount}` : `Злой Верити съел ${amount}`;
+  res.className = `u-result ${good ? 'win' : 'lose'}`;
+}
+
+function verityHoldsBalance(msg) {
+  if (!vt.awaiting && !vt.holding) return false;
+  vt.pendingBalance = msg;
+  return true;
+}
+
+async function startVerity(r) {
+  vt.awaiting = false;
+  vt.holding = true;
+  vt.busy = true;
+  clearTimeout(vt.idleTimer);
+  $('vt-result').textContent = '';
+  $('vt-result').className = 'u-result';
+  vtHero.className = 'vt-hero toss';
+  $('verity').classList.remove('evil-mood');
+  vtSetPile(r.amount, { drop: true });
+  vtSay(vtPick(VT_LINES.think), 'think');
+  // Вкладка в фоне не рисует кадры — баланс всё равно не должен зависнуть.
+  const guard = setTimeout(() => { if (vt.holding) vtShowResult(r.good, r.amount); }, r.spinMs + 4000);
+  try {
+    await vtToss(r.good, Math.max(1600, r.spinMs - 700));
+    if (r.good) await vtGoodEnding(r);
+    else await vtEvilEnding(r);
+  } finally {
+    clearTimeout(guard);
+    if (vt.holding) vtShowResult(r.good, r.amount);
+    vt.busy = false;
+    $('vt-go').disabled = false;
+    vt.idleTimer = setTimeout(vtIdle, 7000);
+  }
+}
+
+function vtCancelPending() {
+  if (!vt.awaiting) return;
+  vt.awaiting = false;
+  $('vt-go').disabled = false;
+  vtSetPile(0);
+  const msg = vt.pendingBalance;
+  vt.pendingBalance = null;
+  if (msg) handlers.balance(msg);
+}
+
+function renderVerityFeed(feed) {
+  const myId = state.me && state.me.playerId;
+  $('vt-strip').replaceChildren(...feed.map((e) => {
+    const s = document.createElement('span');
+    s.className = e.good ? 'vt-g' : 'vt-e';
+    s.textContent = e.good ? '😊' : '😈';
+    s.title = `${e.name}: ${e.good ? '+' : '−'}${e.amount}`;
+    return s;
+  }));
+  $('vt-feed').replaceChildren(...(feed.length ? feed.map((e) => {
+    const li = document.createElement('li');
+    li.className = e.good ? 'win' : 'lose';
+    if (e.playerId === myId) li.classList.add('self');
+    li.append(avatarEl(e.name));
+    const name = document.createElement('span');
+    name.className = 'name';
+    name.textContent = e.name;
+    const what = document.createElement('span');
+    what.className = 'u-what';
+    what.textContent = e.good ? `+${e.amount}` : `−${e.amount}`;
+    const who = document.createElement('span');
+    who.className = 'u-ch';
+    who.textContent = e.good ? '😊 добрый' : '😈 злой';
+    li.append(name, what, who);
+    return li;
+  }) : [Object.assign(document.createElement('li'), { className: 'muted', textContent: 'Верити пока никого не проверял' })]));
+}
+
+document.querySelectorAll('[data-vq]').forEach((b) => b.addEventListener('click', () => {
+  const v = Math.max(1, vtAmount());
+  const next = { half: Math.floor(v / 2), double: v * 2, max: state.balance }[b.dataset.vq];
+  $('vt-amount').value = Math.max(1, Math.min(next, Math.max(1, state.balance)));
+}));
+$('vt-go').addEventListener('click', () => {
+  if (vt.busy || vt.awaiting) return;
+  const amount = vtAmount();
+  if (amount < 1) return toast('Ставка — от 1 фишки');
+  if (amount > state.balance) return toast('Не хватает фишек');
+  vt.awaiting = true;
+  $('vt-go').disabled = true;
+  send({ type: 'verity_play', amount });
+});
+renderVerityFeed([]);
+
 // ---------- Пул (восьмёрка по приглашению) ----------
 
 const PP = window.PoolPhysics;
@@ -2271,6 +2685,7 @@ const ACT_GAMES = {
   roulette: { icon: '🎡', name: 'Рулетка' },
   bomb: { icon: '💣', name: 'Бомба' },
   upgrade: { icon: '⬆️', name: 'Апгрейд' },
+  verity: { icon: '😊', name: 'Верити' },
   poker: { icon: '🃏', name: 'Покер' },
   pool: { icon: '🎱', name: 'Пул' },
 };
@@ -2419,6 +2834,14 @@ const handlers = {
     renderUpgradeFeed(msg.feed);
   },
 
+  verity_result(msg) {
+    startVerity(msg);
+  },
+
+  verity_feed(msg) {
+    renderVerityFeed(msg.feed);
+  },
+
   pool_state(msg) {
     const before = pl.view && pl.view.myMatchId;
     pl.view = msg;
@@ -2491,7 +2914,7 @@ const handlers = {
   },
 
   balance(msg) {
-    if (upgradeHoldsBalance(msg)) return;
+    if (upgradeHoldsBalance(msg) || verityHoldsBalance(msg)) return;
     state.balance = msg.balance;
     $('me-balance').textContent = msg.balance;
     state.bonus = {
@@ -2528,6 +2951,7 @@ const handlers = {
       $('u-go').disabled = false;
       releaseBalance();
     }
+    vtCancelPending();
     if (msg.code === 'bad_token') {
       state.token = null;
       storage.remove(TOKEN_KEY);

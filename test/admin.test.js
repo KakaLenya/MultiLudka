@@ -9,6 +9,7 @@ const { createAdminRouter } = require('../server/admin');
 const { createRoulette } = require('../server/roulette');
 const { createBomb } = require('../server/bomb');
 const { createUpgrader } = require('../server/upgrader');
+const { createVerity } = require('../server/verity');
 const { createPool } = require('../server/pool');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -88,6 +89,7 @@ async function withServer(fn) {
     roulette: createRoulette({ store }),
     bomb: createBomb({ store }),
     upgrader: createUpgrader({ store, schedule: () => {} }),
+    verity: createVerity({ store, schedule: () => {} }),
     pool: createPool({ store }),
     music,
     songRequests: createSongRequests({ playlist: music.playlist, play: music.play }),
@@ -182,5 +184,17 @@ test('API: музыка только из папки, очистка чата', 
     chatLog.push({ playerId: '1', name: 'x', text: 'привет' });
     assert.equal((await post(`${base}/chat/clear`, {})).status, 200);
     assert.equal(chatLog.length, 0);
+  });
+});
+
+test('API: Верити — следующий добрый или злой', async () => {
+  await withServer(async ({ base }) => {
+    assert.equal((await post(`${base}/verity/rig`, { mode: 'evil' })).status, 200);
+    let st = await (await fetch(`${base}/state`)).json();
+    assert.equal(st.verity.rigged, 'evil');
+    assert.equal((await post(`${base}/verity/rig`, { mode: 'meh' })).status, 400);
+    assert.equal((await post(`${base}/verity/rig`, {})).status, 200);
+    st = await (await fetch(`${base}/state`)).json();
+    assert.equal(st.verity.rigged, null);
   });
 });
