@@ -429,30 +429,40 @@ const sounds = {
   dice: () => beep([[300, 0.04], [420, 0.04], [360, 0.05]], 'square'),
 };
 
-// ---------- Покер на кубиках ----------
+// ---------- Покер (Техасский холдем) ----------
 
-const PIPS = { 1: [4], 2: [0, 8], 3: [0, 4, 8], 4: [0, 2, 6, 8], 5: [0, 2, 4, 6, 8], 6: [0, 2, 3, 5, 6, 8] };
+const SUIT_SYM = { s: '♠', h: '♥', d: '♦', c: '♣' };
 
-function dieEl(value, { small = false, rolling = false } = {}) {
-  const el = document.createElement('button');
-  el.type = 'button';
-  el.className = 'die' + (small ? ' small' : '') + (rolling ? ' rolling' : '');
-  el.setAttribute('aria-label', `кубик ${value}`);
-  for (let i = 0; i < 9; i++) {
-    const pip = document.createElement('i');
-    if (PIPS[value].includes(i)) pip.className = 'on';
-    el.append(pip);
+// Карта: лицом (ранг и масть), рубашкой или пустой слот на столе.
+function cardEl(card, { small = false, back = false, deal = false, hl = false } = {}) {
+  const el = document.createElement('span');
+  el.className = 'pcard' + (small ? ' small' : '') + (deal ? ' deal' : '') + (hl ? ' hl' : '');
+  if (back) {
+    el.classList.add('back');
+    return el;
   }
+  if (!card) {
+    el.classList.add('slot');
+    return el;
+  }
+  if (card[1] === 'h' || card[1] === 'd') el.classList.add('red');
+  const r = document.createElement('b');
+  r.textContent = card[0] === 'T' ? '10' : card[0];
+  const s = document.createElement('i');
+  s.textContent = SUIT_SYM[card[1]];
+  el.append(r, s);
+  el.title = `${r.textContent}${s.textContent}`;
   return el;
 }
 
 const poker = {
   view: null,
   recvAt: 0,
-  pick: new Set(),        // индексы кубиков, отмеченных на перебросок
-  shownDice: null,        // что уже нарисовано (для анимации только изменившихся)
   lastResultHand: 0,
   wasMyTurn: false,
+  boardShown: 0,      // сколько карт стола уже нарисовано в этой раздаче (для анимации)
+  boardHand: 0,
+  holeKey: '',
 };
 
 function pokerTimeLeft() {
@@ -466,146 +476,145 @@ function seatName(i) {
   return s ? s.name : '?';
 }
 
+const PK_STREETS = { preflop: 'Префлоп', flop: 'Флоп', turn: 'Тёрн', river: 'Ривер' };
+const pkBetting = (v) => Object.hasOwn(PK_STREETS, v.phase);
+
 function renderPokerPhase() {
   const v = poker.view;
   if (!v) return;
   const secs = Math.ceil(pokerTimeLeft() / 1000);
-  const text = {
-    waiting: 'Ждём игроков: нужно двое за столом',
-    starting: `Раздача через ${secs} с`,
-    bet1: `Круг ставок 1 · ходит ${v.turn !== null ? seatName(v.turn) : ''} · ${secs} с`,
-    reroll: `Перебросок · ${secs} с`,
-    bet2: `Круг ставок 2 · ходит ${v.turn !== null ? seatName(v.turn) : ''} · ${secs} с`,
-    showdown: 'Итоги раздачи',
-  }[v.phase];
+  let text;
+  if (v.phase === 'waiting') text = 'Ждём игроков: нужно двое за столом';
+  else if (v.phase === 'starting') text = `Раздача через ${secs} с`;
+  else if (pkBetting(v)) text = `${PK_STREETS[v.phase]} · ходит ${v.turn !== null ? seatName(v.turn) : '…'} · ${secs} с`;
+  else text = 'Итоги раздачи';
   $('poker-phase').textContent = text;
+  const bar = document.querySelector('.pk-seat.turn .pk-timer i');
+  if (bar) bar.style.width = `${Math.min(100, (pokerTimeLeft() / v.turnMs) * 100)}%`;
 }
 setInterval(renderPokerPhase, 250);
 
+// Места по кругу стола, [left%, top%]. Своё место всегда внизу по центру.
+const PK_SLOTS = [[50, 92], [9, 68], [9, 22], [50, 3], [91, 22], [91, 68]];
+
 function renderPokerSeats() {
   const v = poker.view;
-  const result = v.result;
-  const handsBySeat = new Map((result ? result.hands : []).map((h) => [h.seat, h]));
-  const wonBySeat = new Map((result ? result.winners : []).map((w) => [w.seat, w.won]));
-  const myId = state.me && state.me.playerId;
+  const res = v.result;
+  const shown = new Map((res ? res.hands : []).map((x) => [x.seat, x]));
+  const won = new Map((res ? res.winners : []).map((w) => [w.seat, w]));
+  const mySeat = v.you ? v.you.seat : 0;
+  const inPlay = pkBetting(v) || v.phase === 'showdown';
 
   $('poker-seats').replaceChildren(...v.seats.map((s, i) => {
+    const slot = (i - mySeat + 6) % 6;
     const el = document.createElement('div');
+    el.className = `pk-seat slot-${slot}`;
+    el.style.left = `${PK_SLOTS[slot][0]}%`;
+    el.style.top = `${PK_SLOTS[slot][1]}%`;
     if (!s) {
-      el.className = 'seat empty';
+      el.classList.add('empty');
       el.textContent = 'свободно';
       return el;
     }
-    el.className = 'seat';
-    if (s.id === myId) el.classList.add('mine');
-    if (v.turn === i) el.classList.add('turn');
+    if (state.me && s.id === state.me.playerId) el.classList.add('mine');
+    if (v.turn === i && pkBetting(v)) el.classList.add('turn');
     if (s.folded) el.classList.add('folded');
-    if (wonBySeat.has(i)) el.classList.add('winner');
+    if (won.has(i)) el.classList.add('winner');
+    if (!s.connected) el.classList.add('offline');
 
-    const top = document.createElement('div');
-    top.className = 'top';
-    const who = document.createElement('span');
-    who.className = 'who';
-    who.textContent = s.name;
-    top.append(who);
-    if (v.dealer === i && v.phase !== 'waiting') {
-      const d = document.createElement('span');
-      d.className = 'badge';
-      d.textContent = 'D';
-      d.title = 'Дилер';
-      top.append(d);
-    }
-    if (!s.connected) {
-      const off = document.createElement('span');
-      off.className = 'off';
-      off.textContent = 'нет связи';
-      top.append(off);
-    }
+    const head = document.createElement('div');
+    head.className = 'pk-head';
+    const name = document.createElement('span');
+    name.className = 'pk-name';
+    name.textContent = s.name;
+    head.append(avatarEl(s.name), name);
 
     const stack = document.createElement('div');
-    stack.className = 'stack';
-    stack.textContent = `${s.stack} фишек`;
+    stack.className = 'pk-stack';
+    stack.textContent = s.allIn && inPlay ? `${s.stack} · олл-ин` : `${s.stack}`;
 
-    const status = document.createElement('div');
-    status.className = 'status';
-    const handActive = ['bet1', 'reroll', 'bet2'].includes(v.phase);
-    if (s.leaving) status.textContent = 'уходит';
-    else if (s.folded) status.textContent = 'пас';
-    else if (handActive && !s.inHand) status.textContent = 'ждёт раздачу';
-    else if (s.decided === false) status.textContent = 'выбирает кубики…';
-    else if (s.decided === true) status.textContent = 'готов';
-    else if (s.rerolled !== null && s.rerolled !== undefined && handActive) {
-      status.textContent = s.rerolled === 0 ? 'ничего не перебросил' : `перебросил ${s.rerolled}`;
+    // Карты: во вскрытии лицом, во время раздачи рубашкой (свои лицом).
+    const cards = document.createElement('div');
+    cards.className = 'pk-cards';
+    const reveal = shown.get(i);
+    const mine = v.you && v.you.seat === i && v.you.hole;
+    if (reveal) cards.append(...reveal.hole.map((c) => cardEl(c, { small: true })));
+    else if (mine && !s.folded) cards.append(...v.you.hole.map((c) => cardEl(c, { small: true })));
+    else if (s.hasCards && !s.folded && inPlay) cards.append(cardEl(null, { small: true, back: true }), cardEl(null, { small: true, back: true }));
+
+    el.append(cards, head, stack);
+
+    // Кнопка дилера и блайнды.
+    if (inPlay || v.phase === 'starting') {
+      const tags = [];
+      if (v.dealer === i) tags.push(['D', 'dealer']);
+      if (pkBetting(v) && v.sb === i) tags.push(['SB', 'blind']);
+      if (pkBetting(v) && v.bb === i) tags.push(['BB', 'blind']);
+      for (const [t, cls] of tags) {
+        const b = document.createElement('span');
+        b.className = `pk-tag ${cls}`;
+        b.textContent = t;
+        el.append(b);
+      }
     }
 
-    el.append(top, stack, status);
-
-    if (s.lastAction && handActive && !s.folded) {
-      const act = document.createElement('div');
-      act.className = 'bet';
-      act.textContent = s.lastAction;
-      el.append(act);
+    // Последнее действие или итог.
+    const note = document.createElement('div');
+    note.className = 'pk-note';
+    if (won.has(i)) {
+      note.textContent = `+${won.get(i).won}${won.get(i).hand ? ` · ${won.get(i).hand}` : ''}`;
+      note.classList.add('won');
+    } else if (reveal) {
+      note.textContent = reveal.hand;
+    } else if (s.leaving) {
+      note.textContent = 'уходит';
+    } else if (!s.connected) {
+      note.textContent = 'нет связи';
+    } else if (s.lastAction && inPlay) {
+      note.textContent = s.lastAction;
     }
+    if (note.textContent) el.append(note);
 
-    if (s.committed > 0 && handActive) {
+    // Ставка на этой улице: фишки перед игроком.
+    if (s.committed > 0 && pkBetting(v)) {
       const bet = document.createElement('div');
-      bet.className = 'bet';
-      bet.textContent = `в круге: ${s.committed}`;
+      bet.className = 'pk-bet';
+      bet.textContent = s.committed;
       el.append(bet);
     }
 
-    const shown = handsBySeat.get(i);
-    if (shown) {
-      const dice = document.createElement('div');
-      dice.className = 'dice';
-      dice.append(...shown.dice.map((d) => dieEl(d, { small: true })));
-      const name = document.createElement('div');
-      name.className = 'status';
-      name.textContent = shown.hand;
-      el.append(dice, name);
-    }
-    if (wonBySeat.has(i)) {
-      const won = document.createElement('div');
-      won.className = 'won';
-      won.textContent = `+${wonBySeat.get(i)}`;
-      el.append(won);
+    if (v.turn === i && pkBetting(v)) {
+      const timer = document.createElement('div');
+      timer.className = 'pk-timer';
+      timer.append(document.createElement('i'));
+      el.append(timer);
     }
     return el;
   }));
 }
 
-function renderMyDice() {
+function renderBoard() {
   const v = poker.view;
-  const you = v.you;
-  const box = $('my-dice');
-  if (!you || !you.dice) {
-    box.replaceChildren();
-    poker.shownDice = null;
-    return;
+  const res = v.result;
+  const board = res ? res.board : v.board;
+  if (poker.boardHand !== v.handId) {
+    poker.boardHand = v.handId;
+    poker.boardShown = 0;
   }
-  const prev = poker.shownDice;
-  const picking = you.needReroll;
-  box.replaceChildren(...you.dice.map((d, i) => {
-    // Крутим только новые кубики: при раздаче все, после переброса изменившиеся.
-    const changed = !prev || prev[i] !== d || (prev.handId !== v.handId);
-    const el = dieEl(d, { rolling: changed });
-    if (picking) {
-      el.classList.add('pick');
-      el.title = 'Нажми, чтобы перебросить';
-      if (poker.pick.has(i)) el.classList.add('reroll');
-      el.addEventListener('click', () => {
-        if (poker.pick.has(i)) poker.pick.delete(i);
-        else poker.pick.add(i);
-        renderMyDice();
-      });
-    } else if (you.keep && v.phase === 'reroll' && !you.keep[i]) {
-      el.classList.add('reroll');
-    }
-    return el;
-  }));
-  const changedAny = !prev || prev.handId !== v.handId || you.dice.some((d, i) => prev[i] !== d);
-  if (changedAny) sounds.dice();
-  poker.shownDice = Object.assign([...you.dice], { handId: v.handId });
+  // На вскрытии подсвечиваем карты стола, из которых собрана рука победителя.
+  const winnerBest = new Set();
+  if (res && res.revealed && res.winners.length) {
+    const w = res.hands.find((x) => x.seat === res.winners[0].seat);
+    if (w) w.best.forEach((c) => winnerBest.add(c));
+  }
+  const prev = poker.boardShown;
+  $('pk-board').replaceChildren(...[0, 1, 2, 3, 4].map((i) => cardEl(board[i] || null, {
+    deal: i >= prev && !!board[i],
+    hl: !!board[i] && winnerBest.has(board[i]),
+  })));
+  if (board.length > prev) beep([[520, 0.03], [700, 0.03]], 'triangle');
+  poker.boardShown = board.length;
+  $('pk-pot-center').textContent = v.pot > 0 ? `Банк ${v.pot}` : '';
 }
 
 function renderPoker() {
@@ -615,37 +624,42 @@ function renderPoker() {
 
   $('poker-pot').textContent = v.pot;
   renderPokerPhase();
+  renderBoard();
   renderPokerSeats();
+  renderPokerPhase();
 
   // Итог раздачи.
   const res = v.result;
   if (res) {
     const winners = res.winners.map((w) => `${w.name} +${w.won}`).join(', ');
-    const how = res.revealed
-      ? (res.hands.find((h) => h.seat === res.winners[0].seat) || {}).hand
-      : 'остальные сбросили';
-    $('poker-result').textContent = `${res.winners.length > 1 ? 'Ничья' : 'Банк забирает'}: ${winners} (${how})`;
+    const how = res.revealed ? (res.winners[0] && res.winners[0].hand) : 'все сбросили';
+    $('poker-result').textContent = `${res.winners.length > 1 ? 'Делёж' : 'Банк'}: ${winners} · ${how}`;
     $('poker-result').hidden = false;
     if (poker.lastResultHand !== res.handId) {
       poker.lastResultHand = res.handId;
       if (you && res.winners.some((w) => w.seat === you.seat)) sounds.win();
-      else if (you && you.dice) sounds.lose();
+      else if (you && res.hands.some((x) => x.seat === you.seat)) sounds.lose();
     }
   } else {
     $('poker-result').hidden = true;
   }
 
-  // Мои кубики.
-  $('poker-me').hidden = !(you && you.dice);
-  if (you && you.dice) {
-    if (!you.needReroll) poker.pick.clear();
-    renderMyDice();
-    $('my-hand-name').textContent = you.hand || '';
-    $('poker-hint').textContent =
-      you.myTurn ? 'Твой ход'
-        : you.needReroll ? 'Отметь кубики, которые хочешь перебросить'
-          : v.phase === 'reroll' && you.inHand ? 'Ждём остальных'
-            : !you.inHand && v.phase !== 'showdown' ? 'Ты сбросил' : '';
+  // Мои карты крупно.
+  $('poker-me').hidden = !(you && you.hole);
+  if (you && you.hole) {
+    const key = `${v.handId}:${you.hole.join('')}`;
+    const fresh = key !== poker.holeKey;
+    poker.holeKey = key;
+    $('my-hole').replaceChildren(...you.hole.map((c) => cardEl(c, { deal: fresh })));
+    $('my-hole').classList.toggle('folded', !you.inHand && pkBetting(v));
+    if (fresh) beep([[440, 0.04], [560, 0.04]], 'triangle');
+    const pair = you.hole[0][0] === you.hole[1][0];
+    const suited = you.hole[0][1] === you.hole[1][1];
+    $('my-hand-name').textContent = you.hand || (pair ? 'Карманная пара' : suited ? 'Одномастные' : '');
+    $('poker-hint').textContent = you.myTurn
+      ? (you.toCall > 0 ? `Твой ход: колл ${you.toCall}, рейз или фолд` : 'Твой ход: чек или ставка')
+      : !you.inHand && pkBetting(v) ? 'Ты сбросил'
+        : v.phase === 'showdown' ? '' : pkBetting(v) ? 'Ждём остальных' : '';
   }
 
   // Кнопки.
@@ -660,24 +674,50 @@ function renderPoker() {
     const btn = (a) => document.querySelector(`[data-act="${a}"]`);
     btn('check').hidden = !you.canCheck;
     btn('call').hidden = !you.canCall;
-    btn('call').textContent = `Уравнять ${you.toCall}`;
-    btn('bet').hidden = !you.canBet;
-    btn('raise').hidden = !you.canRaise;
-    const canSize = you.canBet || you.canRaise;
-    $('raise-amount').closest('label').hidden = !canSize;
-    $('raise-amount').max = you.maxRaise;
-    $('raise-label').textContent = `${you.canBet ? 'Ставка' : 'Повысить на'} (до ${you.maxRaise})`;
-    const cur = Number($('raise-amount').value);
-    if (!(cur >= you.minRaise && cur <= you.maxRaise)) $('raise-amount').value = you.minRaise;
+    btn('call').textContent = `Колл ${you.toCall}`;
+    $('pk-raise').hidden = !you.canRaise;
+    if (you.canRaise) {
+      const slider = $('raise-slider');
+      slider.min = you.minRaiseTo;
+      slider.max = you.maxRaiseTo;
+      const cur = Number($('raise-amount').value);
+      const val = cur >= you.minRaiseTo && cur <= you.maxRaiseTo ? cur : you.minRaiseTo;
+      setRaise(val);
+    }
   }
-  $('poker-reroll').hidden = !(you && you.needReroll);
 
-  // Мой ход: звук и точка на вкладке.
-  const myTurnNow = !!(you && (you.myTurn || you.needReroll));
+  const myTurnNow = !!(you && you.myTurn);
   if (myTurnNow && !poker.wasMyTurn) sounds.turn();
   poker.wasMyTurn = myTurnNow;
   $('poker-dot').hidden = !myTurnNow;
 }
+
+// Ползунок и поле «ставка до» синхронно, текст кнопки по смыслу.
+function setRaise(value) {
+  const v = poker.view;
+  const you = v && v.you;
+  if (!you) return;
+  const val = Math.max(you.minRaiseTo, Math.min(you.maxRaiseTo, Math.round(value) || you.minRaiseTo));
+  $('raise-slider').value = val;
+  $('raise-amount').value = val;
+  const allIn = val === you.maxRaiseTo;
+  $('raise-btn').textContent = allIn ? `Олл-ин ${val}` : v.currentBet === 0 ? `Бет ${val}` : `Рейз до ${val}`;
+}
+
+$('raise-slider').addEventListener('input', () => setRaise(Number($('raise-slider').value)));
+$('raise-amount').addEventListener('change', () => setRaise(Number($('raise-amount').value)));
+document.querySelectorAll('[data-rq]').forEach((b) => b.addEventListener('click', () => {
+  const v = poker.view;
+  if (!v || !v.you) return;
+  const you = v.you;
+  const target = {
+    min: you.minRaiseTo,
+    half: v.currentBet + Math.floor(v.pot / 2),
+    pot: v.currentBet + v.pot,
+    allin: you.maxRaiseTo,
+  }[b.dataset.rq];
+  setRaise(target);
+}));
 
 $('poker-join').addEventListener('submit', (ev) => {
   ev.preventDefault();
@@ -690,16 +730,9 @@ document.querySelectorAll('[data-act]').forEach((btn) => {
   btn.addEventListener('click', () => {
     const action = btn.dataset.act;
     const msg = { type: 'poker_action', action };
-    if (action === 'bet' || action === 'raise') msg.amount = Math.floor(Number($('raise-amount').value));
+    if (action === 'raise') msg.amount = Math.floor(Number($('raise-amount').value));
     send(msg);
   });
-});
-
-$('reroll-btn').addEventListener('click', () => {
-  send({ type: 'poker_reroll', keep: [0, 1, 2, 3, 4].map((i) => !poker.pick.has(i)) });
-});
-$('keep-all-btn').addEventListener('click', () => {
-  send({ type: 'poker_reroll', keep: [true, true, true, true, true] });
 });
 
 // ---------- Чат ----------

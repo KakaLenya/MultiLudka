@@ -40,7 +40,7 @@ code { background: var(--bg); padding: 1px 5px; border-radius: 4px; }
 .stat-row { display: flex; flex-wrap: wrap; gap: 18px; margin-bottom: 6px; font-variant-numeric: tabular-nums; }
 .stat-row b { font-size: 18px; }
 .secret { color: var(--red); }
-.dice-text { font-size: 22px; letter-spacing: 2px; }
+.cards-text { font-family: var(--display); font-size: 14px; letter-spacing: 1px; }
 
 .admin-toast {
   position: fixed;

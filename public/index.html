@@ -46,7 +46,7 @@
           <button type="button" class="tab" data-tab="roulette">🎡 Рулетка</button>
           <button type="button" class="tab" data-tab="upgrade">⬆️ Апгрейд</button>
           <button type="button" class="tab" data-tab="bomb">💣 Бомба <span class="dot" id="bomb-dot" hidden></span></button>
-          <button type="button" class="tab" data-tab="poker">🎲 Покер на кубиках <span class="dot" id="poker-dot" hidden></span></button>
+          <button type="button" class="tab" data-tab="poker">🃏 Покер <span class="dot" id="poker-dot" hidden></span></button>
         </nav>
 
         <section class="card roulette" id="roulette" hidden>
@@ -166,56 +166,69 @@
             <div class="pot-box">Банк <b class="pot" id="poker-pot">0</b></div>
             <div class="poker-phase" id="poker-phase">…</div>
           </div>
-          <div class="result" id="poker-result" hidden></div>
-          <div class="seats" id="poker-seats"></div>
 
-          <div class="my-hand" id="poker-me" hidden>
-            <div class="dice" id="my-dice"></div>
-            <div class="hand-name" id="my-hand-name"></div>
-            <p class="hint" id="poker-hint"></p>
+          <div class="ptable">
+            <div class="felt">
+              <div class="pk-board" id="pk-board"></div>
+              <div class="pk-pot" id="pk-pot-center"></div>
+              <div class="pk-result" id="poker-result" hidden></div>
+            </div>
+            <div class="pk-seats" id="poker-seats"></div>
+          </div>
+
+          <div class="pk-me" id="poker-me" hidden>
+            <div class="pk-hole" id="my-hole"></div>
+            <div>
+              <div class="hand-name" id="my-hand-name"></div>
+              <p class="hint" id="poker-hint"></p>
+            </div>
           </div>
 
           <form class="controls" id="poker-join" autocomplete="off">
             <label class="field">
-              <span>Бай-ин (от 50)</span>
-              <input id="buyin" type="number" min="50" step="10" inputmode="numeric" value="200">
+              <span>Бай-ин (от 100, блайнды 5/10)</span>
+              <input id="buyin" type="number" min="100" step="10" inputmode="numeric" value="1000">
             </label>
             <button type="submit" class="action">Сесть за стол</button>
           </form>
 
-          <div class="controls" id="poker-actions" hidden>
-            <button type="button" class="ghost" data-act="check">Чек</button>
-            <button type="button" data-act="call">Уравнять</button>
-            <label class="field raise-field">
-              <span id="raise-label">Сумма</span>
-              <input id="raise-amount" type="number" min="10" step="10" inputmode="numeric" value="10">
-            </label>
-            <button type="button" data-act="bet">Ставка</button>
-            <button type="button" data-act="raise">Повысить</button>
-            <button type="button" class="danger" data-act="fold">Сбросить</button>
-          </div>
-
-          <div class="controls" id="poker-reroll" hidden>
-            <button type="button" class="action" id="reroll-btn">Перебросить отмеченные</button>
-            <button type="button" class="ghost" id="keep-all-btn">Оставить все</button>
+          <div class="pk-actions" id="poker-actions" hidden>
+            <div class="pk-main-actions">
+              <button type="button" class="danger" data-act="fold">Фолд</button>
+              <button type="button" class="ghost" data-act="check">Чек</button>
+              <button type="button" data-act="call">Колл</button>
+            </div>
+            <div class="pk-raise" id="pk-raise">
+              <div class="quick">
+                <button type="button" class="ghost" data-rq="min">мин</button>
+                <button type="button" class="ghost" data-rq="half">½ банка</button>
+                <button type="button" class="ghost" data-rq="pot">банк</button>
+                <button type="button" class="ghost" data-rq="allin">олл-ин</button>
+              </div>
+              <div class="pk-raise-row">
+                <input type="range" id="raise-slider" min="10" max="1000" step="1" aria-label="Размер ставки">
+                <input id="raise-amount" type="number" min="10" step="1" inputmode="numeric" aria-label="Ставка до">
+                <button type="button" class="action" id="raise-btn" data-act="raise">Рейз</button>
+              </div>
+            </div>
           </div>
 
           <button type="button" class="link leave" id="poker-leave" hidden>Встать из-за стола</button>
 
           <details class="rules">
             <summary>Правила и комбинации</summary>
-            <p>Анте 10. Круг ставок, затем один перебросок любых кубиков, второй круг ставок, вскрытие.
-              Ставка не может превышать наименьший стек среди игроков в раздаче, не больше 3 повышений за круг.
-              На ход 30 секунд: потом авто-чек или сброс.</p>
+            <p>Техасский холдем без лимита. Блайнды 5/10, кнопка дилера переходит по кругу. У каждого две карты, на стол выходят флоп (3 карты), тёрн и ривер; после каждой улицы круг ставок. Собираешь лучшую пятёрку из своих двух и пяти общих. Ставить можно сколько угодно, вплоть до олл-ина; если у кого-то фишек меньше, делаются побочные банки. На ход 30 секунд: потом авто-чек или фолд.</p>
             <ol class="ranks">
-              <li>Покер: пять одинаковых</li>
+              <li>Роял-флеш: A K Q J 10 одной масти</li>
+              <li>Стрит-флеш: пять подряд одной масти</li>
               <li>Каре: четыре одинаковых</li>
-              <li>Фулл-хаус: три + два</li>
-              <li>Стрит: 2-3-4-5-6 сильнее 1-2-3-4-5</li>
+              <li>Фулл-хаус: три + две</li>
+              <li>Флеш: пять одной масти</li>
+              <li>Стрит: пять подряд (A-2-3-4-5 тоже)</li>
               <li>Сет: три одинаковых</li>
               <li>Две пары</li>
               <li>Пара</li>
-              <li>Старшая: по значениям</li>
+              <li>Старшая карта</li>
             </ol>
           </details>
         </section>

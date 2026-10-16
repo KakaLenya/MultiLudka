@@ -4,7 +4,7 @@ const http = require('node:http');
 const express = require('express');
 const { createStore } = require('../server/players');
 const { createCrashGame, BETTING_MS } = require('../server/crash');
-const { createTable, START_DELAY_MS } = require('../server/dicepoker');
+const { createHoldem, makeDeck, START_DELAY_MS } = require('../server/holdem');
 const { createAdminRouter } = require('../server/admin');
 const { createRoulette } = require('../server/roulette');
 const { createBomb } = require('../server/bomb');
@@ -52,31 +52,21 @@ test('краш: крашнуть сейчас', () => {
   assert.equal(a.balance, 900);
 });
 
-test('покер: подкрученные кубики на раздачу и на перебросок', () => {
+test('покер: подкрученные карманные карты, админ видит все карты', () => {
   const clock = { t: 0 };
   const store = createStore();
   const [a, b] = ['Аня', 'Боря'].map((n) => store.register(n).player);
-  const queue = [];
-  const table = createTable({ store, now: () => clock.t, rollDie: () => queue.shift() });
+  const table = createHoldem({ store, now: () => clock.t, deckFactory: () => makeDeck() });
   table.join(a, 200);
   table.join(b, 200);
-  assert.ok(table.rigDice(a, [7, 1, 1, 1, 1]).error);
-  assert.deepEqual(table.rigDice(a, [6, 6, 6, 6, 6]), { ok: true });
-  queue.push(1, 2, 3, 4, 5);                 // только для Бори
+  assert.ok(table.rigHole(a, ['As', 'Zz']).error);
+  assert.deepEqual(table.rigHole(a, ['Ks', 'Kh']), { ok: true });
   clock.t = START_DELAY_MS;
   table.tick();
-  assert.deepEqual(table.view(a).you.dice, [6, 6, 6, 6, 6]);
-  assert.deepEqual(table.view(b).you.dice, [1, 2, 3, 4, 5]);
-  assert.equal(table.adminView().seats[1].hand, 'Стрит', 'админ видит все кубики');
-
-  table.rigDice(b, [2, 2, 2, 2, 2]);         // на перебросок
-  table.act(b, 'check');
-  table.act(a, 'check');
-  queue.push(4);
-  table.reroll(a, [true, true, true, true, true]);
-  table.reroll(b, [true, true, true, true, false]);
-  assert.deepEqual(table.view(b).you.dice, [2, 2, 2, 2, 2]);
-  assert.deepEqual(table.adminView().rigged, []);
+  assert.deepEqual(table.view(a).you.hole, ['Ks', 'Kh']);
+  const admin = table.adminView();
+  assert.ok(admin.seats[0].hole && admin.seats[1].hole, 'админ видит карты обоих');
+  assert.deepEqual(admin.rigged, [], 'подкрутка одноразовая');
 });
 
 // Поднимаем админский роутер на случайном порту и стучимся fetch'ем.
@@ -84,7 +74,7 @@ async function withServer(fn) {
   const store = createStore();
   const a = store.register('Аня').player;
   const crash = createCrashGame({ store });
-  const table = createTable({ store });
+  const table = createHoldem({ store });
   const chatLog = [];
   const sent = [];
   const music = createMusic({ dir: MUSIC_DIR, onChange: (track) => sent.push({ type: 'music', track }) });

@@ -6,7 +6,7 @@ const { WebSocketServer } = require('ws');
 const { createStore } = require('./players');
 const { randomToken } = require('./rng');
 const { createCrashGame } = require('./crash');
-const { createTable } = require('./dicepoker');
+const { createHoldem } = require('./holdem');
 const { createAdminRouter } = require('./admin');
 const { createRoulette } = require('./roulette');
 const { createBomb } = require('./bomb');
@@ -264,7 +264,7 @@ function broadcastPoker() {
     }
   });
 }
-const table = createTable({ store, onChange: broadcastPoker });
+const table = createHoldem({ store, onChange: broadcastPoker, onEvent: onActivity });
 store.addReserver(table.reserved);
 
 function isOnline(player) {
@@ -381,9 +381,6 @@ const handlers = {
     reply(ws, table.act(ws.player, msg.action, msg.amount));
   },
 
-  poker_reroll(ws, msg) {
-    reply(ws, table.reroll(ws.player, msg.keep));
-  },
 
   // Браузер загрузил трек и сообщает его длину: по ней сервер сам выключит трек.
   music_duration(ws, msg) {

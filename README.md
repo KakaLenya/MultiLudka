@@ -106,13 +106,16 @@ server/
   players.js   игроки, балансы, пособие, рейтинг, хранение в JSON
   admin.js     API админки
   crash.js     Краш: раунды, ставки, вывод
-  dicepoker.js Покер на кубиках: комбинации и стол
+  holdem.js    Покер: Техасский холдем (комбинации, ставки, побочные банки)
+  bomb.js      Бомба в банке
+  upgrader.js  Апгрейдер
+  requests.js  заказы песен
   rng.js       вся случайность через crypto
 public/
   index.html, style.css, client.js   зал
   admin.html, admin.css, admin.js    админка
 test/
-  players.test.js, crash.test.js, dicepoker.test.js, admin.test.js
+  тесты на каждую игру и админку (npm test)
 ```
 
 ## Прогресс

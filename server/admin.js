@@ -259,7 +259,7 @@ function createAdminRouter({
   router.post('/poker/rig', (req, res) => {
     const p = findPlayer(req.body.playerId);
     if (!p) return fail(res, 'Игрок не найден', 404);
-    const result = table.rigDice(p, req.body.dice);
+    const result = table.rigHole(p, req.body.cards);
     if (result.error) return fail(res, result.error);
     ok(res);
   });

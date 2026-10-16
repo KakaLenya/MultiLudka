@@ -23,10 +23,9 @@ const EFFECTS = [
   ['flip', '🙃 Перевернуть'],
   ['disco', '🪩 Дискотека'],
 ];
-const DICE = ['', '⚀', '⚁', '⚂', '⚃', '⚄', '⚅'];
 const PHASES = {
   betting: 'ставки', running: 'летит', crashed: 'краш',
-  waiting: 'ждём игроков', starting: 'скоро раздача', bet1: 'ставки 1', reroll: 'перебросок', bet2: 'ставки 2', showdown: 'вскрытие',
+  waiting: 'ждём игроков', starting: 'скоро раздача', preflop: 'префлоп', flop: 'флоп', turn: 'тёрн', river: 'ривер', showdown: 'вскрытие',
 };
 
 let toastTimer = null;
@@ -324,19 +323,24 @@ function renderPoker() {
     name.className = 'name';
     name.textContent = `${s.name} · ${s.stack}${s.folded ? ' · пас' : ''}${s.connected ? '' : ' · нет связи'}`;
     el.append(name);
-    if (s.dice) {
+    if (s.hole) {
       const d = document.createElement('span');
-      d.className = 'dice-text';
-      d.title = s.hand;
-      d.textContent = s.dice.map((x) => DICE[x]).join('');
+      d.className = 'cards-text';
+      d.textContent = s.hole.map(cardText).join(' ') + (s.hand ? ` · ${s.hand}` : '');
       el.append(d);
     }
     return el;
   }) : [li('За столом никого', 'muted')]));
   const names = new Map(admin.data.players.map((p) => [p.id, p.name]));
-  $('p-rigged').textContent = v.rigged.length
-    ? `Подкручено: ${v.rigged.map((r) => `${names.get(r.id) || r.id} → ${r.dice.join('')}`).join(', ')}`
-    : '';
+  const boardText = v.board.length ? `Стол: ${v.board.map(cardText).join(' ')}. ` : '';
+  $('p-rigged').textContent = boardText + (v.rigged.length
+    ? `Подкручено: ${v.rigged.map((r) => `${names.get(r.id) || r.id} → ${r.cards.map(cardText).join(' ')}`).join(', ')}`
+    : '');
+}
+
+// «Ah» -> «A♥»
+function cardText(c) {
+  return c[0].replace('T', '10') + ({ s: '♠', h: '♥', d: '♦', c: '♣' }[c[1]] || c[1]);
 }
 
 function renderChat() {
@@ -464,10 +468,11 @@ $('delete-player').addEventListener('click', async () => {
   if (r) admin.selected = null;
 });
 
-$('rig-dice-btn').addEventListener('click', () => {
+$('rig-cards-btn').addEventListener('click', () => {
   const p = needSelected();
-  const dice = [...$('rig-dice').value.trim()].map(Number);
-  if (p) run('/poker/rig', { playerId: p.id, dice }, `${p.name} получит ${dice.join('')}`);
+  // «as ah» -> ['As', 'Ah']
+  const cards = $('rig-cards').value.trim().split(/\s+/).map((c) => c.slice(0, 1).toUpperCase() + c.slice(1).toLowerCase());
+  if (p) run('/poker/rig', { playerId: p.id, cards }, `${p.name} получит ${cards.join(' ')}`);
 });
 
 $('announce-banner').addEventListener('click', () => {
