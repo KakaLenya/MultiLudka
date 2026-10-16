@@ -1466,10 +1466,14 @@ function upgradeHoldsBalance(msg) {
   return true;
 }
 
-function releaseBalance() {
+// extra: выплата, которую сервер начислит чуть позже (если в задержанном балансе её ещё нет).
+function releaseBalance(extra = 0) {
   const msg = upg.pendingBalance;
   upg.pendingBalance = null;
-  if (msg) handlers.balance(msg);
+  if (!msg) return;
+  const before = upg.base;
+  const pre = msg.balance === before - (upg.stake || 0);   // в балансе только списанная ставка
+  handlers.balance(extra && pre ? { ...msg, balance: msg.balance + extra } : msg);
 }
 
 // Стрелка как настоящая вертушка: случайная раскрутка и трение, риски через 5% отнимают скорость,
@@ -1539,7 +1543,7 @@ function finishUpgrade() {
   upg.trail = [];
   upg.needle = r.landing;
   upg.outcome = r.win ? 'win' : 'lose';
-  releaseBalance();
+  releaseBalance(r.payout);
   $('u-go').disabled = false;
   const res = $('u-result');
   if (r.win) {
@@ -1620,8 +1624,10 @@ document.querySelectorAll('[data-uq]').forEach((b) => b.addEventListener('click'
 $('u-go').addEventListener('click', () => {
   if (upg.spin || upg.awaiting) return;
   upg.awaiting = true;
+  upg.base = state.balance;
+  upg.stake = upgAmount();
   $('u-go').disabled = true;
-  send({ type: 'upgrade_spin', amount: upgAmount(), chance: upgChance() });
+  send({ type: 'upgrade_spin', amount: upg.stake, chance: upgChance() });
 });
 renderUpgradeForm();
 
@@ -1947,7 +1953,9 @@ function vtShowResult(good, amount) {
   vt.holding = false;
   const msg = vt.pendingBalance;
   vt.pendingBalance = null;
-  if (msg) handlers.balance(msg);
+  // Сервер начислит выигрыш, когда Верити объявит решение для всех; игрок видит его уже сейчас.
+  const pre = msg && msg.balance === vt.base - amount;
+  if (msg) handlers.balance(good && pre ? { ...msg, balance: msg.balance + 2 * amount } : msg);
   const res = $('vt-result');
   res.textContent = good ? `Добрый Верити: +${amount}` : `Злой Верити съел ${amount}`;
   res.className = `u-result ${good ? 'win' : 'lose'}`;
@@ -1973,7 +1981,7 @@ async function startVerity(r) {
   // Вкладка в фоне не рисует кадры — баланс всё равно не должен зависнуть.
   const guard = setTimeout(() => { if (vt.holding) vtShowResult(r.good, r.amount); }, r.spinMs + 4000);
   try {
-    await vtToss(r.good, Math.max(1600, r.spinMs - 700));
+    await vtToss(r.good, Math.max(1600, r.spinMs - 2700));
     if (r.good) await vtGoodEnding(r);
     else await vtEvilEnding(r);
   } finally {
@@ -2034,6 +2042,7 @@ $('vt-go').addEventListener('click', () => {
   if (amount < 1) return toast('Ставка — от 1 фишки');
   if (amount > state.balance) return toast('Не хватает фишек');
   vt.awaiting = true;
+  vt.base = state.balance;
   $('vt-go').disabled = true;
   send({ type: 'verity_play', amount });
 });

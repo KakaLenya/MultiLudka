@@ -174,3 +174,30 @@ test('остановка сервера возвращает ставки, уд�
   assert.equal(t2.c.balance, 1100);
   void c;
 });
+
+test('победный удар засчитывается, когда шары остановились, а не в момент удара', () => {
+  const { pool, a, b, clock, events, total } = setup();
+  const start = total();
+  ok(pool.invite(a, b.id, 100));
+  ok(pool.accept(b, pool.view(b).invitesIn[0].id));
+  const id = pool.view(a).matches[0].id;
+  const m = pool._match(id);
+  // Не разбивка, групп ещё нет: восьмёрка, забитая раньше времени, проигрывает партию.
+  m.breakShot = false;
+  m.ballInHand = null;
+  m.balls = [{ id: 0, x: 120, y: 120, in: false }, { id: 8, x: 45, y: 45, in: false }, { id: 1, x: 600, y: 300, in: false }];
+  const shooter = m.players[m.turn].id === a.id ? a : b;
+  const winner = shooter === a ? b : a;
+  ok(pool.shoot(shooter, { dir: { x: -1, y: -1 }, power: 0.4 }));
+  let v = pool.view(a).matches[0];
+  assert.equal(v.phase, 'playing', 'пока шары катятся, итога нет');
+  assert.equal(winner.balance, 900, 'выигрыш ещё не выплачен');
+  assert.equal(events.filter((e) => e.kind === 'win').length, 0, 'и в ленте пусто');
+  err(pool.concede(shooter), /решена/);
+  clock.t += 60_000;
+  pool.tick();
+  v = pool.view(a).matches[0];
+  assert.equal(v.phase, 'over');
+  assert.equal(winner.balance, 1100);
+  assert.equal(total(), start);
+});

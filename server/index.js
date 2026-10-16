@@ -245,6 +245,7 @@ const upgrader = createUpgrader({
   onEvent: onActivity,
   onFeed: (feed) => broadcast({ type: 'upgrade_feed', feed }),
 });
+store.addReserver(upgrader.reserved);
 
 const verity = createVerity({
   store,
@@ -252,6 +253,7 @@ const verity = createVerity({
   onEvent: onActivity,
   onFeed: (feed) => broadcast({ type: 'verity_feed', feed }),
 });
+store.addReserver(verity.reserved);
 
 // Текущий трек переживает перезапуск сервера: пишем его в data/music-now.json.
 const MUSIC_NOW_FILE = path.join(DATA_DIR, 'music-now.json');
@@ -596,6 +598,8 @@ function shutdown() {
     pool.refundAll();
     table.stop();
     table.refundAll();
+    upgrader.settleAll();
+    verity.settleAll();
     store.flush();
     achievements.flush();
   } finally {

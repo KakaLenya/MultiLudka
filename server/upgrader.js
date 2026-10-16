@@ -36,6 +36,7 @@ function createUpgrader({
   lucky = () => false,     // админский режим везения
 }) {
   const busyUntil = new Map();   // playerId -> когда колесо остановится
+  const pending = new Map();     // playerId -> { amount, settle }: ставка в игре, итог ещё не объявлен
   const feed = [];
   let rigged = null;             // админ: 'win' | 'lose' для следующего апгрейда
   let seq = 0;
@@ -45,7 +46,7 @@ function createUpgrader({
     if (!Number.isInteger(chance) || chance < MIN_CHANCE || chance > MAX_CHANCE) {
       return { error: `Шанс: от ${MIN_CHANCE}% до ${MAX_CHANCE}%` };
     }
-    if ((busyUntil.get(player.id) || 0) > now()) return { error: 'Колесо ещё крутится' };
+    if (pending.has(player.id) || (busyUntil.get(player.id) || 0) > now()) return { error: 'Колесо ещё крутится' };
     if (amount > player.balance) return { error: 'Не хватает фишек' };
 
     const start = random() * 100;
@@ -58,7 +59,6 @@ function createUpgrader({
 
     const win = inZone(landing, start, chance);
     const payout = win ? payoutFor(amount, chance) : 0;
-    store.adjust(player, payout - amount);
     busyUntil.set(player.id, now() + spinMs);
 
     const entry = {
@@ -74,8 +74,13 @@ function createUpgrader({
       landing: Math.round(landing * 100) / 100,  // по ленте можно проверить любой спорный апгрейд
       at: now(),
     };
-    // Остальные узнают результат, только когда колесо у игрока остановится.
-    schedule(() => {
+    // Ставка сразу «в игре» (капитал не меняется), выигрыш — когда колесо у игрока остановится:
+    // тогда же его увидят остальные, рейтинг и достижения.
+    const settle = () => {
+      if (!pending.has(player.id) || pending.get(player.id).settle !== settle) return;
+      pending.delete(player.id);
+      if (payout > 0) store.adjust(player, payout);
+      else store.notify(player);
       feed.unshift(entry);
       if (feed.length > FEED_SIZE) feed.pop();
       onFeed(feed.slice());
@@ -87,7 +92,10 @@ function createUpgrader({
         note: `${chance}% · ×${entry.multiplier.toFixed(2)}`,
         meta: { chance, stake: amount },
       });
-    }, spinMs);
+    };
+    pending.set(player.id, { amount, settle });
+    store.adjust(player, -amount);
+    schedule(settle, spinMs);
 
     return {
       ok: true,
@@ -102,8 +110,15 @@ function createUpgrader({
     return { ok: true };
   }
 
+  // Сервер останавливается: объявить все итоги сразу.
+  function settleAll() {
+    for (const p of [...pending.values()]) p.settle();
+  }
+
   return {
     spin,
+    settleAll,
+    reserved: (player) => (pending.has(player.id) ? pending.get(player.id).amount : 0),
     rig,
     feed: () => feed.slice(),
     adminState: () => ({ rigged, feed: feed.slice() }),

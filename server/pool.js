@@ -218,7 +218,7 @@ function createPool({
     if (!m) return { error: 'Ты не в матче' };
     const me = m.players.findIndex((p) => p.id === player.id);
     if (m.turn !== me) return { error: 'Сейчас удар соперника' };
-    if (now() < m.busyUntil) return { error: 'Шары ещё катятся' };
+    if (now() < m.busyUntil || m.pendingFinish) return { error: 'Шары ещё катятся' };
     const dir = shot && shot.dir;
     const power = shot && shot.power;
     if (!dir || !Number.isFinite(dir.x) || !Number.isFinite(dir.y)) return { error: 'Нет направления удара' };
@@ -253,7 +253,10 @@ function createPool({
     const oppName = m.players[1 - me].name;
 
     if (verdict.winner !== null) {
-      finish(m, verdict.winner, verdict.reason);
+      // Итог объявим, когда шары остановятся: иначе рейтинг и лента выдают его раньше анимации.
+      m.pendingFinish = { winner: verdict.winner, reason: verdict.reason };
+      m.message = '';
+      m.deadline = m.busyUntil;
       onChange({ shot: m });
       return { ok: true };
     }
@@ -288,6 +291,7 @@ function createPool({
   function concede(player) {
     const m = activeMatchOf(player);
     if (!m) return { error: 'Ты не в матче' };
+    if (m.pendingFinish) return { error: 'Партия уже решена, шары докатываются' };
     const me = m.players.findIndex((p) => p.id === player.id);
     finish(m, 1 - me, `${player.name} сдался`);
     onChange();
@@ -299,7 +303,10 @@ function createPool({
     for (const [id, i] of invites) if (i.from.id === playerId || i.to.id === playerId) invites.delete(id);
     for (const m of matches.values()) {
       const idx = m.players.findIndex((p) => p.id === playerId);
-      if (m.phase === 'playing' && idx >= 0) finish(m, 1 - idx, 'соперник покинул зал');
+      if (m.phase !== 'playing' || idx < 0) continue;
+      // Победный удар уже сделан: засчитываем его, а не уход.
+      if (m.pendingFinish) finish(m, m.pendingFinish.winner, m.pendingFinish.reason);
+      else finish(m, 1 - idx, 'соперник покинул зал');
     }
     onChange();
   }
@@ -314,6 +321,13 @@ function createPool({
       }
     }
     for (const [id, m] of matches) {
+      if (m.phase === 'playing' && m.pendingFinish) {
+        if (t >= m.busyUntil) {
+          finish(m, m.pendingFinish.winner, m.pendingFinish.reason);
+          changed = true;
+        }
+        continue;
+      }
       if (m.phase === 'playing' && t >= m.deadline) {
         // Просрочка удара: ход сопернику с шаром с руки; три подряд — поражение.
         const me = m.turn;
@@ -388,6 +402,7 @@ function createPool({
   return {
     invite, cancel, decline, accept, shoot, concede, forget, tick, view, reserved, refundAll,
     adminState: () => ({ matches: [...matches.values()].map(matchView), invites: invites.size }),
+    _match: (id) => matches.get(id),   // для тестов
     start() {
       timer = setInterval(() => {
         try {

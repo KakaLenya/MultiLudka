@@ -41,7 +41,7 @@ test('модуль: включить, выключить, бросок по пр
 test('Верити: везунчику всегда добрый, остальным как выпадет', () => {
   const { store, a, b } = players();
   const clock = { t: 0 };
-  const v = createVerity({ store, now: () => clock.t, coin: () => false, schedule: () => {}, lucky: always(a) });
+  const v = createVerity({ store, now: () => clock.t, coin: () => false, schedule: (fn) => fn(), lucky: always(a) });
   for (let i = 0; i < 5; i++) {
     clock.t += SPIN_MS;
     assert.equal(v.play(a, 10).result.good, true);
@@ -52,7 +52,7 @@ test('Верити: везунчику всегда добрый, остальн
 test('апгрейдер: у везунчика стрелка в зелёной зоне даже на 1%', () => {
   const { store, a } = players();
   const clock = { t: 0 };
-  const u = createUpgrader({ store, now: () => clock.t, schedule: () => {}, lucky: always(a) });
+  const u = createUpgrader({ store, now: () => clock.t, schedule: (fn) => fn(), lucky: always(a) });
   for (let i = 0; i < 30; i++) {
     clock.t += 10_000;
     assert.equal(u.spin(a, 10, 1).spin.win, true);
