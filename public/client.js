@@ -1318,6 +1318,7 @@ const upg = {
   awaiting: false,   // запрос отправлен, ответа ещё нет
   pendingBalance: null,
   trail: [],         // прошлые положения стрелки для шлейфа
+  outcome: null,     // 'win' | 'lose' после остановки: цвет стрелки
 };
 
 const uCanvas = $('u-wheel');
@@ -1356,8 +1357,8 @@ function drawUpgrader() {
 
   // Зелёный сектор шанса.
   ctx.save();
-  ctx.shadowColor = 'rgba(69, 212, 131, .8)';
-  ctx.shadowBlur = 16;
+  ctx.shadowColor = 'rgba(69, 212, 131, .6)';
+  ctx.shadowBlur = 8;
   ctx.beginPath();
   ctx.arc(c, c, R, toRad(upg.start), toRad(upg.start + chance));
   ctx.lineWidth = 22;
@@ -1367,6 +1368,16 @@ function drawUpgrader() {
   ctx.strokeStyle = g;
   ctx.stroke();
   ctx.restore();
+  // Чёткие края зелёной зоны: свечение не должно казаться её частью.
+  for (const edge of [upg.start, upg.start + chance]) {
+    const ea = toRad(edge);
+    ctx.beginPath();
+    ctx.moveTo(c + Math.cos(ea) * (R - 14), c + Math.sin(ea) * (R - 14));
+    ctx.lineTo(c + Math.cos(ea) * (R + 14), c + Math.sin(ea) * (R + 14));
+    ctx.strokeStyle = 'rgba(255, 255, 255, .85)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
 
   // Риски через каждые 5%.
   for (let p = 0; p < 100; p += 5) {
@@ -1419,13 +1430,16 @@ function drawUpgrader() {
   ctx.beginPath();
   ctx.moveTo(c + Math.cos(a) * 46, c + Math.sin(a) * 46);
   ctx.lineTo(tipX, tipY);
-  ctx.strokeStyle = '#ffdf8a';
+  // После остановки стрелка зелёная (попал) или красная (мимо).
+  const needleColor = upg.outcome === 'win' ? '#8af5b6' : upg.outcome === 'lose' ? '#ff7b72' : '#ffdf8a';
+  ctx.shadowColor = upg.outcome === 'lose' ? 'rgba(255, 90, 80, .9)' : upg.outcome === 'win' ? 'rgba(69, 212, 131, .9)' : 'rgba(242, 193, 78, .9)';
+  ctx.strokeStyle = needleColor;
   ctx.lineWidth = 4;
   ctx.lineCap = 'round';
   ctx.stroke();
   ctx.beginPath();
   ctx.arc(tipX, tipY, 6, 0, 2 * Math.PI);
-  ctx.fillStyle = '#fff6d6';
+  ctx.fillStyle = upg.outcome ? needleColor : '#fff6d6';
   ctx.fill();
   ctx.restore();
 }
@@ -1439,7 +1453,10 @@ function renderUpgradeForm() {
   $('u-mult').textContent = `×${mult.toFixed(2)}`;
   $('u-payout').textContent = Math.floor((upgAmount() * Math.round(mult * 100)) / 100);
   document.querySelectorAll('[data-uc]').forEach((b) => b.classList.toggle('active', Number(b.dataset.uc) === chance));
-  if (!upg.spin) drawUpgrader();
+  if (!upg.spin) {
+    upg.outcome = null;
+    drawUpgrader();
+  }
 }
 
 // Баланс придерживаем, пока колесо не остановилось: иначе результат виден раньше стрелки.
@@ -1521,6 +1538,7 @@ function finishUpgrade() {
   upg.spin = null;
   upg.trail = [];
   upg.needle = r.landing;
+  upg.outcome = r.win ? 'win' : 'lose';
   releaseBalance();
   $('u-go').disabled = false;
   const res = $('u-result');
@@ -1530,7 +1548,11 @@ function finishUpgrade() {
     sounds.win();
     if (r.multiplier >= 5) effects.confetti();
   } else {
-    res.textContent = `Мимо: −${r.amount}`;
+    // Насколько стрелка не дотянула до зелёной зоны (с любой стороны).
+    const after = (((r.landing - r.start - r.chance) % 100) + 100) % 100;
+    const before = (((r.start - r.landing) % 100) + 100) % 100;
+    const miss = Math.min(after, before);
+    res.textContent = miss < 3 ? `Мимо на ${miss.toFixed(1).replace('.', ',')}%: −${r.amount}` : `Мимо: −${r.amount}`;
     res.className = 'u-result lose';
     sounds.lose();
   }
@@ -1541,6 +1563,7 @@ function finishUpgrade() {
 function startUpgradeSpin(r) {
   upg.awaiting = false;
   upg.start = r.start;
+  upg.outcome = null;
   const from = upg.needle;
   const path = upgSimulate();
   const free = path[path.length - 1];
@@ -2884,6 +2907,181 @@ const effects = {
   disco: () => { bodyEffect('fx-disco', 6000); beep([[523, 0.1], [659, 0.1], [523, 0.1], [784, 0.2]], 'square'); },
 };
 
+// ---------- Достижения и неделя ----------
+
+const RANK_KEY = 'casino.rank.tab';
+const ach = {
+  defs: [],
+  mine: {},                 // id достижения -> когда открыто
+  season: null,             // { startedAt, endsAt, top, hall }
+  tab: ['capital', 'week', 'hall'].includes(storage.get(RANK_KEY)) ? storage.get(RANK_KEY) : 'capital',
+  queue: [],                // новые мои достижения для всплывашки
+  showing: false,
+  profileId: null,
+};
+const RARE_ACH = new Set(['jackpot', 'millionaire', 'poker_royal', 'crash_x50', 'season_champ']);
+
+const signed = (n) => (n > 0 ? `+${n}` : String(n));
+const mskDay = (t) => new Date(t).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', timeZone: 'Europe/Moscow' });
+const weekLabel = (s) => `${mskDay(s.startedAt)} – ${mskDay(s.endsAt - 1)}`;
+
+function leftLabel(ms) {
+  const m = Math.max(0, Math.floor(ms / 60000));
+  const d = Math.floor(m / 1440);
+  const h = Math.floor((m % 1440) / 60);
+  if (d > 0) return `${d} д ${h} ч`;
+  if (h > 0) return `${h} ч ${m % 60} мин`;
+  return `${m % 60} мин`;
+}
+
+// Кликабельная строка игрока: открывает его достижения.
+function profileLink(el, playerId) {
+  el.classList.add('clickable');
+  el.title = 'Достижения игрока';
+  el.addEventListener('click', () => openProfile(playerId));
+  return el;
+}
+
+function showRankTab(tab) {
+  ach.tab = tab;
+  storage.set(RANK_KEY, tab);
+  $('leaderboard').hidden = tab !== 'capital';
+  $('week-box').hidden = tab !== 'week';
+  $('hall-box').hidden = tab !== 'hall';
+  document.querySelectorAll('[data-rank]').forEach((b) => b.classList.toggle('active', b.dataset.rank === tab));
+  renderSeason();
+}
+document.querySelectorAll('[data-rank]').forEach((b) => b.addEventListener('click', () => showRankTab(b.dataset.rank)));
+
+const emptyLi = (text) => Object.assign(document.createElement('li'), { className: 'muted', textContent: text });
+
+function renderSeason() {
+  const s = ach.season;
+  if (!s) return;
+  $('week-info').textContent = `${weekLabel(s)} · до конца ${leftLabel(s.endsAt - Date.now())}`;
+  const myId = state.me && state.me.playerId;
+  $('week-list').replaceChildren(...(s.top.length ? s.top.map((p) => {
+    const li = profileLink(listItem(p.name, p.id === myId), p.id);
+    const score = document.createElement('span');
+    score.className = `score ${p.net >= 0 ? 'plus' : 'minus'}`;
+    score.textContent = signed(p.net);
+    li.append(score);
+    return li;
+  }) : [emptyLi('На этой неделе ещё никто не играл')]));
+
+  const medals = ['🥇', '🥈', '🥉'];
+  $('hall-list').replaceChildren(...(s.hall.length ? s.hall.map((h) => {
+    const li = document.createElement('li');
+    const title = document.createElement('div');
+    title.className = 'hall-week';
+    title.textContent = weekLabel(h);
+    li.append(title);
+    h.top.forEach((p, i) => {
+      const row = document.createElement('div');
+      row.className = 'hall-row';
+      profileLink(row, p.id);
+      const medal = document.createElement('span');
+      medal.textContent = medals[i];
+      const name = document.createElement('span');
+      name.className = 'name';
+      name.textContent = p.name;
+      const net = document.createElement('span');
+      net.className = `score ${p.net >= 0 ? 'plus' : 'minus'}`;
+      net.textContent = signed(p.net);
+      row.append(medal, name, net);
+      li.append(row);
+    });
+    return li;
+  }) : [emptyLi('Зал славы пуст: первая неделя ещё идёт')]));
+}
+setInterval(() => {
+  if (ach.tab === 'week') renderSeason();
+}, 30_000);
+
+function renderMyAchCount() {
+  $('me-ach-count').textContent = `${Object.keys(ach.mine).length}/${ach.defs.length}`;
+}
+
+function openProfile(playerId) {
+  ach.profileId = playerId;
+  send({ type: 'profile', playerId });
+}
+
+function closeProfile() {
+  ach.profileId = null;
+  $('profile').hidden = true;
+}
+$('profile-close').addEventListener('click', closeProfile);
+$('profile').addEventListener('click', (e) => {
+  if (e.target === $('profile')) closeProfile();
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && !$('profile').hidden) closeProfile();
+});
+$('me-ach').addEventListener('click', () => state.me && openProfile(state.me.playerId));
+
+function renderProfile(msg) {
+  if (msg.playerId !== ach.profileId) return;
+  const count = Object.keys(msg.unlocked).length;
+  $('prof-avatar').replaceChildren(avatarEl(msg.name));
+  $('prof-name').textContent = msg.name;
+  const week = msg.week.place ? `${msg.week.place}-е место в неделе (${signed(msg.week.net)})` : 'на этой неделе ещё не играл';
+  $('prof-sub').textContent = `Капитал ${msg.capital} · ${week}`;
+  $('prof-count').textContent = `${count} из ${ach.defs.length}`;
+  $('prof-bar').style.width = `${ach.defs.length ? (count / ach.defs.length) * 100 : 0}%`;
+  // Открытые первыми, остальные в обычном порядке.
+  const defs = [...ach.defs].sort((x, y) => Number(!msg.unlocked[x.id]) - Number(!msg.unlocked[y.id]));
+  $('prof-grid').replaceChildren(...defs.map((d) => {
+    const at = msg.unlocked[d.id];
+    const li = document.createElement('li');
+    li.className = at ? 'got' : 'locked';
+    const icon = document.createElement('span');
+    icon.className = 'ach-icon';
+    icon.textContent = d.icon;
+    const text = document.createElement('div');
+    const name = document.createElement('b');
+    name.textContent = d.name;
+    const desc = document.createElement('span');
+    desc.textContent = d.desc;
+    text.append(name, desc);
+    if (at) {
+      const when = document.createElement('small');
+      when.textContent = new Date(at).toLocaleDateString('ru-RU', { day: 'numeric', month: 'long' });
+      text.append(when);
+    }
+    li.append(icon, text);
+    return li;
+  }));
+  $('profile').hidden = false;
+}
+
+// Всплывашка «Новое достижение!» по одной за раз.
+function showNextAch() {
+  if (ach.showing || !ach.queue.length) return;
+  const d = ach.queue.shift();
+  ach.showing = true;
+  $('ach-pop-icon').textContent = d.icon;
+  $('ach-pop-name').textContent = d.name;
+  $('ach-pop-desc').textContent = d.desc;
+  const pop = $('ach-pop');
+  pop.hidden = false;
+  pop.classList.remove('show');
+  void pop.offsetWidth;
+  pop.classList.add('show');
+  beep([[659, 0.1], [880, 0.1], [1047, 0.12], [1319, 0.25]], 'triangle');
+  if (RARE_ACH.has(d.id)) effects.confetti();
+  setTimeout(() => {
+    pop.classList.remove('show');
+    setTimeout(() => {
+      pop.hidden = true;
+      ach.showing = false;
+      showNextAch();
+    }, 450);
+  }, 4200);
+}
+
+showRankTab(ach.tab);
+
 // ---------- Сообщения сервера ----------
 
 const handlers = {
@@ -3023,14 +3221,46 @@ const handlers = {
     state.onlinePlayers = msg.players;
     if (pl.view) plRenderLobby();
     $('online-list').replaceChildren(...msg.players.map((p) =>
-      listItem(p.name, state.me && p.id === state.me.playerId)));
+      profileLink(listItem(p.name, state.me && p.id === state.me.playerId), p.id)));
     $('online-count').textContent = msg.players.length;
+  },
+
+  achievements_defs(msg) {
+    ach.defs = msg.list;
+    ach.mine = msg.mine;
+    renderMyAchCount();
+  },
+
+  achievement(msg) {
+    if (state.me && msg.playerId === state.me.playerId) {
+      ach.mine[msg.achievement.id] = Date.now();
+      renderMyAchCount();
+      ach.queue.push(msg.achievement);
+      showNextAch();
+    }
+    if (ach.profileId === msg.playerId) openProfile(msg.playerId);
+  },
+
+  season(msg) {
+    ach.season = msg;
+    renderSeason();
+  },
+
+  profile(msg) {
+    renderProfile(msg);
   },
 
   leaderboard(msg) {
     $('leaderboard').replaceChildren(...msg.players.map((p) => {
-      const li = listItem(p.name, state.me && p.id === state.me.playerId);
+      const li = profileLink(listItem(p.name, state.me && p.id === state.me.playerId), p.id);
       if (!p.online) li.classList.add('offline');
+      if (p.badges) {
+        const badges = document.createElement('span');
+        badges.className = 'badges';
+        badges.textContent = `🏅${p.badges}`;
+        badges.title = 'Достижений';
+        li.append(badges);
+      }
       const score = document.createElement('span');
       score.className = 'score';
       score.textContent = p.capital;

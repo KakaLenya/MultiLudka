@@ -15,6 +15,7 @@
     <div class="me" id="me" hidden>
       <span id="me-name"></span>
       <span class="chips" id="me-balance"></span>
+      <button class="link ach-btn" id="me-ach" type="button" title="Мои достижения">🏅 <b id="me-ach-count">0</b></button>
       <button class="link" id="sound" type="button" title="Звук">🔊</button>
       <button class="link" id="logout" type="button" title="Выйти из этого игрока">выйти</button>
     </div>
@@ -376,8 +377,23 @@
           <ul class="list" id="online-list"></ul>
         </div>
         <div class="card">
-          <h2>Рейтинг</h2>
+          <div class="rank-head">
+            <h2>Рейтинг</h2>
+            <div class="seg">
+              <button type="button" data-rank="capital" class="active">Капитал</button>
+              <button type="button" data-rank="week">Неделя</button>
+              <button type="button" data-rank="hall">Слава</button>
+            </div>
+          </div>
           <ol class="list leaderboard" id="leaderboard"></ol>
+          <div id="week-box" hidden>
+            <p class="week-info" id="week-info"></p>
+            <ol class="list leaderboard" id="week-list"></ol>
+            <p class="week-info">Очки — чистый выигрыш за неделю. В понедельник тройка лучших уходит в зал славы.</p>
+          </div>
+          <div id="hall-box" hidden>
+            <ul class="hall" id="hall-list"></ul>
+          </div>
         </div>
         <div class="card chat">
           <h2>Чат</h2>
@@ -396,6 +412,30 @@
       </aside>
     </section>
   </main>
+
+  <div class="modal" id="profile" hidden>
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="prof-name">
+      <button type="button" class="ghost modal-x" id="profile-close" aria-label="Закрыть">✕</button>
+      <div class="prof-head">
+        <span id="prof-avatar"></span>
+        <div>
+          <h3 id="prof-name"></h3>
+          <p id="prof-sub"></p>
+        </div>
+      </div>
+      <div class="prof-progress">🏅 <span id="prof-count"></span><div class="bar"><i id="prof-bar"></i></div></div>
+      <ul class="ach-grid" id="prof-grid"></ul>
+    </div>
+  </div>
+
+  <div class="ach-pop" id="ach-pop" hidden>
+    <div class="ach-pop-icon" id="ach-pop-icon"></div>
+    <div>
+      <small>Новое достижение!</small>
+      <b id="ach-pop-name"></b>
+      <span id="ach-pop-desc"></span>
+    </div>
+  </div>
 
   <div class="pl-popup" id="pl-popup" hidden>
     <div>🎱 <b id="pl-popup-from"></b> зовёт тебя в пул <span id="pl-popup-stake"></span></div>

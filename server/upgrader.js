@@ -68,6 +68,8 @@ function createUpgrader({
       multiplier: multiplierFor(chance),
       win,
       payout,
+      start: Math.round(start * 100) / 100,      // где был зелёный сектор и где встала стрелка:
+      landing: Math.round(landing * 100) / 100,  // по ленте можно проверить любой спорный апгрейд
       at: now(),
     };
     // Остальные узнают результат, только когда колесо у игрока остановится.
@@ -81,6 +83,7 @@ function createUpgrader({
         player,
         amount: win ? payout - amount : amount,
         note: `${chance}% · ×${entry.multiplier.toFixed(2)}`,
+        meta: { chance, stake: amount },
       });
     }, spinMs);
 

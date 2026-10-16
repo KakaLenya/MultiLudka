@@ -245,6 +245,7 @@ function createStore({ file = null, now = Date.now, saveDelayMs = SAVE_DELAY_MS 
 module.exports = {
   createStore,
   cleanName,
+  writeAtomic,
   START_BALANCE,
   BONUS_AMOUNT,
   BONUS_THRESHOLD,

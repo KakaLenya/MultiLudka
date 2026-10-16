@@ -41,6 +41,7 @@ function createVerity({
         player,
         amount,
         note: good ? 'добрый Верити удвоил' : 'злой Верити забрал',
+        meta: { good, stake: amount },
       });
     }, spinMs);
 

@@ -362,7 +362,11 @@ function createHoldem({
     for (const s of seats.filter(inHand)) {
       const net = (won.get(s) || 0) - s.totalBet;
       if (net > 0) {
-        onEvent({ game: 'poker', kind: 'win', player: s.player, amount: net, note: revealed ? hands.get(s).name : 'все сбросили' });
+        const h = revealed ? hands.get(s) : null;
+        onEvent({
+          game: 'poker', kind: 'win', player: s.player, amount: net, note: h ? h.name : 'все сбросили',
+          meta: { rank: h ? h.rank : null, royal: !!h && h.name === 'Роял-флеш', folded: !revealed },
+        });
       } else if (net < 0 && revealed && !s.folded) {
         onEvent({ game: 'poker', kind: 'lose', player: s.player, amount: -net, note: hands.get(s).name });
       }

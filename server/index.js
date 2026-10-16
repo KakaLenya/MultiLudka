@@ -12,6 +12,7 @@ const { createRoulette } = require('./roulette');
 const { createBomb } = require('./bomb');
 const { createUpgrader } = require('./upgrader');
 const { createVerity } = require('./verity');
+const { createAchievements, ACHIEVEMENTS } = require('./achievements');
 const { createPool } = require('./pool');
 const { createMusic, sniffAudioType } = require('./music');
 const { createSongRequests } = require('./requests');
@@ -90,7 +91,10 @@ function cleanChat(raw) {
 const ACTIVITY_SIZE = 40;
 const activity = [];
 let activitySeq = 0;
-function onActivity({ game, kind, player, amount, note = '' }) {
+function onActivity(event) {
+  const { game, kind, player, amount, note = '' } = event;
+  achievements.record(event);
+  scheduleSeason();
   if (!amount) return;
   const entry = { id: ++activitySeq, at: Date.now(), game, kind, playerId: player.id, name: player.name, amount, note };
   activity.unshift(entry);
@@ -162,7 +166,7 @@ function leaderboardMsg() {
   const online = onlineIds();
   return {
     type: 'leaderboard',
-    players: store.leaderboard().map((p) => ({ ...p, online: online.has(p.id) })),
+    players: store.leaderboard().map((p) => ({ ...p, online: online.has(p.id), badges: achievements.count(p.id) })),
   };
 }
 
@@ -180,6 +184,32 @@ store.onChange((player) => {
   sendToPlayer(player, balanceMsg(player));
   scheduleLeaderboard();
 });
+
+// Достижения и недельный сезон.
+const achievements = createAchievements({
+  file: path.join(DATA_DIR, 'achievements.json'),
+  store,
+  onUnlock: (player, def) => {
+    broadcast({ type: 'achievement', playerId: player.id, name: player.name, achievement: def });
+    postChat(null, '🏅 Достижения', `${player.name} получает «${def.icon} ${def.name}»`);
+    scheduleLeaderboard();
+  },
+  onSeasonEnd: (entry) => {
+    const medals = ['🥇', '🥈', '🥉'];
+    postChat(null, '🏆 Неделя', `Итоги недели: ${entry.top.map((p, i) => `${medals[i]} ${p.name} (${p.net > 0 ? '+' : ''}${p.net})`).join(', ')}. Новая неделя началась!`);
+    scheduleSeason();
+  },
+});
+store.onChange((player) => achievements.checkCapital(player, store.capital(player)));
+
+let seasonTimer = null;
+function scheduleSeason() {
+  if (seasonTimer) return;
+  seasonTimer = setTimeout(() => {
+    seasonTimer = null;
+    broadcast({ type: 'season', ...achievements.season() });
+  }, 1000);
+}
 
 const crash = createCrashGame({
   store,
@@ -348,6 +378,8 @@ const handlers = {
     send(ws, { type: 'upgrade_feed', feed: upgrader.feed() });
     send(ws, { type: 'verity_feed', feed: verity.feed() });
     send(ws, { type: 'activity_history', entries: activity });
+    send(ws, { type: 'achievements_defs', list: ACHIEVEMENTS, mine: achievements.unlockedOf(player.id) });
+    send(ws, { type: 'season', ...achievements.season() });
     send(ws, { type: 'pool_state', ...pool.view(player) });
     table.setConnected(player, true);
     send(ws, { type: 'poker_state', ...table.view(player) });
@@ -358,7 +390,23 @@ const handlers = {
   },
 
   claim_bonus(ws) {
-    reply(ws, store.claimBonus(ws.player));
+    const result = store.claimBonus(ws.player);
+    if (result.ok) achievements.bonusClaimed(ws.player);
+    reply(ws, result);
+  },
+
+  // Профиль игрока: достижения и место в неделе.
+  profile(ws, msg) {
+    const p = store.get(String(msg.playerId));
+    if (!p) return send(ws, { type: 'error', message: 'Игрок не найден' });
+    send(ws, {
+      type: 'profile',
+      playerId: p.id,
+      name: p.name,
+      capital: store.capital(p),
+      unlocked: achievements.unlockedOf(p.id),
+      week: achievements.standing(p.id),
+    });
   },
 
   crash_bet(ws, msg) {
@@ -540,6 +588,7 @@ function shutdown() {
     table.stop();
     table.refundAll();
     store.flush();
+    achievements.flush();
   } finally {
     process.exit(0);
   }
@@ -557,6 +606,7 @@ app.use('/admin/api', createAdminRouter({
   bomb,
   upgrader,
   verity,
+  achievements,
   pool,
   music,
   songRequests,
@@ -585,6 +635,14 @@ app.use('/admin/api', createAdminRouter({
 }));
 
 crash.start();
+// Неделя кончается в понедельник 00:00 МСК: проверяем раз в полминуты.
+setInterval(() => {
+  try {
+    achievements.tick();
+  } catch (err) {
+    console.error('Сезон:', err);
+  }
+}, 30_000);
 table.start();
 roulette.start();
 bomb.start();

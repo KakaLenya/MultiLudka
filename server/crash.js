@@ -65,7 +65,7 @@ function createCrashGame({ store, onState = () => {}, onEvent = () => {}, now = 
     bet.cashedOutCents = cents;
     bet.payout = payoutFor(bet.amount, cents);
     store.adjust(bet.player, bet.payout);
-    onEvent({ game: 'crash', kind: 'win', player: bet.player, amount: bet.payout - bet.amount, note: `забрал на ${(cents / 100).toFixed(2)}×` });
+    onEvent({ game: 'crash', kind: 'win', player: bet.player, amount: bet.payout - bet.amount, note: `забрал на ${(cents / 100).toFixed(2)}×`, meta: { mult: cents / 100 } });
   }
 
   function crash(t) {
@@ -78,7 +78,7 @@ function createCrashGame({ store, onState = () => {}, onEvent = () => {}, now = 
     for (const bet of bets.values()) {
       if (bet.cashedOutCents === null) {
         store.notify(bet.player);
-        onEvent({ game: 'crash', kind: 'lose', player: bet.player, amount: bet.amount, note: `краш на ${(crashCents / 100).toFixed(2)}×` });
+        onEvent({ game: 'crash', kind: 'lose', player: bet.player, amount: bet.amount, note: `краш на ${(crashCents / 100).toFixed(2)}×`, meta: { crashedAt: crashCents / 100 } });
       }
     }
   }
@@ -151,7 +151,7 @@ function createCrashGame({ store, onState = () => {}, onEvent = () => {}, now = 
     // Сначала регистрируем ставку, потом списываем: тогда капитал в рассылке баланса уже верный.
     bets.set(player.id, { player, amount, autoCents: auto.cents, cashedOutCents: null, payout: 0 });
     store.adjust(player, -amount);
-    onEvent({ game: 'crash', kind: 'bet', player, amount, note: auto.cents ? `автовывод ${(auto.cents / 100).toFixed(2)}×` : '' });
+    onEvent({ game: 'crash', kind: 'bet', player, amount, note: auto.cents ? `автовывод ${(auto.cents / 100).toFixed(2)}×` : '', meta: { stake: amount } });
     emit();
     return { ok: true };
   }

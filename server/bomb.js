@@ -109,7 +109,7 @@ function createBomb({ store, onState = () => {}, onEvent = () => {}, now = Date.
       onEvent({ game: 'bomb', kind: 'win', player: s.player, amount: s.payout - s.contributed, note: `рвануло у ${bomber.player.name}` });
     }
     store.notify(bomber.player);  // его фишки больше не «в игре»
-    onEvent({ game: 'bomb', kind: 'lose', player: bomber.player, amount: bomber.contributed, note: `взорвался на банке ${bank}` });
+    onEvent({ game: 'bomb', kind: 'lose', player: bomber.player, amount: bomber.contributed, note: `взорвался на банке ${bank}`, meta: { boom: true } });
     finish(t, {
       type: 'boom',
       bomberId: bomber.player.id,
@@ -124,7 +124,7 @@ function createBomb({ store, onState = () => {}, onEvent = () => {}, now = Date.
     const w = seats.get(id);
     w.payout = bank;
     store.adjust(w.player, bank);
-    onEvent({ game: 'bomb', kind: 'win', player: w.player, amount: bank - w.contributed, note: 'все остальные сбежали' });
+    onEvent({ game: 'bomb', kind: 'win', player: w.player, amount: bank - w.contributed, note: 'все остальные сбежали', meta: { last: true } });
     finish(t, { type: 'last', winnerId: w.player.id, winnerName: w.player.name, payouts: [{ id: w.player.id, name: w.player.name, amount: bank }] });
   }
 

@@ -10,6 +10,7 @@ const { createRoulette } = require('../server/roulette');
 const { createBomb } = require('../server/bomb');
 const { createUpgrader } = require('../server/upgrader');
 const { createVerity } = require('../server/verity');
+const { createAchievements } = require('../server/achievements');
 const { createPool } = require('../server/pool');
 const fs = require('node:fs');
 const os = require('node:os');
@@ -90,6 +91,7 @@ async function withServer(fn) {
     bomb: createBomb({ store }),
     upgrader: createUpgrader({ store, schedule: () => {} }),
     verity: createVerity({ store, schedule: () => {} }),
+    achievements: createAchievements({ store }),
     pool: createPool({ store }),
     music,
     songRequests: createSongRequests({ playlist: music.playlist, play: music.play }),
@@ -196,5 +198,15 @@ test('API: Верити — следующий добрый или злой', as
     assert.equal((await post(`${base}/verity/rig`, {})).status, 200);
     st = await (await fetch(`${base}/state`)).json();
     assert.equal(st.verity.rigged, null);
+  });
+});
+
+test('API: неделя — состояние и итоги досрочно', async () => {
+  await withServer(async ({ base }) => {
+    let st = await (await fetch(`${base}/state`)).json();
+    assert.ok(st.season && st.season.season.endsAt > st.season.season.startedAt);
+    assert.equal((await post(`${base}/season/end`, {})).status, 200);
+    st = await (await fetch(`${base}/state`)).json();
+    assert.deepEqual(st.season.season.top, []);
   });
 });

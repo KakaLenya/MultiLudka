@@ -193,7 +193,7 @@ function createPool({
     if (m.stake > 0) store.adjust(w, 2 * m.stake);
     else store.notify(w);
     store.notify(l);
-    onEvent({ game: 'pool', kind: 'win', player: w, amount: m.stake, note: `против ${l.name}: ${reason}` });
+    onEvent({ game: 'pool', kind: 'win', player: w, amount: m.stake, note: `против ${l.name}: ${reason}`, meta: { byEight: reason === 'забил восьмёрку' } });
     onEvent({ game: 'pool', kind: 'lose', player: l, amount: m.stake, note: `против ${w.name}` });
   }
 

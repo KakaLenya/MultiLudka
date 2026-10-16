@@ -300,6 +300,15 @@ function renderUpgraderAdmin() {
     : [li('Пока никто не апгрейдился', 'muted')]));
 }
 
+function renderSeasonAdmin() {
+  const { season, unlockedTotal } = admin.data.season;
+  const day = (t) => new Date(t).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', timeZone: 'Europe/Moscow' });
+  $('se-info').textContent = `Неделя ${day(season.startedAt)} – ${day(season.endsAt - 1)} · открыто достижений у всех: ${unlockedTotal} · в зале славы недель: ${season.hall.length}`;
+  $('se-top').replaceChildren(...(season.top.length
+    ? season.top.slice(0, 5).map((p, i) => li(`${i + 1}. ${p.name}: ${p.net > 0 ? '+' : ''}${p.net}`))
+    : [li('На этой неделе ещё никто не играл', 'muted')]));
+}
+
 function renderVerityAdmin() {
   const v = admin.data.verity;
   $('vt-rigged').textContent = v.rigged === 'good' ? 'Следующий раз (любой игрок): добрый 😊'
@@ -381,6 +390,7 @@ function render() {
   renderRoulette();
   renderUpgraderAdmin();
   renderVerityAdmin();
+  renderSeasonAdmin();
   renderBombAdmin();
   renderPoker();
   renderChat();
@@ -529,6 +539,12 @@ document.querySelectorAll('[data-uprig]').forEach((b) => b.addEventListener('cli
   const mode = b.dataset.uprig === 'fair' ? null : b.dataset.uprig;
   run('/upgrader/rig', { mode }, mode === 'win' ? 'Следующий апгрейд выиграет' : mode === 'lose' ? 'Следующий апгрейд проиграет' : 'Апгрейды снова честные');
 }));
+
+$('se-end').addEventListener('click', () => {
+  if (confirm('Подвести итоги недели прямо сейчас? Тройка лучших уйдёт в зал славы, очки обнулятся.')) {
+    run('/season/end', {}, 'Итоги недели подведены, началась новая');
+  }
+});
 
 document.querySelectorAll('[data-vtrig]').forEach((b) => b.addEventListener('click', () => {
   const mode = b.dataset.vtrig === 'fair' ? null : b.dataset.vtrig;

@@ -75,7 +75,11 @@ function createRoulette({ store, onState = () => {}, onEvent = () => {}, now = D
       else store.notify(b.player);  // ставки сгорели: фишки больше не "в игре"
       const net = b.won - b.total;
       if (net !== 0) {
-        onEvent({ game: 'roulette', kind: net > 0 ? 'win' : 'lose', player: b.player, amount: Math.abs(net), note: `выпало ${result}` });
+        const straight = b.list.some((bet) => bet.type === 'straight' && bet.number === result);
+        onEvent({
+          game: 'roulette', kind: net > 0 ? 'win' : 'lose', player: b.player, amount: Math.abs(net), note: `выпало ${result}`,
+          meta: { result, straight, zero: straight && result === 0 },
+        });
       }
     }
     history.unshift(result);
@@ -93,7 +97,7 @@ function createRoulette({ store, onState = () => {}, onEvent = () => {}, now = D
       for (const b of bets.values()) {
         const labels = b.list.map(betLabel);
         const note = labels.slice(0, 3).join(', ') + (labels.length > 3 ? ` и ещё ${labels.length - 3}` : '');
-        onEvent({ game: 'roulette', kind: 'bet', player: b.player, amount: b.total, note });
+        onEvent({ game: 'roulette', kind: 'bet', player: b.player, amount: b.total, note, meta: { stake: b.total } });
       }
     }
     if (phase === 'spinning' && t - phaseStartedAt >= T.spinMs) {
