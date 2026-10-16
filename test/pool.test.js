@@ -123,6 +123,8 @@ test('удар: разбивка из дома, ход и шар с руки п�
   err(pool.shoot(breaker, { dir: { x: 1, y: 0 }, power: 1, cue: { x: 600, y: 250 } }), /в дом/);
   err(pool.shoot(breaker, { dir: { x: 0, y: 0 }, power: 1, cue: { x: 190, y: 250 } }), /направления/);
   err(pool.shoot(breaker, { dir: { x: 1, y: 0 }, power: 5, cue: { x: 190, y: 250 } }), /Сила/);
+  err(pool.shoot(breaker, { dir: { x: 1, y: 0 }, power: 1, spin: 2, cue: { x: 190, y: 250 } }), /Винт/);
+  err(pool.shoot(breaker, { dir: { x: 1, y: 0 }, power: 1, spin: 'top', cue: { x: 190, y: 250 } }), /Винт/);
   ok(pool.shoot(breaker, { dir: { x: 1, y: 0.003 }, power: 1, cue: { x: 190, y: 250 } }));
   m = pool.view(a).matches[0];
   assert.equal(m.shotNo, 1);
@@ -130,7 +132,7 @@ test('удар: разбивка из дома, ход и шар с руки п�
   assert.ok(m.busyLeft > 0, 'шары катятся');
   assert.ok(m.lastShot && m.lastShot.start.length === 16, 'клиентам есть что анимировать');
   // клиент получает тот же результат тем же кодом
-  const replay = Physics.simulate(m.lastShot.start, m.lastShot.vel);
+  const replay = Physics.simulate(m.lastShot.start, m.lastShot.vel, { spin: m.lastShot.spin });
   assert.deepEqual(replay.balls, m.balls.map((x) => (x.id === 8 && m.balls.find((y) => y.id === 8).in === false ? replay.balls.find((y) => y.id === 8) : x)));
   const next = m.players[m.turn].id === a.id ? a : b;
   err(pool.shoot(next, { dir: { x: -1, y: 0 }, power: 0.5 }), /катятся/);

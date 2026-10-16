@@ -410,7 +410,7 @@ const handlers = {
   },
 
   pool_shoot(ws, msg) {
-    reply(ws, pool.shoot(ws.player, { dir: msg.dir, power: msg.power, cue: msg.cue }));
+    reply(ws, pool.shoot(ws.player, { dir: msg.dir, power: msg.power, spin: msg.spin, cue: msg.cue }));
   },
 
   pool_concede(ws) {

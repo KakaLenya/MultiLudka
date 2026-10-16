@@ -13,12 +13,19 @@
     { x: 0, y: H, r: 26 }, { x: W / 2, y: H + 6, r: 22 }, { x: W, y: H, r: 26 },
   ];
   const DT = 1 / 240;
-  const FRICTION = 260;        // замедление качения, ед/с²
+  // Шар после удара сначала скользит по сукну (сильное трение), потом катится (слабое).
+  // u — скорость, которую дало бы шару его вращение; пока v != u, шар проскальзывает.
+  const SLIDE_DEC = 480;       // трение скольжения, ед/с²
+  const ROLL_DEC = 30;         // сопротивление качению, ед/с²
+  const ROLL_DRAG = 0.24;      // плюс торможение сукна, пропорциональное скорости, 1/с
   const BALL_E = 0.95;         // упругость шар-шар
-  const RAIL_E = 0.75;         // упругость борта
-  const STOP_SPEED = 4;
+  const RAIL_E = 0.78;         // упругость борта
+  const RAIL_GRIP = 0.94;      // борт гасит скорость вдоль себя
+  const RAIL_SPIN = 0.4;       // какая часть вращения остаётся после борта
+  const SPIN_MAX = 1.25;       // винт ±1 → вращение ±1.25 скорости удара (удар на полрадиуса от центра)
+  const STOP_SPEED = 3;
   const MAX_SPEED = 1800;
-  const MAX_TIME = 20;
+  const MAX_TIME = 30;
 
   // Позиции пирамиды: 5 рядов от вершины на точке FOOT вправо. Индекс 4 — центр, туда ставят восьмёрку.
   function rackSpots() {
@@ -40,37 +47,65 @@
     return balls;
   }
 
-  // Удар: balls — расстановка до удара, vel — скорость битка.
+  // Удар: balls — расстановка до удара, vel — скорость битка, spin — винт от -1 (оттяжка) до 1 (накат).
   // -> { balls (итог), events: { firstHit, pocketed: [номера по порядку] }, frames, duration }
   // frames (если record): положения каждые frameEvery шагов, [x, y] или null для забитого.
-  function simulate(balls, vel, { record = false, frameEvery = 4 } = {}) {
-    const b = balls.map((o) => ({ id: o.id, x: o.x, y: o.y, vx: 0, vy: 0, in: !!o.in }));
+  function simulate(balls, vel, { record = false, frameEvery = 4, spin = 0 } = {}) {
+    const b = balls.map((o) => ({ id: o.id, x: o.x, y: o.y, vx: 0, vy: 0, ux: 0, uy: 0, in: !!o.in }));
     const cue = b.find((o) => o.id === 0);
+    const sp = spin > 1 ? 1 : spin < -1 ? -1 : spin || 0;
     cue.vx = vel.x;
     cue.vy = vel.y;
+    cue.ux = vel.x * sp * SPIN_MAX;
+    cue.uy = vel.y * sp * SPIN_MAX;
     const events = { firstHit: null, pocketed: [] };
     const frames = record ? [] : null;
     const snap = () => frames.push(b.map((o) => (o.in ? null : [o.x, o.y])));
     if (record) snap();
 
+    const slideStep = SLIDE_DEC * DT;
     let t = 0;
     let step = 0;
     while (t < MAX_TIME) {
       let moving = false;
 
-      // Движение с трением.
+      // Трение о сукно: скольжение или качение.
       for (const o of b) {
-        if (o.in || (o.vx === 0 && o.vy === 0)) continue;
-        const speed = Math.sqrt(o.vx * o.vx + o.vy * o.vy);
-        const dec = FRICTION * DT;
-        if (speed <= dec || speed < STOP_SPEED) {
-          o.vx = 0;
-          o.vy = 0;
-          continue;
+        if (o.in) continue;
+        const sx = o.vx - o.ux;
+        const sy = o.vy - o.uy;
+        const slip = Math.sqrt(sx * sx + sy * sy);
+        if (slip > 0.5) {
+          // Трение тормозит центр и раскручивает шар, пока точка касания не перестанет скользить.
+          if (slip <= 3.5 * slideStep) {
+            o.vx -= sx / 3.5;
+            o.vy -= sy / 3.5;
+            o.ux = o.vx;
+            o.uy = o.vy;
+          } else {
+            const k = slideStep / slip;
+            o.vx -= sx * k;
+            o.vy -= sy * k;
+            o.ux += 2.5 * sx * k;
+            o.uy += 2.5 * sy * k;
+          }
+        } else {
+          const speed = Math.sqrt(o.vx * o.vx + o.vy * o.vy);
+          if (speed === 0) continue;
+          const dec = (ROLL_DEC + ROLL_DRAG * speed) * DT;
+          if (speed <= dec || speed < STOP_SPEED) {
+            o.vx = 0;
+            o.vy = 0;
+            o.ux = 0;
+            o.uy = 0;
+            continue;
+          }
+          const k = (speed - dec) / speed;
+          o.vx *= k;
+          o.vy *= k;
+          o.ux = o.vx;
+          o.uy = o.vy;
         }
-        const k = (speed - dec) / speed;
-        o.vx *= k;
-        o.vy *= k;
         o.x += o.vx * DT;
         o.y += o.vy * DT;
         moving = true;
@@ -86,22 +121,36 @@
             o.in = true;
             o.vx = 0;
             o.vy = 0;
+            o.ux = 0;
+            o.uy = 0;
             events.pocketed.push(o.id);
             break;
           }
         }
       }
 
-      // Борта.
+      // Борта: отскок, потеря скорости вдоль борта и большей части вращения.
       for (const o of b) {
         if (o.in) continue;
-        if (o.x < R) { o.x = R; if (o.vx < 0) o.vx = -o.vx * RAIL_E; }
-        if (o.x > W - R) { o.x = W - R; if (o.vx > 0) o.vx = -o.vx * RAIL_E; }
-        if (o.y < R) { o.y = R; if (o.vy < 0) o.vy = -o.vy * RAIL_E; }
-        if (o.y > H - R) { o.y = H - R; if (o.vy > 0) o.vy = -o.vy * RAIL_E; }
+        if ((o.x < R && o.vx < 0) || (o.x > W - R && o.vx > 0)) {
+          o.vx = -o.vx * RAIL_E;
+          o.vy *= RAIL_GRIP;
+          o.ux = -o.ux * RAIL_SPIN;
+          o.uy *= RAIL_GRIP;
+        }
+        if ((o.y < R && o.vy < 0) || (o.y > H - R && o.vy > 0)) {
+          o.vy = -o.vy * RAIL_E;
+          o.vx *= RAIL_GRIP;
+          o.uy = -o.uy * RAIL_SPIN;
+          o.ux *= RAIL_GRIP;
+        }
+        if (o.x < R) o.x = R;
+        if (o.x > W - R) o.x = W - R;
+        if (o.y < R) o.y = R;
+        if (o.y > H - R) o.y = H - R;
       }
 
-      // Столкновения шаров.
+      // Столкновения шаров: скорости обмениваются по линии центров, вращение остаётся у каждого своё.
       for (let i = 0; i < b.length; i++) {
         const p = b[i];
         if (p.in) continue;

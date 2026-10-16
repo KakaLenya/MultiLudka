@@ -236,7 +236,13 @@
             </div>
             <div class="pl-msg" id="pl-msg"></div>
             <div class="pl-table-wrap"><canvas id="pl-canvas" width="1080" height="580"></canvas></div>
-            <div class="pl-power" id="pl-power-box"><i id="pl-power"></i></div>
+            <div class="pl-controls">
+              <button type="button" class="pl-spin" id="pl-spin" title="Винт: выше центра — накат, ниже — оттяжка. Двойной клик — в центр.">
+                <i id="pl-spin-dot"></i>
+              </button>
+              <div class="pl-spin-label"><span>винт</span><b id="pl-spin-name">Центр</b></div>
+              <div class="pl-power" id="pl-power-box"><i id="pl-power"></i></div>
+            </div>
             <p class="hint" id="pl-hint"></p>
             <div class="row pl-actions">
               <button type="button" class="ghost" id="pl-back">← К списку</button>

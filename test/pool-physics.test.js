@@ -18,15 +18,53 @@ test('пирамида: 15 шаров без наложений, восьмёр�
   }
 });
 
-test('прямой удар по одиночному шару: биток останавливается, шар катится дальше', () => {
-  const balls = [{ id: 0, x: 200, y: 250 }, { id: 3, x: 400, y: 250 }];
-  const r = P.simulate(balls, { x: 600, y: 0 });
+// Где биток в первые 1.2 с после касания прицельного шара: [мин x, макс x, x в момент касания].
+function cueAfterHit(gap, power, spin) {
+  const r = P.simulate([{ id: 0, x: 200, y: 150 }, { id: 3, x: gap, y: 150 }], { x: power * P.MAX_SPEED, y: 0 }, { spin, record: true, frameEvery: 1 });
   assert.equal(r.events.firstHit, 3);
-  const cue = r.balls.find((b) => b.id === 0);
-  const three = r.balls.find((b) => b.id === 3);
-  assert.ok(cue.x < 420, `биток почти встал после удара (x=${cue.x})`);
-  assert.ok(three.x > 500, `прицельный ушёл вперёд (x=${three.x})`);
-  assert.ok(Math.abs(three.y - 250) < 0.01, 'по прямой');
+  const hit = r.frames.findIndex((f) => f[1] && f[1][0] > gap + 0.5);
+  const xs = r.frames.slice(hit, hit + 288).map((f) => f[0][0]);
+  return { min: Math.min(...xs), max: Math.max(...xs), at: xs[0] };
+}
+
+test('прямой удар вплотную без винта: биток встаёт на месте (стоп-удар)', () => {
+  const c = cueAfterHit(240, 0.5, 0);
+  assert.ok(c.max - c.at < 15, `биток почти не сдвинулся (${(c.max - c.at).toFixed(1)})`);
+});
+
+test('накат: биток катится следом за шаром', () => {
+  const c = cueAfterHit(400, 0.4, 1);
+  assert.ok(c.max - c.at > 150, `ушёл вперёд на ${(c.max - c.at).toFixed(0)}`);
+});
+
+test('оттяжка: биток откатывается назад', () => {
+  const c = cueAfterHit(400, 0.4, -1);
+  assert.ok(c.at - c.min > 80, `откатился на ${(c.at - c.min).toFixed(0)}`);
+  assert.ok(c.max - c.at < 5, 'вперёд не поехал');
+});
+
+test('издалека без винта шар успевает покатиться и биток немного идёт следом', () => {
+  const c = cueAfterHit(500, 0.3, 0);
+  assert.ok(c.max - c.at > 40 && c.max - c.at < 200, `накат ${(c.max - c.at).toFixed(0)}`);
+});
+
+test('шары катятся далеко и плавно: слабый удар — треть стола, средний — больше длины', () => {
+  const run = (power) => {
+    const r = P.simulate([{ id: 0, x: 100, y: 150 }], { x: power * P.MAX_SPEED, y: 0 }, { record: true, frameEvery: 1 });
+    let dist = 0;
+    for (let i = 1; i < r.frames.length; i++) dist += Math.abs(r.frames[i][0][0] - r.frames[i - 1][0][0]);
+    return { dist, duration: r.duration };
+  };
+  const weak = run(0.15);
+  const mid = run(0.5);
+  assert.ok(weak.dist > 300, `слабый: ${weak.dist.toFixed(0)}`);
+  assert.ok(mid.dist > 1400, `средний: ${mid.dist.toFixed(0)}`);
+  assert.ok(mid.duration < 10, 'но не катится вечно');
+});
+
+test('винт за пределами ±1 обрезается', () => {
+  const balls = [{ id: 0, x: 200, y: 150 }, { id: 3, x: 400, y: 150 }];
+  assert.deepEqual(P.simulate(balls, { x: 700, y: 0 }, { spin: 5 }).balls, P.simulate(balls, { x: 700, y: 0 }, { spin: 1 }).balls);
 });
 
 test('шар в лузу: прямо в угол', () => {

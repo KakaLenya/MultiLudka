@@ -211,7 +211,8 @@ function createPool({
     }
   }
 
-  // shot: { dir: { x, y }, power: 0..1, cue?: { x, y } } — cue нужен, если шар с руки.
+  // shot: { dir: { x, y }, power: 0..1, spin?: -1..1, cue?: { x, y } } — cue нужен, если шар с руки.
+  // spin: винт по вертикали, -1 — оттяжка, 1 — накат.
   function shoot(player, shot) {
     const m = activeMatchOf(player);
     if (!m) return { error: 'Ты не в матче' };
@@ -224,6 +225,8 @@ function createPool({
     const len = Math.sqrt(dir.x * dir.x + dir.y * dir.y);
     if (len < 1e-6) return { error: 'Нет направления удара' };
     if (!Number.isFinite(power) || power < 0.02 || power > 1) return { error: 'Сила удара от 0.02 до 1' };
+    const spin = shot.spin === undefined ? 0 : shot.spin;
+    if (!Number.isFinite(spin) || spin < -1 || spin > 1) return { error: 'Винт от -1 до 1' };
 
     const balls = m.balls.map((b) => ({ ...b }));
     const cue = balls.find((b) => b.id === 0);
@@ -238,11 +241,11 @@ function createPool({
     }
 
     const vel = { x: (dir.x / len) * power * Physics.MAX_SPEED, y: (dir.y / len) * power * Physics.MAX_SPEED };
-    const sim = Physics.simulate(balls, vel);
+    const sim = Physics.simulate(balls, vel, { spin });
     const verdict = judge({ balls, groups: m.groups, turn: me, breakShot: m.breakShot }, sim);
 
     m.shotNo += 1;
-    m.lastShot = { shotNo: m.shotNo, by: me, start: balls, vel, duration: sim.duration };
+    m.lastShot = { shotNo: m.shotNo, by: me, start: balls, vel, spin, duration: sim.duration };
     m.balls = sim.balls;
     m.timeouts[me] = 0;
     m.busyUntil = now() + sim.duration * 1000 + SETTLE_PAD_MS;

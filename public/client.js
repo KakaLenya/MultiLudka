@@ -1966,6 +1966,7 @@ const pl = {
   aim: null,             // точка прицела в координатах стола
   drag: null,            // { x, y, dir } при натяге
   power: 0,
+  spin: 0,               // винт: -1 оттяжка … 1 накат
   placed: null,          // куда игрок поставил биток (шар с руки)
   seenInvites: new Set(),
   wasMyMatch: null,
@@ -2251,7 +2252,7 @@ function plMaybeAnimate(m) {
   // Удар старше пары секунд (зашли посреди) не крутим, сразу показываем итог.
   if (m.busyLeft <= 0) return;
   const start = m.lastShot.start;
-  const sim = PP.simulate(start, m.lastShot.vel, { record: true });
+  const sim = PP.simulate(start, m.lastShot.vel, { record: true, spin: m.lastShot.spin || 0 });
   pl.anim = { matchId: m.id, ids: start.map((b) => b.id), frames: sim.frames, frameDt: sim.frameDt, t0: performance.now(), pocketedSeen: new Set() };
   beep([[90, 0.05], [260, 0.04]], 'triangle');
 }
@@ -2477,10 +2478,35 @@ plCanvas.addEventListener('pointerup', () => {
     pl.power = 0;
     return;
   }
-  send({ type: 'pool_shoot', dir: drag.dir, power: Math.round(pl.power * 1000) / 1000, cue: m.ballInHand ? pl.placed : undefined });
+  send({ type: 'pool_shoot', dir: drag.dir, power: Math.round(pl.power * 1000) / 1000, spin: pl.spin, cue: m.ballInHand ? pl.placed : undefined });
   pl.power = 0;
   pl.placed = null;
+  plSetSpin(0);  // после удара винт снова по центру, чтобы не забыть про оттяжку
 });
+
+// Винт: точка удара по битку выше центра — накат, ниже — оттяжка.
+function plSetSpin(v) {
+  const s = Math.max(-1, Math.min(1, Math.round(v * 10) / 10));
+  pl.spin = Math.abs(s) < 0.15 ? 0 : s;
+  $('pl-spin-dot').style.transform = `translateY(${(-pl.spin * 15).toFixed(1)}px)`;
+  $('pl-spin-name').textContent = pl.spin >= 0.6 ? 'Сильный накат' : pl.spin > 0 ? 'Накат'
+    : pl.spin <= -0.6 ? 'Сильная оттяжка' : pl.spin < 0 ? 'Оттяжка' : 'Центр';
+  $('pl-spin').classList.toggle('top', pl.spin > 0);
+  $('pl-spin').classList.toggle('back', pl.spin < 0);
+}
+function plSpinFromPointer(e) {
+  const r = $('pl-spin').getBoundingClientRect();
+  plSetSpin(-(e.clientY - (r.top + r.height / 2)) / (r.height * 0.3));
+}
+$('pl-spin').addEventListener('pointerdown', (e) => {
+  $('pl-spin').setPointerCapture(e.pointerId);
+  plSpinFromPointer(e);
+});
+$('pl-spin').addEventListener('pointermove', (e) => {
+  if (e.buttons) plSpinFromPointer(e);
+});
+$('pl-spin').addEventListener('dblclick', () => plSetSpin(0));
+plSetSpin(0);
 
 // ---------- Бомба в банке ----------
 
