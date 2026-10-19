@@ -137,7 +137,7 @@ function listItem(name, isSelf) {
 
 // Спрашиваем, только если игрок сам ввёл сумму в поле (не кнопками ½, ×2, «макс», не фишками)
 // и она больше половины баланса. В каждой игре — один раз до перезагрузки страницы.
-const BET_INPUTS = ['bet-amount', 'u-amount', 'vt-amount', 'b-amount', 'pl-stake', 'buyin', 'raise-amount'];
+const BET_INPUTS = ['bet-amount', 'u-amount', 'vt-amount', 'b-amount', 'pl-stake', 'buyin', 'raise-amount', 'dv-stake'];
 const confirmedGames = new Set();
 let betConfirm = null;   // { resolve } — окно открыто
 
@@ -445,13 +445,13 @@ const TAB_KEY = 'casino.tab';
 
 function showTab(name) {
   document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t.dataset.tab === name));
-  for (const id of ['crash', 'roulette', 'upgrade', 'verity', 'bomb', 'pool', 'poker']) $(id).hidden = name !== id;
+  for (const id of ['crash', 'roulette', 'upgrade', 'verity', 'duel', 'bomb', 'pool', 'poker']) $(id).hidden = name !== id;
   // канвас апгрейдера создаётся ниже по файлу: рисуем на следующем кадре
   if (name === 'upgrade') requestAnimationFrame(() => drawUpgrader());
   storage.set(TAB_KEY, name);
 }
 document.querySelectorAll('.tab').forEach((t) => t.addEventListener('click', () => showTab(t.dataset.tab)));
-showTab(['roulette', 'upgrade', 'verity', 'bomb', 'pool', 'poker'].includes(storage.get(TAB_KEY)) ? storage.get(TAB_KEY) : 'crash');
+showTab(['roulette', 'upgrade', 'verity', 'duel', 'bomb', 'pool', 'poker'].includes(storage.get(TAB_KEY)) ? storage.get(TAB_KEY) : 'crash');
 
 // ---------- Звуки (WebAudio, без файлов) ----------
 
@@ -1754,7 +1754,8 @@ function vtTeeth(curve, n, depth, from = 0.06, to = 0.94) {
   return `M${pts.join(' L')} L${back.join(' L')} Z`;
 }
 
-function verityFaceSvg() {
+// sfx: суффикс id внутри SVG, чтобы на странице могло быть несколько Верити.
+function verityFaceSvg(sfx = '') {
   const grinTop = vtCurve(40, 112, 100, 140, 160, 112);
   const grinBottom = vtCurve(40, 112, 100, 170, 160, 112);
   const maw = (a0, a1, cy = 128) => (t) => {
@@ -1764,7 +1765,7 @@ function verityFaceSvg() {
   return `
 <svg viewBox="-20 -20 240 240" aria-hidden="true">
   <defs>
-    <filter id="vt-felt" x="-15%" y="-15%" width="130%" height="130%">
+    <filter id="vt-felt${sfx}" x="-15%" y="-15%" width="130%" height="130%">
       <feTurbulence type="fractalNoise" baseFrequency="0.9" numOctaves="3" seed="3" result="noise"/>
       <feDisplacementMap in="SourceGraphic" in2="noise" scale="5" xChannelSelector="R" yChannelSelector="G" result="fuzzy"/>
       <feColorMatrix in="noise" type="saturate" values="0" result="gray"/>
@@ -1777,29 +1778,29 @@ function verityFaceSvg() {
       <feComposite in="grain" in2="fuzzy" operator="in" result="grainIn"/>
       <feBlend in="fuzzy" in2="grainIn" mode="multiply"/>
     </filter>
-    <radialGradient id="vt-yellow" cx="40%" cy="35%" r="70%">
+    <radialGradient id="vt-yellow${sfx}" cx="40%" cy="35%" r="70%">
       <stop offset="0" stop-color="#fff27e"/>
       <stop offset="0.55" stop-color="#f7cf22"/>
       <stop offset="1" stop-color="#cf8e00"/>
     </radialGradient>
-    <radialGradient id="vt-red" cx="40%" cy="35%" r="70%">
+    <radialGradient id="vt-red${sfx}" cx="40%" cy="35%" r="70%">
       <stop offset="0" stop-color="#ff7a52"/>
       <stop offset="0.55" stop-color="#d42a1c"/>
       <stop offset="1" stop-color="#5e0707"/>
     </radialGradient>
-    <linearGradient id="vt-horn" x1="0" y1="1" x2="0" y2="0">
+    <linearGradient id="vt-horn${sfx}" x1="0" y1="1" x2="0" y2="0">
       <stop offset="0" stop-color="#8f0f12"/>
       <stop offset="1" stop-color="#2a0405"/>
     </linearGradient>
-    <clipPath id="vt-open-clip"><path d="M48,112 Q100,196 152,112 Z"/></clipPath>
+    <clipPath id="vt-open-clip${sfx}"><path d="M48,112 Q100,196 152,112 Z"/></clipPath>
   </defs>
-  <g filter="url(#vt-felt)">
-    <g class="vt-horns" fill="url(#vt-horn)">
+  <g filter="url(#vt-felt${sfx})">
+    <g class="vt-horns" fill="url(#vt-horn${sfx})">
       <path d="M46,44 Q20,12 26,-14 Q46,8 72,24 Z"/>
       <path d="M154,44 Q180,12 174,-14 Q154,8 128,24 Z"/>
     </g>
-    <circle cx="100" cy="100" r="92" fill="url(#vt-yellow)"/>
-    <circle class="vt-redskin" cx="100" cy="100" r="92" fill="url(#vt-red)"/>
+    <circle cx="100" cy="100" r="92" fill="url(#vt-yellow${sfx})"/>
+    <circle class="vt-redskin" cx="100" cy="100" r="92" fill="url(#vt-red${sfx})"/>
 
     <g class="vt-face-good">
       <g class="vt-eyes">
@@ -1817,7 +1818,7 @@ function verityFaceSvg() {
       <path class="vt-smile" d="M42,112 Q100,182 158,112 Q100,150 42,112 Z"/>
       <g class="vt-mouth-open">
         <path d="M48,112 Q100,196 152,112 Z"/>
-        <ellipse cx="100" cy="152" rx="24" ry="13" fill="#e2566a" clip-path="url(#vt-open-clip)"/>
+        <ellipse cx="100" cy="152" rx="24" ry="13" fill="#e2566a" clip-path="url(#vt-open-clip${sfx})"/>
       </g>
     </g>
 
@@ -2122,6 +2123,541 @@ $('vt-go').addEventListener('click', async () => {
   send({ type: 'verity_play', amount });
 });
 renderVerityFeed([]);
+
+// ---------- Дуэль на везение ----------
+
+const DV_GAMES = {
+  crash: { icon: '📈', name: 'Краш', rule: 'У каждого своя ракета. Чья улетит выше — тот забирает банк.' },
+  roulette: { icon: '🎡', name: 'Рулетка', rule: 'У каждого своё колесо. У кого выпадет число больше — тот забирает банк.' },
+  upgrade: { icon: '⬆️', name: 'Апгрейд', rule: 'Одно колесо, две стрелки. Чья встанет ближе к центру зелёной зоны — тот забирает банк.' },
+  verity: { icon: '😊', name: 'Верити', rule: 'Верити проверяет обоих. Кого признает добрым, а соперника злым — тот забирает банк.' },
+};
+// Как на сервере (server/duel.js).
+const DV_CRASH_GROWTH = 0.18;
+const DV_ROULETTE_SPIN_MS = 7000;
+const DV_UPGRADE_SPIN_MS = 4500;
+const DV_VERITY_ROUND_MS = 2400;
+const DV_REVEAL_PAD_MS = 1200;
+const DV_COLORS = ['#f2c14e', '#5ec8ff'];
+const DV_GAME_KEY = 'casino.duel.game';
+
+const dv = {
+  view: null,
+  game: DV_GAMES[storage.get(DV_GAME_KEY)] ? storage.get(DV_GAME_KEY) : 'crash',
+  watching: null,      // id дуэли на экране
+  t0: new Map(),       // id дуэли -> когда (по performance.now) она началась
+  stage: null,         // { id, game, ... } — построенная сцена
+  seenInvites: new Set(),
+  lastMine: null,
+};
+
+const dvUpgradeScore = (landing, start, chance) => {
+  const d = (((landing - start) % 100) + 100) % 100;
+  return d < chance ? Math.min(d, chance - d) : -Math.min(d - chance, 100 - d);
+};
+
+// Кто победил: 0 или 1 (как на сервере).
+function dvWinner(d) {
+  const x = d.data;
+  if (d.game === 'crash') return x.crash[0] > x.crash[1] ? 0 : 1;
+  if (d.game === 'roulette') return x.numbers[0] > x.numbers[1] ? 0 : 1;
+  if (d.game === 'upgrade') return dvUpgradeScore(x.landings[0], x.start, x.chance) > dvUpgradeScore(x.landings[1], x.start, x.chance) ? 0 : 1;
+  return x.rounds.at(-1)[0] ? 0 : 1;
+}
+
+const dvMyIndex = (d) => (state.me ? d.players.findIndex((p) => p.id === state.me.playerId) : -1);
+const dvFind = (id) => (dv.view ? dv.view.duels.find((d) => d.id === id) : null);
+const dvTime = (d) => performance.now() - dv.t0.get(d.id);
+const dvAnimEnd = (d) => d.duration - DV_REVEAL_PAD_MS;
+
+// ----- Лобби -----
+
+function dvRenderGames() {
+  document.querySelectorAll('[data-dg]').forEach((b) => b.classList.toggle('active', b.dataset.dg === dv.game));
+}
+document.querySelectorAll('[data-dg]').forEach((b) => b.addEventListener('click', () => {
+  dv.game = b.dataset.dg;
+  storage.set(DV_GAME_KEY, dv.game);
+  dvRenderGames();
+}));
+dvRenderGames();
+
+document.querySelectorAll('[data-dq]').forEach((b) => b.addEventListener('click', () => {
+  const v = Math.max(0, Math.floor(Number($('dv-stake').value) || 0));
+  const next = { half: Math.floor(v / 2), double: Math.max(10, v * 2), max: state.balance }[b.dataset.dq];
+  $('dv-stake').value = Math.max(0, Math.min(next, state.balance));
+}));
+
+$('dv-form').addEventListener('submit', (ev) => {
+  ev.preventDefault();
+  const toId = $('dv-opponent').value;
+  if (!toId) return toast('Вызвать некого: никого нет онлайн');
+  const stake = Math.max(0, Math.floor(Number($('dv-stake').value) || 0));
+  const opp = $('dv-opponent').selectedOptions[0];
+  confirmBet({
+    key: 'duel', game: `⚔️ Дуэль · ${DV_GAMES[dv.game].name}`, amount: stake, input: $('dv-stake'),
+    note: `Вызов ${opp ? opp.textContent : 'сопернику'}: ставка спишется, когда он примет`,
+  }).then((ok) => ok && send({ type: 'duel_invite', toId, game: dv.game, stake }));
+});
+
+function dvRenderLobby() {
+  const v = dv.view;
+  const myId = state.me && state.me.playerId;
+  const sel = $('dv-opponent');
+  const cur = sel.value;
+  const people = (state.onlinePlayers || []).filter((p) => p.id !== myId);
+  sel.replaceChildren(...(people.length ? people.map((p) => Object.assign(document.createElement('option'), { value: p.id, textContent: p.name }))
+    : [Object.assign(document.createElement('option'), { value: '', textContent: 'никого нет онлайн' })]));
+  if (people.some((p) => p.id === cur)) sel.value = cur;
+  if (!v) return;
+
+  const g = (game) => `${DV_GAMES[game].icon} ${DV_GAMES[game].name}`;
+  const stakeText = (s) => (s ? ` · по ${s} 🪙` : ' · без ставки');
+  const out = v.inviteOut;
+  $('dv-out').replaceChildren(...(out ? [plInviteRow(`Ждём ответа: ${out.toName} · ${g(out.game)}${stakeText(out.stake)}`,
+    [['Отменить', 'ghost', () => send({ type: 'duel_cancel' })]])] : []));
+  $('dv-in').replaceChildren(...v.invitesIn.map((i) => plInviteRow(`${i.fromName} вызывает: ${g(i.game)}${stakeText(i.stake)}`, [
+    ['Принять', '', () => send({ type: 'duel_accept', inviteId: i.id })],
+    ['Отказ', 'ghost', () => send({ type: 'duel_decline', inviteId: i.id })],
+  ])));
+
+  const live = v.duels.filter((d) => d.phase === 'playing');
+  $('dv-live').replaceChildren(...(live.length ? live.map((d) => {
+    const li = document.createElement('li');
+    const name = document.createElement('span');
+    name.className = 'name';
+    name.textContent = `${d.players[0].name} ⚔️ ${d.players[1].name} · ${g(d.game)}${d.stake ? ` · ${d.stake}` : ''}`;
+    const b = document.createElement('button');
+    b.type = 'button';
+    b.className = 'ghost';
+    b.textContent = dvMyIndex(d) >= 0 ? 'Вернуться' : 'Смотреть';
+    b.addEventListener('click', () => {
+      dv.watching = d.id;
+      dvRender();
+    });
+    li.append(name, b);
+    return li;
+  }) : [Object.assign(document.createElement('li'), { className: 'muted', textContent: 'Сейчас никто не дерётся' })]));
+
+  $('dv-history').replaceChildren(...(v.history.length ? v.history.map((h) => {
+    const li = document.createElement('li');
+    li.append(avatarEl(h.winner.name));
+    const name = document.createElement('span');
+    name.className = 'name';
+    name.textContent = `${h.winner.name} обыграл ${h.loser.name}`;
+    const game = document.createElement('span');
+    game.className = 'dv-h-game';
+    game.textContent = `${g(h.game)}${h.stake ? ` · +${h.stake}` : ''}`;
+    li.append(name, game);
+    return li;
+  }) : [Object.assign(document.createElement('li'), { className: 'muted', textContent: 'Дуэлей ещё не было' })]));
+}
+
+// Вызов во всплывашке — видно на любой вкладке.
+function dvRenderPopup() {
+  const v = dv.view;
+  const inv = v.invitesIn[0];
+  const busy = v.duels.some((d) => d.phase === 'playing' && dvMyIndex(d) >= 0);
+  $('dv-popup').hidden = !inv || busy;
+  $('duel-dot').hidden = !inv;
+  if (!inv) return;
+  $('dv-popup-from').textContent = inv.fromName;
+  $('dv-popup-what').textContent = `${DV_GAMES[inv.game].icon} ${DV_GAMES[inv.game].name}${inv.stake ? `, по ${inv.stake} 🪙` : ', без ставки'}`;
+  $('dv-popup').dataset.id = inv.id;
+  if (!dv.seenInvites.has(inv.id)) {
+    dv.seenInvites.add(inv.id);
+    beep([[523, 0.08], [659, 0.08], [784, 0.08], [1047, 0.16]], 'square');
+  }
+}
+$('dv-popup-accept').addEventListener('click', () => send({ type: 'duel_accept', inviteId: $('dv-popup').dataset.id }));
+$('dv-popup-decline').addEventListener('click', () => send({ type: 'duel_decline', inviteId: $('dv-popup').dataset.id }));
+
+// ----- Экран дуэли -----
+
+function dvPlayerBox(el, d, i) {
+  const p = d.players[i];
+  el.style.setProperty('--pc', DV_COLORS[i]);
+  const box = document.createElement('div');
+  const name = document.createElement('span');
+  name.className = 'name';
+  name.textContent = p.name;
+  const tag = document.createElement('span');
+  tag.className = 'dv-tag';
+  tag.textContent = dvMyIndex(d) === i ? 'это ты' : '';
+  box.append(name, tag);
+  el.replaceChildren(avatarEl(p.name), box);
+  el.classList.remove('win', 'lose');
+}
+
+function dvBuildStage(d) {
+  const stage = $('dv-stage');
+  stage.replaceChildren();
+  const s = { id: d.id, game: d.game, done: false };
+  if (d.game === 'crash') {
+    s.canvas = Object.assign(document.createElement('canvas'), { className: 'dv-crash-canvas' });
+    stage.append(s.canvas);
+  } else if (d.game === 'roulette') {
+    s.cols = d.players.map((p, i) => {
+      const col = document.createElement('div');
+      col.className = 'dv-col';
+      col.style.setProperty('--pc', DV_COLORS[i]);
+      const canvas = document.createElement('canvas');
+      const num = document.createElement('div');
+      num.className = `dv-num ${rColor(d.data.numbers[i])}`;
+      num.textContent = d.data.numbers[i];
+      const name = Object.assign(document.createElement('div'), { className: 'dv-col-name', textContent: p.name });
+      col.append(name, canvas, num);
+      stage.append(col);
+      // Свой бросок у каждого: зерно из номера дуэли.
+      const sim = RPH.spin({ seed: Number(d.id) * 7919 + i * 104729 + 1, rotation: i * 1.3, slot: R_WHEEL.indexOf(d.data.numbers[i]), spinMs: DV_ROULETTE_SPIN_MS });
+      return { canvas, num, sim, rotation: i * 1.3 };
+    });
+  } else if (d.game === 'upgrade') {
+    s.canvas = Object.assign(document.createElement('canvas'), { className: 'dv-up-canvas' });
+    const legend = document.createElement('div');
+    legend.className = 'dv-up-legend';
+    s.legend = d.players.map((p, i) => {
+      const row = document.createElement('div');
+      const dot = document.createElement('i');
+      dot.style.background = DV_COLORS[i];
+      const name = Object.assign(document.createElement('b'), { textContent: p.name });
+      const res = document.createElement('span');
+      row.append(dot, name, res);
+      legend.append(row);
+      return res;
+    });
+    stage.append(s.canvas, legend);
+    // Путь каждой стрелки — физика вертушки, растянутая, чтобы встать на точку сервера.
+    s.needles = d.data.landings.map((landing) => {
+      const path = upgSimulate();
+      const free = path[path.length - 1];
+      let delta = (((landing - free) % 100) + 100) % 100;
+      if (delta >= 50) delta -= 100;
+      let total = free + delta;
+      if (total < 200) total += 100;
+      return { path, k: total / free };
+    });
+  } else {
+    s.faces = d.players.map((p, i) => {
+      const col = document.createElement('div');
+      col.className = 'dv-col';
+      col.style.setProperty('--pc', DV_COLORS[i]);
+      const face = document.createElement('div');
+      face.className = 'vt-hero dv-face';
+      face.innerHTML = verityFaceSvg(`-dv${i}`);
+      face.dataset.side = 'good';
+      const rounds = document.createElement('div');
+      rounds.className = 'dv-rounds';
+      const name = Object.assign(document.createElement('div'), { className: 'dv-col-name', textContent: p.name });
+      col.append(name, face, rounds);
+      stage.append(col);
+      return { face, rounds };
+    });
+    s.msg = Object.assign(document.createElement('div'), { className: 'dv-verity-msg' });
+    stage.append(s.msg);
+    s.round = -1;
+    s.revealed = -1;
+  }
+  dv.stage = s;
+}
+
+function dvRender() {
+  const v = dv.view;
+  if (!v) return;
+  dvRenderPopup();
+  let d = dv.watching ? dvFind(dv.watching) : null;
+  if (!d) dv.watching = null;
+  $('dv-lobby').hidden = !!d;
+  $('dv-match').hidden = !d;
+  if (!d) {
+    dv.stage = null;
+    dvRenderLobby();
+    return;
+  }
+  if (!dv.stage || dv.stage.id !== d.id) {
+    dvPlayerBox($('dv-p0'), d, 0);
+    dvPlayerBox($('dv-p1'), d, 1);
+    $('dv-game-name').textContent = `${DV_GAMES[d.game].icon} ${DV_GAMES[d.game].name}`;
+    $('dv-bank').textContent = d.stake ? `банк ${2 * d.stake} 🪙` : 'без ставки';
+    $('dv-rule').textContent = DV_GAMES[d.game].rule;
+    $('dv-result').textContent = '';
+    $('dv-result').className = 'dv-result';
+    $('dv-rematch').hidden = true;
+    dvBuildStage(d);
+  }
+}
+
+// ----- Анимации -----
+
+function dvCanvas(canvas, w, h) {
+  const dpr = window.devicePixelRatio || 1;
+  if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(h * dpr)) {
+    canvas.width = Math.round(w * dpr);
+    canvas.height = Math.round(h * dpr);
+  }
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, w, h);
+  return ctx;
+}
+
+function dvDrawCrash(s, d, t) {
+  const w = s.canvas.clientWidth;
+  const h = s.canvas.clientHeight;
+  if (!w) return;
+  const ctx = dvCanvas(s.canvas, w, h);
+  const tc = d.data.crash.map((c) => Math.log(c / 100) / DV_CRASH_GROWTH);
+  const tNow = Math.min(t / 1000, Math.max(...tc));
+  const mNow = Math.exp(DV_CRASH_GROWTH * tNow);
+  const tMax = Math.max(4, tNow * 1.1);
+  const mMax = Math.max(2, mNow * 1.15);
+  const pad = 34;
+  const x = (tt) => pad + ((w - 2 * pad) * tt) / tMax;
+  const yBase = (m) => h - pad - ((h - 2 * pad) * (m - 1)) / (mMax - 1);
+  d.players.forEach((p, i) => {
+    // Кривые одинаковые, поэтому ракеты летят по своим дорожкам: чуть выше и чуть ниже.
+    const y = (m) => yBase(m) + (i === 0 ? -5 : 5);
+    const tEnd = Math.min(tNow, tc[i]);
+    const crashed = tNow >= tc[i];
+    const color = DV_COLORS[i];
+    ctx.beginPath();
+    ctx.moveTo(x(0), y(1));
+    for (let k = 1; k <= 60; k++) {
+      const tt = (tEnd * k) / 60;
+      ctx.lineTo(x(tt), y(Math.exp(DV_CRASH_GROWTH * tt)));
+    }
+    ctx.save();
+    ctx.shadowColor = color;
+    ctx.shadowBlur = 12;
+    ctx.strokeStyle = color;
+    ctx.globalAlpha = crashed && tNow > tc[i] + 0.4 ? 0.55 : 1;
+    ctx.lineWidth = 4;
+    ctx.lineCap = 'round';
+    ctx.stroke();
+    ctx.restore();
+    const m = Math.exp(DV_CRASH_GROWTH * tEnd);
+    const tx = x(tEnd);
+    const ty = y(m);
+    ctx.font = `${crashed ? 30 : 24}px "Segoe UI Emoji", "Apple Color Emoji", "Noto Color Emoji", sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(crashed ? '💥' : '🚀', tx, ty);
+    ctx.font = '700 15px Unbounded, Manrope, sans-serif';
+    ctx.fillStyle = color;
+    ctx.textAlign = tx > w - 120 ? 'right' : 'left';
+    ctx.fillText(`${p.name} ×${m.toFixed(2)}`, tx + (tx > w - 120 ? -20 : 20), ty + (i === 0 ? -18 : 18));
+  });
+  // Щелчок взрыва в момент краша.
+  s.boomed = s.boomed || [false, false];
+  tc.forEach((tt, i) => {
+    if (!s.boomed[i] && tNow >= tt) {
+      s.boomed[i] = true;
+      if (t / 1000 - tt < 1) beep([[110, 0.25]], 'sawtooth');
+    }
+  });
+  ctx.font = '700 40px Unbounded, Manrope, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  ctx.fillStyle = 'rgba(255, 255, 255, .9)';
+  ctx.fillText(`×${mNow.toFixed(2)}`, w / 2, 12);
+}
+
+// Колесо рулетки в любом холсте (те же слои, что у большой рулетки).
+function dvDrawWheel(canvas, size, rotation, ball) {
+  const dpr = window.devicePixelRatio || 1;
+  const px = Math.round(size * dpr);
+  if (canvas.width !== px) {
+    canvas.width = px;
+    canvas.height = px;
+  }
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, px, px);
+  ctx.drawImage(wheelBase, 0, 0, px, px);
+  ctx.save();
+  ctx.translate(px / 2, px / 2);
+  ctx.rotate(rotation);
+  ctx.drawImage(wheelDisk, -px / 2, -px / 2, px, px);
+  ctx.restore();
+  if (!ball) return;
+  const k = px / W_SIZE;
+  const bx = px / 2 + Math.cos(ball.angle) * ball.r * k;
+  const by = px / 2 + Math.sin(ball.angle) * ball.r * k;
+  const g = ctx.createRadialGradient(bx - 2 * k, by - 2.5 * k, 0.5 * k, bx, by, BALL_R * k);
+  g.addColorStop(0, '#ffffff');
+  g.addColorStop(0.6, '#e9e9e9');
+  g.addColorStop(1, '#9a9a9a');
+  ctx.beginPath();
+  ctx.arc(bx, by, BALL_R * k, 0, 2 * Math.PI);
+  ctx.fillStyle = g;
+  ctx.fill();
+}
+
+function dvDrawRoulette(s, d, t) {
+  s.cols.forEach((c, i) => {
+    const size = c.canvas.clientWidth || 200;
+    const tSim = Math.min(t / 1000, DV_ROULETTE_SPIN_MS / 1000) * c.sim.scale;
+    const f = c.sim.frames[Math.min(c.sim.frames.length - 1, Math.floor(tSim / c.sim.frameDt))];
+    dvDrawWheel(c.canvas, size, f[2], { angle: f[0], r: f[1] });
+    if (t >= DV_ROULETTE_SPIN_MS * 0.9 && !c.num.classList.contains('show')) c.num.classList.add('show');
+  });
+}
+
+function dvDrawUpgrade(s, d, t) {
+  const size = s.canvas.clientWidth || 280;
+  const ctx = dvCanvas(s.canvas, size, size);
+  const c = size / 2;
+  const R = c - 24;
+  const toRad = (p) => (p / 100) * 2 * Math.PI - Math.PI / 2;
+  const { start, chance } = d.data;
+  ctx.beginPath();
+  ctx.arc(c, c, R, 0, 2 * Math.PI);
+  ctx.lineWidth = 22;
+  ctx.strokeStyle = 'rgba(255, 255, 255, .07)';
+  ctx.stroke();
+  ctx.save();
+  ctx.shadowColor = 'rgba(69, 212, 131, .6)';
+  ctx.shadowBlur = 8;
+  ctx.beginPath();
+  ctx.arc(c, c, R, toRad(start), toRad(start + chance));
+  ctx.strokeStyle = '#45d483';
+  ctx.stroke();
+  ctx.restore();
+  // Центр зелёной зоны — туда целимся.
+  const mid = toRad(start + chance / 2);
+  ctx.beginPath();
+  ctx.moveTo(c + Math.cos(mid) * (R - 14), c + Math.sin(mid) * (R - 14));
+  ctx.lineTo(c + Math.cos(mid) * (R + 14), c + Math.sin(mid) * (R + 14));
+  ctx.strokeStyle = '#fff';
+  ctx.lineWidth = 3;
+  ctx.stroke();
+  const p = Math.min(1, t / (DV_UPGRADE_SPIN_MS - 300));
+  s.needles.forEach((n, i) => {
+    const pos = n.path[Math.min(n.path.length - 1, Math.floor(p * (n.path.length - 1)))] * n.k;
+    const a = toRad(pos);
+    const len = R + (i === 0 ? 4 : -10);
+    ctx.save();
+    ctx.shadowColor = DV_COLORS[i];
+    ctx.shadowBlur = 10;
+    ctx.beginPath();
+    ctx.moveTo(c + Math.cos(a) * 40, c + Math.sin(a) * 40);
+    ctx.lineTo(c + Math.cos(a) * len, c + Math.sin(a) * len);
+    ctx.strokeStyle = DV_COLORS[i];
+    ctx.lineWidth = 4;
+    ctx.lineCap = 'round';
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.arc(c + Math.cos(a) * len, c + Math.sin(a) * len, 6, 0, 2 * Math.PI);
+    ctx.fillStyle = DV_COLORS[i];
+    ctx.fill();
+    ctx.restore();
+  });
+  ctx.beginPath();
+  ctx.arc(c, c, 34, 0, 2 * Math.PI);
+  ctx.fillStyle = '#0d1a13';
+  ctx.fill();
+  ctx.font = '700 16px Unbounded, Manrope, sans-serif';
+  ctx.fillStyle = '#45d483';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  ctx.fillText(`${chance}%`, c, c);
+  if (p >= 1 && !s.legendShown) {
+    s.legendShown = true;
+    d.data.landings.forEach((l, i) => {
+      const score = dvUpgradeScore(l, start, chance);
+      s.legend[i].textContent = score >= 0 ? `в зоне, до края ${score.toFixed(1).replace('.', ',')}%` : `мимо на ${(-score).toFixed(1).replace('.', ',')}%`;
+    });
+  }
+}
+
+function dvDrawVerity(s, d, t) {
+  const rounds = d.data.rounds;
+  const r = Math.min(rounds.length - 1, Math.floor(t / DV_VERITY_ROUND_MS));
+  const inRound = t - r * DV_VERITY_ROUND_MS;
+  if (r !== s.round) {
+    s.round = r;
+    s.faces.forEach((f) => {
+      f.face.className = 'vt-hero dv-face dv-toss';
+      void f.face.offsetWidth;
+    });
+    s.msg.textContent = rounds.length > 1 ? `Раунд ${r + 1}: Верити проверяет…` : 'Верити проверяет…';
+    beep([[300, 0.04], [420, 0.04]], 'square');
+  }
+  if (inRound < 1400) {
+    // Пока монетка крутится, лицо мелькает.
+    const side = Math.floor(inRound / 140) % 2 ? 'evil' : 'good';
+    s.faces.forEach((f, i) => { f.face.dataset.side = i ? (side === 'good' ? 'evil' : 'good') : side; });
+  } else if (s.revealed !== r) {
+    s.revealed = r;
+    const pair = rounds[r];
+    s.faces.forEach((f, i) => {
+      const good = pair[i];
+      f.face.dataset.side = good ? 'good' : 'evil';
+      f.face.className = `vt-hero dv-face ${good ? 'happy' : 'grin'}`;
+      f.rounds.append(Object.assign(document.createElement('span'), { textContent: good ? '😊' : '😈' }));
+    });
+    if (pair[0] === pair[1]) {
+      s.msg.textContent = pair[0] ? 'Оба добрые — Верити проверит ещё раз!' : 'Оба злые — Верити проверит ещё раз!';
+    } else {
+      s.msg.textContent = `${d.players[pair[0] ? 0 : 1].name} — добрый, ${d.players[pair[0] ? 1 : 0].name} — злой`;
+    }
+    beep(pair[0] === pair[1] ? [[440, 0.1], [440, 0.1]] : [[784, 0.08], [988, 0.14]], 'triangle');
+  }
+}
+
+function dvShowResult(d) {
+  const w = dvWinner(d);
+  const me = dvMyIndex(d);
+  $(`dv-p${w}`).classList.add('win');
+  $(`dv-p${1 - w}`).classList.add('lose');
+  const res = $('dv-result');
+  const prize = d.stake ? ` и забирает ${2 * d.stake} 🪙` : '';
+  if (me === w) {
+    res.textContent = `🏆 Ты победил${prize ? `: +${d.stake} 🪙` : '!'}`;
+    res.className = 'dv-result win';
+    sounds.win();
+    effects.confetti();
+  } else if (me >= 0) {
+    res.textContent = `${d.players[w].name} победил${d.stake ? `: −${d.stake} 🪙` : ''}`;
+    res.className = 'dv-result lose';
+    sounds.lose();
+  } else {
+    res.textContent = `🏆 ${d.players[w].name} побеждает${prize}`;
+    res.className = 'dv-result';
+  }
+  $('dv-rematch').hidden = me < 0;
+}
+
+function dvFrame() {
+  const s = dv.stage;
+  const d = s && dvFind(s.id);
+  if (d && !$('duel').hidden) {
+    const t = dvTime(d);
+    if (d.game === 'crash') dvDrawCrash(s, d, t);
+    else if (d.game === 'roulette') dvDrawRoulette(s, d, t);
+    else if (d.game === 'upgrade') dvDrawUpgrade(s, d, t);
+    else dvDrawVerity(s, d, t);
+    if (!s.done && t >= dvAnimEnd(d)) {
+      s.done = true;
+      dvShowResult(d);
+    }
+  }
+  requestAnimationFrame(dvFrame);
+}
+requestAnimationFrame(dvFrame);
+
+$('dv-back').addEventListener('click', () => {
+  dv.watching = null;
+  dvRender();
+});
+$('dv-rematch').addEventListener('click', () => {
+  const d = dv.stage && dvFind(dv.stage.id);
+  if (!d) return;
+  const other = d.players[1 - dvMyIndex(d)];
+  send({ type: 'duel_invite', toId: other.id, game: d.game, stake: d.stake });
+  dv.watching = null;
+  dvRender();
+});
 
 // ---------- Пул (восьмёрка по приглашению) ----------
 
@@ -2903,6 +3439,7 @@ const ACT_GAMES = {
   verity: { icon: '😊', name: 'Верити' },
   poker: { icon: '🃏', name: 'Покер' },
   pool: { icon: '🎱', name: 'Пул' },
+  duel: { icon: '⚔️', name: 'Дуэль' },
 };
 const ACT_FILTER_KEY = 'casino.activity.filter';
 const act = { entries: [], filter: storage.get(ACT_FILTER_KEY) || 'all', freshId: 0 };
@@ -3232,6 +3769,21 @@ const handlers = {
     renderVerityFeed(msg.feed);
   },
 
+  duel_state(msg) {
+    dv.view = msg;
+    const now = performance.now();
+    for (const d of msg.duels) if (!dv.t0.has(d.id)) dv.t0.set(d.id, now - d.elapsed);
+    // Началась моя дуэль — сразу на вкладку дуэли.
+    const mine = msg.duels.find((d) => d.phase === 'playing' && dvMyIndex(d) >= 0);
+    if (mine && dv.lastMine !== mine.id) {
+      dv.lastMine = mine.id;
+      dv.watching = mine.id;
+      showTab('duel');
+      beep([[392, 0.08], [523, 0.08], [659, 0.14]], 'square');
+    }
+    dvRender();
+  },
+
   pool_state(msg) {
     const before = pl.view && pl.view.myMatchId;
     pl.view = msg;
@@ -3318,6 +3870,7 @@ const handlers = {
   online(msg) {
     state.onlinePlayers = msg.players;
     if (pl.view) plRenderLobby();
+    if (dv.view && !dv.watching) dvRenderLobby();
     $('online-list').replaceChildren(...msg.players.map((p) =>
       profileLink(listItem(p.name, state.me && p.id === state.me.playerId), p.id)));
     $('online-count').textContent = msg.players.length;

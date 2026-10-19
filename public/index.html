@@ -47,6 +47,7 @@
           <button type="button" class="tab" data-tab="roulette">🎡 Рулетка</button>
           <button type="button" class="tab" data-tab="upgrade">⬆️ Апгрейд</button>
           <button type="button" class="tab" data-tab="verity">😊 Верити</button>
+          <button type="button" class="tab" data-tab="duel">⚔️ Дуэль <span class="dot" id="duel-dot" hidden></span></button>
           <button type="button" class="tab" data-tab="bomb">💣 Бомба <span class="dot" id="bomb-dot" hidden></span></button>
           <button type="button" class="tab" data-tab="pool">🎱 Пул <span class="dot" id="pool-dot" hidden></span></button>
           <button type="button" class="tab" data-tab="poker">🃏 Покер <span class="dot" id="poker-dot" hidden></span></button>
@@ -143,6 +144,62 @@
           </div>
           <h2 class="u-feed-title">Кого проверил Верити</h2>
           <ul class="list u-feed" id="vt-feed"></ul>
+        </section>
+
+        <section class="card duel" id="duel" hidden>
+          <div class="dv-lobby" id="dv-lobby">
+            <h2>⚔️ Дуэль на везение</h2>
+            <p class="muted">Позови игрока онлайн, выберите игру и ставку. Каждый получает свой бросок — чей удачнее, тот забирает обе ставки. Никакого умения, только удача.</p>
+            <form class="dv-form" id="dv-form" autocomplete="off">
+              <label class="field">
+                <span>Соперник</span>
+                <select id="dv-opponent"></select>
+              </label>
+              <div class="field dv-games-field">
+                <span>Игра</span>
+                <div class="dv-games" id="dv-games">
+                  <button type="button" data-dg="crash"><b>📈 Краш</b><small>чья ракета улетит выше</small></button>
+                  <button type="button" data-dg="roulette"><b>🎡 Рулетка</b><small>у кого выпадет число больше</small></button>
+                  <button type="button" data-dg="upgrade"><b>⬆️ Апгрейд</b><small>чья стрелка ближе к центру зелёной зоны</small></button>
+                  <button type="button" data-dg="verity"><b>😊 Верити</b><small>кого Верити признает добрым</small></button>
+                </div>
+              </div>
+              <label class="field">
+                <span>Ставка с каждого</span>
+                <input id="dv-stake" type="number" min="0" step="10" value="100" inputmode="numeric">
+              </label>
+              <div class="quick">
+                <button type="button" class="ghost" data-dq="half">½</button>
+                <button type="button" class="ghost" data-dq="double">×2</button>
+                <button type="button" class="ghost" data-dq="max">макс</button>
+              </div>
+              <button type="submit" class="action">⚔️ Вызвать на дуэль</button>
+            </form>
+            <div class="pl-invites" id="dv-out"></div>
+            <div class="pl-invites" id="dv-in"></div>
+            <h2 class="pl-sub">Идут дуэли</h2>
+            <ul class="list" id="dv-live"></ul>
+            <h2 class="pl-sub">Последние дуэли</h2>
+            <ul class="list dv-history" id="dv-history"></ul>
+          </div>
+
+          <div class="dv-match" id="dv-match" hidden>
+            <div class="dv-head">
+              <div class="dv-player" id="dv-p0"></div>
+              <div class="dv-vs">
+                <b id="dv-game-name"></b>
+                <span id="dv-bank"></span>
+              </div>
+              <div class="dv-player right" id="dv-p1"></div>
+            </div>
+            <p class="dv-rule" id="dv-rule"></p>
+            <div class="dv-stage" id="dv-stage"></div>
+            <div class="dv-result" id="dv-result"></div>
+            <div class="row dv-actions">
+              <button type="button" class="ghost" id="dv-back">← К лобби</button>
+              <button type="button" class="action" id="dv-rematch" hidden>↻ Реванш</button>
+            </div>
+          </div>
         </section>
 
         <section class="card bombgame" id="bomb" hidden>
@@ -449,6 +506,14 @@
       <small>Новое достижение!</small>
       <b id="ach-pop-name"></b>
       <span id="ach-pop-desc"></span>
+    </div>
+  </div>
+
+  <div class="pl-popup" id="dv-popup" hidden>
+    <div>⚔️ <b id="dv-popup-from"></b> вызывает на дуэль: <span id="dv-popup-what"></span></div>
+    <div class="row">
+      <button type="button" id="dv-popup-accept">Принять</button>
+      <button type="button" class="ghost" id="dv-popup-decline">Отказ</button>
     </div>
   </div>
 

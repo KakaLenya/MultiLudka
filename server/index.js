@@ -15,6 +15,7 @@ const { createVerity } = require('./verity');
 const { createAchievements, ACHIEVEMENTS } = require('./achievements');
 const { createLuck } = require('./luck');
 const { createPool } = require('./pool');
+const { createDuel } = require('./duel');
 const { createMusic, sniffAudioType } = require('./music');
 const { createSongRequests } = require('./requests');
 
@@ -336,6 +337,26 @@ const pool = createPool({
 });
 store.addReserver(pool.reserved);
 
+// Дуэли на везение: у каждого свои вызовы, дуэли видны всем.
+let duelTimer = null;
+function broadcastDuel() {
+  if (duelTimer) return;
+  duelTimer = setImmediate(() => {
+    duelTimer = null;
+    for (const ws of clients) {
+      if (ws.player) send(ws, { type: 'duel_state', ...duel.view(ws.player) });
+    }
+  });
+}
+const duel = createDuel({
+  store,
+  isOnline: (id) => onlineIds().has(id),
+  onChange: broadcastDuel,
+  onEvent: onActivity,
+  lucky: luck.roll,
+});
+store.addReserver(duel.reserved);
+
 function isOnline(player) {
   for (const ws of clients) if (ws.player === player) return true;
   return false;
@@ -392,6 +413,7 @@ const handlers = {
     send(ws, { type: 'achievements_defs', list: ACHIEVEMENTS, mine: achievements.unlockedOf(player.id) });
     send(ws, { type: 'season', ...achievements.season() });
     send(ws, { type: 'pool_state', ...pool.view(player) });
+    send(ws, { type: 'duel_state', ...duel.view(player) });
     table.setConnected(player, true);
     send(ws, { type: 'poker_state', ...table.view(player) });
     send(ws, { type: 'chat_history', messages: chatLog });
@@ -474,6 +496,22 @@ const handlers = {
 
   pool_concede(ws) {
     reply(ws, pool.concede(ws.player));
+  },
+
+  duel_invite(ws, msg) {
+    reply(ws, duel.invite(ws.player, msg.toId, msg.game, msg.stake));
+  },
+
+  duel_cancel(ws) {
+    reply(ws, duel.cancel(ws.player));
+  },
+
+  duel_accept(ws, msg) {
+    reply(ws, duel.accept(ws.player, msg.inviteId));
+  },
+
+  duel_decline(ws, msg) {
+    reply(ws, duel.decline(ws.player, msg.inviteId));
   },
 
   upgrade_spin(ws, msg) {
@@ -596,6 +634,8 @@ function shutdown() {
     bomb.refundAll();
     pool.stop();
     pool.refundAll();
+    duel.stop();
+    duel.settleAll();
     table.stop();
     table.refundAll();
     upgrader.settleAll();
@@ -622,6 +662,7 @@ app.use('/admin/api', createAdminRouter({
   achievements,
   luck,
   pool,
+  duel,
   music,
   songRequests,
   chat: {
@@ -662,6 +703,7 @@ table.start();
 roulette.start();
 bomb.start();
 pool.start();
+duel.start();
 
 server.listen(PORT, HOST, () => {
   console.log(`Казино-зал: http://${HOST === '0.0.0.0' ? 'localhost' : HOST}:${PORT}`);
