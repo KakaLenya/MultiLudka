@@ -22,6 +22,15 @@ $script:server = $null       # процесс сервера, если запу�
 $script:tunnel = $null       # процесс туннеля, если запустили его мы
 $script:hostName = $null     # xxx.trycloudflare.com
 $script:closing = $false
+$script:retryAt = $null      # когда снова запускать упавший туннель
+$script:failures = 0         # сколько раз подряд туннель не поднялся
+$script:ticks = 0
+$script:startedAt = Get-Date
+$script:own = $false         # туннелем управляем мы (а не подхватили чужой)
+$script:attempt = 0          # номер попытки: нечётные — через запрос, чётные — обычный cloudflared
+$script:req = $null          # процесс curl, который запрашивает туннель
+$script:apiHost = $null      # ссылка, выданная по запросу (готова, когда cloudflared подключится)
+$curl = (Get-Command curl.exe -ErrorAction SilentlyContinue).Source
 
 # ---------- Проверки ----------
 
@@ -33,18 +42,30 @@ function Test-Port {
   } catch { return $false } finally { $c.Close() }
 }
 
-# Ссылка нашего туннеля — из его журнала (файл занят cloudflared, читаем с общим доступом).
-function Get-OwnTunnelHost {
+# Журнал нашего туннеля (файл занят cloudflared, читаем с общим доступом).
+function Read-TunnelLog {
   $file = Join-Path $logs 'tunnel.log'
-  if (-not (Test-Path $file)) { return $null }
+  if (-not (Test-Path $file)) { return '' }
   try {
     $fs = [System.IO.File]::Open($file, 'Open', 'Read', 'ReadWrite')
     $reader = New-Object System.IO.StreamReader($fs)
     $content = $reader.ReadToEnd()
     $reader.Close()
-    $m = [regex]::Match($content, 'https://([a-z0-9-]+\.trycloudflare\.com)')
-    if ($m.Success) { return $m.Groups[1].Value }
-  } catch { }
+    return $content
+  } catch { return '' }
+}
+
+# Ссылка нашего туннеля: выданная по запросу — когда cloudflared подключился, иначе — из журнала.
+function Get-OwnTunnelHost {
+  if ($script:req) { return $null }   # туннель ещё запрашивается
+  $content = Read-TunnelLog
+  if ($script:apiHost) {
+    if ($content -match 'Registered tunnel connection') { return $script:apiHost }
+    return $null
+  }
+  # Ссылка зала — из нескольких слов через дефис (api.trycloudflare.com — это сам Cloudflare).
+  $m = [regex]::Match($content, 'https://([a-z0-9]+(?:-[a-z0-9]+)+\.trycloudflare\.com)')
+  if ($m.Success) { return $m.Groups[1].Value }
   return $null
 }
 
@@ -69,17 +90,56 @@ function Start-Server {
     -RedirectStandardOutput (Join-Path $logs 'server.log') -RedirectStandardError (Join-Path $logs 'server-errors.log')
 }
 
-function Start-Tunnel {
-  $script:hostName = $null
-  $script:tunnel = Start-Process -FilePath $cf -ArgumentList 'tunnel', '--protocol', 'http2', '--url', $local `
-    -WindowStyle Hidden -PassThru `
+function Start-Cloudflared($arguments) {
+  $script:tunnel = Start-Process -FilePath $cf -ArgumentList $arguments -WindowStyle Hidden -PassThru `
     -RedirectStandardOutput (Join-Path $logs 'tunnel-out.log') -RedirectStandardError (Join-Path $logs 'tunnel.log')
 }
 
+# Два способа получить быструю ссылку, по очереди, пока один не сработает:
+# 1) запросить туннель у Cloudflare самим (curl, HTTP/1.1) и дать cloudflared готовые ключи —
+#    так работает, даже когда cloudflared не дожидается ответа Cloudflare («context deadline exceeded»);
+# 2) обычный cloudflared tunnel --url.
+function Start-Tunnel {
+  Stop-Tunnel
+  Remove-Item (Join-Path $logs 'tunnel.log') -ErrorAction SilentlyContinue   # чтобы не прочитать старую ссылку
+  $script:own = $true
+  $script:attempt++
+  if ($curl -and $script:attempt % 2 -eq 1) {
+    $out = Join-Path $logs 'quick-tunnel-request.json'
+    Remove-Item $out -ErrorAction SilentlyContinue
+    $script:req = Start-Process -FilePath $curl -WindowStyle Hidden -PassThru `
+      -ArgumentList '-4', '-s', '-m', '40', '-X', 'POST', 'https://api.trycloudflare.com/tunnel', '-o', "`"$out`""
+  } else {
+    Start-Cloudflared @('tunnel', '--no-autoupdate', '--protocol', 'http2', '--url', $local)
+  }
+}
+
+# Запрос туннеля закончился: ключи — в файл, cloudflared — подключаться.
+function Complete-TunnelRequest {
+  $out = Join-Path $logs 'quick-tunnel-request.json'
+  $r = $null
+  try { $r = (Get-Content $out -Raw | ConvertFrom-Json).result } catch { }
+  if (-not $r -or -not $r.id) { Set-TunnelFailed; return }
+  $creds = Join-Path $logs 'quick-tunnel.json'
+  @{ AccountTag = $r.account_tag; TunnelSecret = $r.secret; TunnelID = $r.id } | ConvertTo-Json | Set-Content -Path $creds -Encoding ASCII
+  $script:apiHost = $r.hostname
+  Start-Cloudflared @('tunnel', '--no-autoupdate', '--protocol', 'http2', '--url', $local, 'run', '--credentials-file', "`"$creds`"", $r.id)
+}
+
+function Set-TunnelFailed {
+  $script:hostName = $null
+  $script:failures++
+  $script:retryAt = (Get-Date).AddSeconds(5)
+}
+
 function Stop-Tunnel {
+  if ($script:req -and -not $script:req.HasExited) { Stop-Process -Id $script:req.Id -Force -ErrorAction SilentlyContinue }
   if ($script:tunnel -and -not $script:tunnel.HasExited) { Stop-Process -Id $script:tunnel.Id -Force -ErrorAction SilentlyContinue }
+  $script:req = $null
   $script:tunnel = $null
   $script:hostName = $null
+  $script:apiHost = $null
+  $script:retryAt = $null
 }
 
 # Аккуратная остановка: сервер сам вернёт фишки из игр и сохранит данные.
@@ -208,8 +268,8 @@ $tokenCopy.Add_Click({
   if (Test-Path $file) { Copy-Text $tokenCopy ((Get-Content $file -Raw).Trim()) }
 })
 $newLink.Add_Click({
-  Stop-Tunnel
   $friendsBox.Text = 'новая ссылка через ~10 секунд…'
+  $script:failures = 0
   Start-Tunnel
 })
 $restart.Add_Click({
@@ -233,13 +293,37 @@ $timer.Add_Tick({
     $serverLabel.Text = 'Сервер: ● не отвечает'
     $serverLabel.ForeColor = $red
   }
-  if (-not $script:hostName) { $script:hostName = if ($script:tunnel) { Get-OwnTunnelHost } else { Get-TunnelHost } }
-  if ($script:tunnel -and $script:tunnel.HasExited) { $script:hostName = $null }
+  $script:ticks++
+  if ($script:req -and $script:req.HasExited) {
+    $script:req = $null
+    Complete-TunnelRequest
+  }
+  # cloudflared завершился: не достучался до Cloudflare или упал. Через 5 с — другим способом.
+  if ($script:tunnel -and $script:tunnel.HasExited -and -not $script:retryAt) { Set-TunnelFailed }
+  if ($script:retryAt) {
+    if ((Get-Date) -ge $script:retryAt) { Start-Tunnel }
+  } elseif ($script:own) {
+    if (-not $script:hostName) { $script:hostName = Get-OwnTunnelHost }
+  } elseif (-not $script:hostName) {
+    $script:hostName = Get-TunnelHost
+    # Чужого туннеля так и не нашлось — поднимаем свой.
+    if (-not $script:hostName -and ((Get-Date) - $script:startedAt).TotalSeconds -gt 8) { Start-Tunnel }
+  } elseif ($script:ticks % 7 -eq 0 -and -not (Get-TunnelHost)) {
+    $script:hostName = $null   # чужой туннель пропал — на следующем тике поднимем свой
+    $script:startedAt = Get-Date
+  }
+
   if ($script:hostName) {
+    $script:failures = 0
     $tunnelLabel.Text = 'Туннель: ● ссылка готова'
     $tunnelLabel.ForeColor = $green
     $friendsBox.Text = "https://$($script:hostName)"
     $phoneBox.Text = "https://$($script:hostName)/admin.html"
+  } elseif ($script:failures -gt 0) {
+    $tunnelLabel.Text = 'Туннель: ● нет связи с Cloudflare, пробую снова…'
+    $tunnelLabel.ForeColor = $red
+    $friendsBox.Text = "нет связи с Cloudflare, попытка №$($script:failures + 1)…"
+    $phoneBox.Text = '—'
   } else {
     $tunnelLabel.Text = 'Туннель: получаю ссылку…'
     $tunnelLabel.ForeColor = $muted
@@ -272,7 +356,7 @@ if (-not $script:hostName) { Start-Tunnel }
 # Для проверки без человека: CASINO_SNAPSHOT=путь.png — снимок окна через 12 с и выход без остановки зала.
 if ($env:CASINO_SNAPSHOT) {
   $snap = New-Object System.Windows.Forms.Timer
-  $snap.Interval = 12000
+  $snap.Interval = if ($env:CASINO_SNAPSHOT_MS) { [int]$env:CASINO_SNAPSHOT_MS } else { 12000 }
   $snap.Add_Tick({
     $snap.Stop()
     $bmp = New-Object System.Drawing.Bitmap($form.Width, $form.Height)
