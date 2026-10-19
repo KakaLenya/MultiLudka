@@ -225,3 +225,9 @@ test('API: режим везения — включить, проверить, �
     assert.equal(st.players.find((p) => p.id === a.id).luck, 0);
   });
 });
+
+test('API: выключение зала — только с этого компьютера или с токеном', async () => {
+  await withServer(async ({ base }) => {
+    assert.equal((await post(`${base}/shutdown`, {}, { 'cf-connecting-ip': '1.2.3.4' })).status, 403);
+  });
+});

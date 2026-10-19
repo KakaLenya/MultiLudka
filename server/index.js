@@ -646,6 +646,7 @@ app.use('/admin/api', createAdminRouter({
       ws.close(4001, 'deleted');
     }
   },
+  shutdown,
 }));
 
 crash.start();

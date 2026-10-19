@@ -1,6 +1,7 @@
 @echo off
 chcp 65001 >nul
-rem Запуск казино-зала без Claude: сервер + туннель cloudflared, каждый в своём окне.
+rem Запуск казино-зала без Claude: открывает пульт, который запускает сервер и туннель
+rem и показывает ссылку для друзей и адрес админки.
 cd /d "%~dp0"
 title Казино-зал
 
@@ -28,20 +29,8 @@ if not exist "%CF%" if not "%CF%"=="cloudflared" (
   pause
   exit /b 1
 )
+if "%CF%"=="cloudflared" set "CF="
+set "CASINO_CF=%CF%"
 
-start "Казино-зал: сервер" cmd /k node server\index.js
-timeout /t 2 /nobreak >nul
-start "Казино-зал: туннель" cmd /k ""%CF%" tunnel --protocol http2 --url http://127.0.0.1:3000"
-
-echo.
-echo Открылись два окна:
-echo   "сервер"  - сам зал. Закроешь его - зал выключится.
-echo   "туннель" - через ~10 секунд там появится ссылка https://....trycloudflare.com
-echo              Её и отправляй друзьям. При каждом запуске ссылка новая.
-echo.
-echo Зал на этом компьютере:  http://127.0.0.1:3000
-echo Админка:                 http://127.0.0.1:3000/admin.html
-echo.
-echo Остановить: Ctrl+C в окне "сервер" (фишки со столов вернутся игрокам), потом закрыть оба окна.
-echo.
-pause
+rem Пульт — окно с кнопками. Это консольное окно можно закрыть, зал от этого не выключится.
+start "" powershell.exe -NoProfile -STA -ExecutionPolicy Bypass -WindowStyle Hidden -File "%~dp0launcher.ps1"

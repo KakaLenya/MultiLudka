@@ -25,7 +25,7 @@ function tokenMatches(given, expected) {
 
 function createAdminRouter({
   adminToken, store, crash, table, roulette, bomb, upgrader, verity, achievements, luck, pool, music, songRequests, chat, mutes, cleanText,
-  onlineIds, sendToPlayer, broadcast, refreshLists, disconnectPlayer = () => {},
+  onlineIds, sendToPlayer, broadcast, refreshLists, disconnectPlayer = () => {}, shutdown = () => {},
 }) {
   const router = express.Router();
   router.use(express.json({ limit: '4kb' }));
@@ -163,6 +163,12 @@ function createAdminRouter({
   });
 
   // { text, style: "banner" | "chat" }
+  // Выключить зал аккуратно (как Ctrl+C): фишки из игр вернутся игрокам. Нужен пульту запуска.
+  router.post('/shutdown', (req, res) => {
+    ok(res);
+    setTimeout(shutdown, 200);
+  });
+
   router.post('/announce', (req, res) => {
     const text = cleanText(req.body.text);
     if (!text) return fail(res, 'Пустой текст');
