@@ -251,8 +251,8 @@ function createAchievements({
     return { startedAt: season.startedAt, endsAt: season.endsAt, top: ranking().slice(0, SEASON_TOP), hall: hall.slice() };
   }
 
+  // Итоги прошедшей недели подводит первый tick() — уже после запуска сервера (onSeasonEnd пишет в чат).
   load();
-  tick();
 
   return {
     record,

@@ -190,6 +190,7 @@ store.onChange((player) => {
 const luck = createLuck({ file: path.join(DATA_DIR, 'luck.json') });
 
 // Достижения и недельный сезон.
+let seasonTimer = null;
 const achievements = createAchievements({
   file: path.join(DATA_DIR, 'achievements.json'),
   store,
@@ -206,7 +207,6 @@ const achievements = createAchievements({
 });
 store.onChange((player) => achievements.checkCapital(player, store.capital(player)));
 
-let seasonTimer = null;
 function scheduleSeason() {
   if (seasonTimer) return;
   seasonTimer = setTimeout(() => {
