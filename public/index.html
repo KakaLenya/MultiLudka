@@ -47,6 +47,7 @@
           <button type="button" class="tab" data-tab="roulette">🎡 Рулетка</button>
           <button type="button" class="tab" data-tab="upgrade">⬆️ Апгрейд</button>
           <button type="button" class="tab" data-tab="plinko">🔺 Плинко</button>
+          <button type="button" class="tab" data-tab="mines">💎 Мины</button>
           <button type="button" class="tab" data-tab="verity">😊 Верити</button>
           <button type="button" class="tab" data-tab="duel">⚔️ Дуэль <span class="dot" id="duel-dot" hidden></span></button>
           <button type="button" class="tab" data-tab="bomb">💣 Бомба <span class="dot" id="bomb-dot" hidden></span></button>
@@ -156,6 +157,44 @@
           </div>
           <h2 class="u-feed-title">Лента плинко</h2>
           <ul class="list u-feed" id="pk-feed"></ul>
+        </section>
+
+        <section class="card minesgame" id="mines" hidden>
+          <div class="mn-wrap">
+            <div class="mn-side">
+              <label class="field">
+                <span>Ставка</span>
+                <input id="mn-amount" type="number" min="1" step="1" value="100" inputmode="numeric">
+              </label>
+              <div class="quick">
+                <button type="button" class="ghost" data-mq="half">½</button>
+                <button type="button" class="ghost" data-mq="double">×2</button>
+                <button type="button" class="ghost" data-mq="max">макс</button>
+              </div>
+              <div class="field">
+                <span>Мин на поле: <b id="mn-count-label">3</b></span>
+                <input type="range" id="mn-count" min="1" max="24" step="1" value="3" aria-label="Сколько мин">
+                <div class="seg mn-presets">
+                  <button type="button" data-mc="1">1</button>
+                  <button type="button" data-mc="3">3</button>
+                  <button type="button" data-mc="5">5</button>
+                  <button type="button" data-mc="10">10</button>
+                  <button type="button" data-mc="24">24</button>
+                </div>
+              </div>
+              <div class="mn-info">
+                <div><span>Множитель</span><b id="mn-mult">×1,00</b></div>
+                <div><span>Следующая клетка</span><b id="mn-next">×1,12</b></div>
+                <div><span>Заберёшь</span><b id="mn-payout">—</b></div>
+              </div>
+              <button type="button" class="action" id="mn-go">💣 Играть</button>
+              <button type="button" class="ghost" id="mn-random" hidden>🎲 Случайная клетка</button>
+              <div class="u-result" id="mn-result"></div>
+            </div>
+            <div class="mn-grid" id="mn-grid" aria-label="Минное поле"></div>
+          </div>
+          <h2 class="u-feed-title">Лента мин</h2>
+          <ul class="list u-feed" id="mn-feed"></ul>
         </section>
 
         <section class="card verity" id="verity" hidden>

@@ -13,6 +13,7 @@ const { createBomb } = require('./bomb');
 const { createUpgrader } = require('./upgrader');
 const { createVerity } = require('./verity');
 const { createPlinko } = require('./plinko');
+const { createMines } = require('./mines');
 const { createAchievements, ACHIEVEMENTS } = require('./achievements');
 const { createLuck } = require('./luck');
 const { createPool } = require('./pool');
@@ -265,6 +266,14 @@ const plinko = createPlinko({
 });
 store.addReserver(plinko.reserved);
 
+const mines = createMines({
+  store,
+  lucky: luck.roll,
+  onEvent: onActivity,
+  onFeed: (feed) => broadcast({ type: 'mines_feed', feed }),
+});
+store.addReserver(mines.reserved);
+
 // Текущий трек переживает перезапуск сервера: пишем его в data/music-now.json.
 const MUSIC_NOW_FILE = path.join(DATA_DIR, 'music-now.json');
 const music = createMusic({
@@ -419,6 +428,8 @@ const handlers = {
     send(ws, { type: 'upgrade_feed', feed: upgrader.feed() });
     send(ws, { type: 'verity_feed', feed: verity.feed() });
     send(ws, { type: 'plinko_feed', feed: plinko.feed() });
+    send(ws, { type: 'mines_feed', feed: mines.feed() });
+    send(ws, { type: 'mines_state', ...mines.view(player) });
     send(ws, { type: 'activity_history', entries: activity });
     send(ws, { type: 'achievements_defs', list: ACHIEVEMENTS, mine: achievements.unlockedOf(player.id) });
     send(ws, { type: 'season', ...achievements.season() });
@@ -528,6 +539,24 @@ const handlers = {
     const result = upgrader.spin(ws.player, msg.amount, msg.chance);
     if (result.error) return send(ws, { type: 'error', message: result.error });
     send(ws, { type: 'upgrade_result', ...result.spin });
+  },
+
+  mines_start(ws, msg) {
+    const result = mines.start(ws.player, msg.amount, Number(msg.mines));
+    if (result.error) return send(ws, { type: 'error', message: result.error });
+    send(ws, { type: 'mines_state', ...result.state });
+  },
+
+  mines_pick(ws, msg) {
+    const result = mines.pick(ws.player, msg.tile);
+    if (result.error) return send(ws, { type: 'error', message: result.error });
+    send(ws, { type: 'mines_state', ...result.state, picked: msg.tile });
+  },
+
+  mines_cashout(ws) {
+    const result = mines.cashout(ws.player);
+    if (result.error) return send(ws, { type: 'error', message: result.error });
+    send(ws, { type: 'mines_state', ...result.state });
   },
 
   plinko_drop(ws, msg) {
@@ -657,6 +686,7 @@ function shutdown() {
     upgrader.settleAll();
     verity.settleAll();
     plinko.settleAll();
+    mines.settleAll();
     store.flush();
     achievements.flush();
   } finally {
@@ -677,6 +707,7 @@ app.use('/admin/api', createAdminRouter({
   upgrader,
   verity,
   plinko,
+  mines,
   achievements,
   luck,
   pool,

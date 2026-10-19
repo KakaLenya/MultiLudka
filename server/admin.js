@@ -24,7 +24,7 @@ function tokenMatches(given, expected) {
 }
 
 function createAdminRouter({
-  adminToken, store, crash, table, roulette, bomb, upgrader, verity, plinko = null, achievements, luck, pool, duel = null, music, songRequests, chat, mutes, cleanText,
+  adminToken, store, crash, table, roulette, bomb, upgrader, verity, plinko = null, mines = null, achievements, luck, pool, duel = null, music, songRequests, chat, mutes, cleanText,
   onlineIds, sendToPlayer, broadcast, refreshLists, disconnectPlayer = () => {}, shutdown = () => {},
 }) {
   const router = express.Router();
@@ -66,7 +66,7 @@ function createAdminRouter({
         createdAt: p.createdAt,
       }))
       .sort((a, b) => b.online - a.online || b.capital - a.capital);
-    res.json({ players, crash: crash.adminState(), roulette: roulette.adminState(), bomb: bomb.adminState(), upgrader: upgrader.adminState(), verity: verity.adminState(), plinko: plinko ? plinko.adminState() : null, season: achievements.adminState(), pool: pool.adminState(), duel: duel ? duel.adminState() : null, poker: table.adminView(), chat: chat.log(),
+    res.json({ players, crash: crash.adminState(), roulette: roulette.adminState(), bomb: bomb.adminState(), upgrader: upgrader.adminState(), verity: verity.adminState(), plinko: plinko ? plinko.adminState() : null, mines: mines ? mines.adminState() : null, season: achievements.adminState(), pool: pool.adminState(), duel: duel ? duel.adminState() : null, poker: table.adminView(), chat: chat.log(),
       music: { current: music.state(), playlist: music.playlist(), autoplay: music.autoplay() },
       requests: songRequests.list() });
   });
@@ -141,6 +141,7 @@ function createAdminRouter({
     if (duel) duel.forget(p.id);
     achievements.forget(p.id);
     luck.forget(p.id);
+    if (mines) mines.forget(p.id);
     const result = store.remove(p);
     if (result.error) return fail(res, result.error);
     disconnectPlayer(p);
@@ -262,6 +263,15 @@ function createAdminRouter({
 
   // { mode: 'good' | 'evil' | null } — каким будет Верити в следующий раз.
   // { mode: 'edge' | null } — следующий шарик плинко любого игрока в крайнюю лунку.
+  // { mode: 'boom' | null } — следующий клик в минах любого игрока попадёт на мину.
+  router.post('/mines/rig', (req, res) => {
+    if (!mines) return fail(res, 'Мины не подключены');
+    const mode = req.body.mode === undefined ? null : req.body.mode;
+    const result = mines.rig(mode);
+    if (result.error) return fail(res, result.error);
+    ok(res);
+  });
+
   router.post('/plinko/rig', (req, res) => {
     if (!plinko) return fail(res, 'Плинко не подключено');
     const mode = req.body.mode === undefined ? null : req.body.mode;

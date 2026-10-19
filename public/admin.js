@@ -317,6 +317,17 @@ function renderSeasonAdmin() {
     : [li('На этой неделе ещё никто не играл', 'muted')]));
 }
 
+function renderMinesAdmin() {
+  const m = admin.data.mines;
+  if (!m) return;
+  $('mn-admin-info').textContent = m.rigged === 'boom' ? 'Следующий клик любого игрока попадёт на мину' : 'Честно';
+  const rows = [
+    ...m.playing.map((g) => li(`▶ ${g.name}: ставка ${g.bet}, мин ${g.mines}, открыто ${g.picks} (×${g.multiplier})`)),
+    ...m.feed.slice(0, 6).map((e) => li(`${e.name}: ${e.bet} → ${e.payout} (${e.mines} мин, ${e.picks} кл.)`)),
+  ];
+  $('mn-admin-list').replaceChildren(...(rows.length ? rows : [li('В мины ещё никто не играл', 'muted')]));
+}
+
 function renderPlinkoAdmin() {
   const p = admin.data.plinko;
   if (!p) return;
@@ -408,6 +419,7 @@ function render() {
   renderUpgraderAdmin();
   renderVerityAdmin();
   renderPlinkoAdmin();
+  renderMinesAdmin();
   renderSeasonAdmin();
   renderBombAdmin();
   renderPoker();
@@ -565,6 +577,8 @@ document.querySelectorAll('[data-luck]').forEach((b) => b.addEventListener('clic
   run('/luck', { playerId: p.id, percent }, percent ? `🍀 ${p.name}: везение ${percent}%` : `${p.name}: везение выключено`);
 }));
 
+$('mn-rig-boom').addEventListener('click', () => run('/mines/rig', { mode: 'boom' }, 'Следующий клик в минах — мина'));
+$('mn-rig-off').addEventListener('click', () => run('/mines/rig', { mode: null }, 'Мины снова честные'));
 $('pk-rig-edge').addEventListener('click', () => run('/plinko/rig', { mode: 'edge' }, 'Следующий шарик плинко упадёт в край'));
 $('pk-rig-off').addEventListener('click', () => run('/plinko/rig', { mode: null }, 'Плинко снова честное'));
 

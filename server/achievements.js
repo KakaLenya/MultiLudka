@@ -11,11 +11,11 @@ const MSK = 3 * 60 * 60 * 1000;
 const HALL_SIZE = 12;
 const SEASON_TOP = 10;
 const SAVE_DELAY_MS = 1000;
-const GAMES = ['crash', 'roulette', 'upgrade', 'verity', 'plinko', 'bomb', 'pool', 'poker'];
+const GAMES = ['crash', 'roulette', 'upgrade', 'verity', 'plinko', 'mines', 'bomb', 'pool', 'poker'];
 
 const ACHIEVEMENTS = [
   { id: 'first_win', icon: '🩸', name: 'Первая кровь', desc: 'Выиграть в любой игре' },
-  { id: 'regular', icon: '🎪', name: 'Завсегдатай', desc: 'Сыграть во все восемь игр зала' },
+  { id: 'regular', icon: '🎪', name: 'Завсегдатай', desc: 'Сыграть во все девять игр зала' },
   { id: 'big_win', icon: '💰', name: 'Крупный куш', desc: 'Выиграть 10 000 за раз' },
   { id: 'jackpot', icon: '💎', name: 'Джекпот', desc: 'Выиграть 100 000 за раз' },
   { id: 'high_roller', icon: '🎩', name: 'Хайроллер', desc: 'Поставить 50 000 за раз' },
@@ -31,6 +31,8 @@ const ACHIEVEMENTS = [
   { id: 'verity_evil', icon: '😈', name: 'Ужин Верити', desc: 'Злой Верити 5 раз подряд' },
   { id: 'plinko_edge', icon: '🔺', name: 'В самый край', desc: 'Попасть шариком плинко в крайнюю лунку' },
   { id: 'plinko_1000', icon: '🌠', name: 'Тысяча!', desc: 'Поймать ×1000 в плинко' },
+  { id: 'mines_x10', icon: '💎', name: 'Алмазная жила', desc: 'Забрать в минах ×10 или больше' },
+  { id: 'mines_clear', icon: '🧹', name: 'Чистое поле', desc: 'Открыть в минах все безопасные клетки' },
   { id: 'bomb_win', icon: '🧨', name: 'Сапёр', desc: 'Выиграть в Бомбе' },
   { id: 'bomb_boom', icon: '💥', name: 'Бабах', desc: 'Взорваться в Бомбе' },
   { id: 'bomb_last', icon: '🦁', name: 'Последний герой', desc: 'Забрать банк Бомбы, когда все остальные сбежали' },
@@ -188,6 +190,10 @@ function createAchievements({
         break;
       case 'upgrade':
         if (kind === 'win' && meta.chance <= 5) unlock(player, 'upgrade_odds');
+        break;
+      case 'mines':
+        if (kind === 'win' && meta.multiplier >= 10) unlock(player, 'mines_x10');
+        if (kind === 'win' && meta.cleared) unlock(player, 'mines_clear');
         break;
       case 'plinko':
         if (meta.edge) unlock(player, 'plinko_edge');

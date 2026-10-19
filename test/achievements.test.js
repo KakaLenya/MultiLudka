@@ -81,11 +81,11 @@ test('Верити: пять раз подряд, серия сбрасывае�
   assert.ok(unlocked.includes('Аня:verity_evil'));
 });
 
-test('пул: пять побед — акула, все восемь игр — завсегдатай, большая ставка — хайроллер', () => {
+test('пул: пять побед — акула, все девять игр — завсегдатай, большая ставка — хайроллер', () => {
   const { a, ach, unlocked } = setup();
   for (let i = 0; i < 5; i++) ach.record({ game: 'pool', kind: 'win', player: a, amount: 100, meta: { byEight: i === 2 } });
   assert.ok(unlocked.includes('Аня:pool_shark') && unlocked.includes('Аня:pool_clean'));
-  for (const game of ['crash', 'roulette', 'upgrade', 'verity', 'plinko', 'bomb', 'poker']) {
+  for (const game of ['crash', 'roulette', 'upgrade', 'verity', 'plinko', 'mines', 'bomb', 'poker']) {
     ach.record({ game, kind: 'bet', player: a, amount: 10, meta: { stake: game === 'roulette' ? 50_000 : 10 } });
   }
   assert.ok(unlocked.includes('Аня:regular'));

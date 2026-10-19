@@ -137,7 +137,7 @@ function listItem(name, isSelf) {
 
 // Спрашиваем, только если игрок сам ввёл сумму в поле (не кнопками ½, ×2, «макс», не фишками)
 // и она больше половины баланса. В каждой игре — один раз до перезагрузки страницы.
-const BET_INPUTS = ['bet-amount', 'u-amount', 'vt-amount', 'b-amount', 'pl-stake', 'buyin', 'raise-amount', 'dv-stake', 'pk-amount'];
+const BET_INPUTS = ['bet-amount', 'u-amount', 'vt-amount', 'b-amount', 'pl-stake', 'buyin', 'raise-amount', 'dv-stake', 'pk-amount', 'mn-amount'];
 const confirmedGames = new Set();
 let betConfirm = null;   // { resolve } — окно открыто
 
@@ -446,13 +446,13 @@ const TAB_KEY = 'casino.tab';
 
 function showTab(name) {
   document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t.dataset.tab === name));
-  for (const id of ['crash', 'roulette', 'upgrade', 'plinko', 'verity', 'duel', 'bomb', 'pool', 'poker']) $(id).hidden = name !== id;
+  for (const id of ['crash', 'roulette', 'upgrade', 'plinko', 'mines', 'verity', 'duel', 'bomb', 'pool', 'poker']) $(id).hidden = name !== id;
   // канвас апгрейдера создаётся ниже по файлу: рисуем на следующем кадре
   if (name === 'upgrade') requestAnimationFrame(() => drawUpgrader());
   storage.set(TAB_KEY, name);
 }
 document.querySelectorAll('.tab').forEach((t) => t.addEventListener('click', () => showTab(t.dataset.tab)));
-showTab(['roulette', 'upgrade', 'plinko', 'verity', 'duel', 'bomb', 'pool', 'poker'].includes(storage.get(TAB_KEY)) ? storage.get(TAB_KEY) : 'crash');
+showTab(['roulette', 'upgrade', 'plinko', 'mines', 'verity', 'duel', 'bomb', 'pool', 'poker'].includes(storage.get(TAB_KEY)) ? storage.get(TAB_KEY) : 'crash');
 
 // ---------- Звуки (WebAudio, без файлов) ----------
 
@@ -2036,6 +2036,198 @@ function renderPlinkoFeed(feed) {
     return li;
   }) : [Object.assign(document.createElement('li'), { className: 'muted', textContent: 'Шарики ещё никто не бросал' })]));
 }
+
+// ---------- Мины ----------
+
+const MN_TILES = 25;
+const MN_KEY = 'casino.mines.count';
+// Как на сервере: честная вероятность минус 1%.
+function mnMult(mines, picks) {
+  if (picks === 0) return 1;
+  let m = 0.99;
+  for (let i = 0; i < picks; i++) m *= (MN_TILES - i) / (MN_TILES - mines - i);
+  return Math.floor(m * 100) / 100;
+}
+const mnFmt = (m) => `×${m.toFixed(2).replace('.', ',')}`;
+
+const mn = {
+  state: { active: false },
+  waiting: null,     // клетка, по которой кликнули и ждём ответа сервера
+  lastStatus: null,
+  tiles: [],
+};
+
+// Поле: 25 клеток.
+$('mn-grid').replaceChildren(...Array.from({ length: MN_TILES }, (_, i) => {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'mn-tile closed';
+  b.setAttribute('aria-label', `Клетка ${i + 1}`);
+  b.addEventListener('click', () => mnPick(i));
+  mn.tiles.push(b);
+  return b;
+}));
+
+function mnCount() {
+  return Math.max(1, Math.min(24, Math.round(Number($('mn-count').value) || 3)));
+}
+const savedCount = Number(storage.get(MN_KEY));
+if (savedCount >= 1 && savedCount <= 24) $('mn-count').value = savedCount;
+
+function mnRenderForm() {
+  const s = mn.state;
+  const count = s.active ? s.mines : mnCount();
+  $('mn-count-label').textContent = count;
+  document.querySelectorAll('[data-mc]').forEach((b) => {
+    b.classList.toggle('active', Number(b.dataset.mc) === count);
+    b.disabled = s.active;
+  });
+  $('mn-count').disabled = s.active;
+  $('mn-amount').disabled = s.active;
+  document.querySelectorAll('[data-mq]').forEach((b) => { b.disabled = s.active; });
+  const picks = s.active ? s.revealed.length : 0;
+  const mult = mnMult(count, picks);
+  $('mn-mult').textContent = mnFmt(mult);
+  $('mn-next').textContent = picks < MN_TILES - count ? mnFmt(mnMult(count, picks + 1)) : '—';
+  $('mn-payout').textContent = s.active && picks ? Math.floor(s.bet * mult + 1e-9) : '—';
+  const go = $('mn-go');
+  if (s.active) {
+    go.textContent = picks ? `💰 Забрать ${Math.floor(s.bet * mult + 1e-9)}` : '💰 Забрать (открой клетку)';
+    go.disabled = !picks || mn.waiting !== null;
+  } else {
+    go.textContent = '💣 Играть';
+    go.disabled = false;
+  }
+  $('mn-random').hidden = !s.active;
+  $('mines').classList.toggle('playing', !!s.active);
+}
+
+function mnRenderGrid() {
+  const s = mn.state;
+  const over = s.status === 'won' || s.status === 'lost';
+  const minesAt = new Set(s.minesAt || []);
+  mn.tiles.forEach((t, i) => {
+    const revealed = (s.revealed || []).includes(i);
+    let cls = 'mn-tile';
+    let txt = '';
+    if (mn.waiting === i) {
+      cls += ' closed wait';
+    } else if (revealed) {
+      cls += ' gem';
+      txt = '💎';
+    } else if (over && s.boom === i) {
+      cls += ' boom';
+      txt = '💥';
+    } else if (over && minesAt.has(i)) {
+      cls += ' mine-dim';
+      txt = '💣';
+    } else if (over) {
+      cls += ' gem-dim';
+      txt = '💎';
+    } else {
+      cls += ' closed';
+    }
+    // Не перезапускаем анимацию у уже открытых клеток.
+    if (t.className !== cls) t.className = cls;
+    if (t.textContent !== txt) t.textContent = txt;
+    t.disabled = !s.active || revealed || mn.waiting !== null;
+  });
+}
+
+function mnRender() {
+  mnRenderForm();
+  mnRenderGrid();
+}
+
+function mnPick(i) {
+  const s = mn.state;
+  if (!s.active || mn.waiting !== null || s.revealed.includes(i)) return;
+  mn.waiting = i;
+  mnRender();
+  send({ type: 'mines_pick', tile: i });
+}
+
+$('mn-random').addEventListener('click', () => {
+  const s = mn.state;
+  if (!s.active) return;
+  const free = [...Array(MN_TILES).keys()].filter((i) => !s.revealed.includes(i));
+  if (free.length) mnPick(free[Math.floor(Math.random() * free.length)]);
+});
+
+$('mn-go').addEventListener('click', async () => {
+  const s = mn.state;
+  if (s.active) {
+    if (s.revealed.length) send({ type: 'mines_cashout' });
+    return;
+  }
+  const amount = Math.max(0, Math.floor(Number($('mn-amount').value) || 0));
+  if (amount < 1) return toast('Ставка — от 1 фишки');
+  const count = mnCount();
+  if (!await confirmBet({ key: 'mines', game: '💣 Мины', amount, input: $('mn-amount'), note: `${count} ${count === 1 ? 'мина' : count < 5 ? 'мины' : 'мин'} на поле` })) return;
+  storage.set(MN_KEY, String(count));
+  send({ type: 'mines_start', amount, mines: count });
+});
+
+$('mn-count').addEventListener('input', mnRenderForm);
+document.querySelectorAll('[data-mc]').forEach((b) => b.addEventListener('click', () => {
+  $('mn-count').value = b.dataset.mc;
+  mnRenderForm();
+}));
+document.querySelectorAll('[data-mq]').forEach((b) => b.addEventListener('click', () => {
+  const v = Math.max(1, Math.floor(Number($('mn-amount').value) || 1));
+  const next = { half: Math.floor(v / 2), double: v * 2, max: state.balance }[b.dataset.mq];
+  $('mn-amount').value = Math.max(1, Math.min(next, Math.max(1, state.balance)));
+}));
+
+// Ответ сервера: новое состояние игры.
+function mnApply(msg) {
+  const prev = mn.state;
+  mn.state = msg;
+  mn.waiting = null;
+  const res = $('mn-result');
+  if (msg.status === 'playing' && msg.picked !== undefined && msg.revealed.includes(msg.picked)) {
+    // Алмаз: тон выше с каждой клеткой.
+    beep([[523 * 2 ** (msg.revealed.length / 12), 0.07], [784 * 2 ** (msg.revealed.length / 12), 0.12]], 'triangle');
+  }
+  if (msg.status === 'playing' && (!prev.active || prev.status !== 'playing')) {
+    res.textContent = '';
+    res.className = 'u-result';
+  }
+  if (msg.status === 'lost' && mn.lastStatus === 'playing') {
+    beep([[140, 0.18], [70, 0.4]], 'sawtooth');
+    $('mines').classList.remove('shake');
+    void $('mines').offsetWidth;
+    $('mines').classList.add('shake');
+    setTimeout(() => $('mines').classList.remove('shake'), 500);
+    res.textContent = `💥 Мина! −${msg.bet}`;
+    res.className = 'u-result lose';
+  }
+  if (msg.status === 'won' && mn.lastStatus === 'playing') {
+    const mult = mnMult(msg.mines, msg.revealed.length);
+    res.textContent = `Забрал ${msg.payout} (${mnFmt(mult)}, +${msg.payout - msg.bet})`;
+    res.className = 'u-result win';
+    sounds.win();
+    if (mult >= 10) effects.confetti();
+  }
+  mn.lastStatus = msg.status || null;
+  mnRender();
+}
+
+function renderMinesFeed(feed) {
+  const myId = state.me && state.me.playerId;
+  $('mn-feed').replaceChildren(...(feed.length ? feed.map((e) => {
+    const li = document.createElement('li');
+    li.className = e.payout > e.bet ? 'win' : 'lose';
+    if (e.playerId === myId) li.classList.add('self');
+    li.append(avatarEl(e.name));
+    const name = Object.assign(document.createElement('span'), { className: 'name', textContent: e.name });
+    const what = Object.assign(document.createElement('span'), { className: 'u-what', textContent: e.payout ? `${e.bet} → ${e.payout}` : `${e.bet} 💥` });
+    const m = Object.assign(document.createElement('span'), { className: 'u-ch', textContent: `${e.mines} мин · ${e.payout ? mnFmt(e.multiplier) : `на ${e.picks + 1}-й`}` });
+    li.append(name, what, m);
+    return li;
+  }) : [Object.assign(document.createElement('li'), { className: 'muted', textContent: 'В мины ещё никто не играл' })]));
+}
+mnRender();
 
 // ---------- Верити ----------
 
@@ -3806,6 +3998,7 @@ const ACT_GAMES = {
   upgrade: { icon: '⬆️', name: 'Апгрейд' },
   verity: { icon: '😊', name: 'Верити' },
   plinko: { icon: '🔺', name: 'Плинко' },
+  mines: { icon: '💎', name: 'Мины' },
   poker: { icon: '🃏', name: 'Покер' },
   pool: { icon: '🎱', name: 'Пул' },
   duel: { icon: '⚔️', name: 'Дуэль' },
@@ -4130,6 +4323,14 @@ const handlers = {
     renderUpgradeFeed(msg.feed);
   },
 
+  mines_state(msg) {
+    mnApply(msg);
+  },
+
+  mines_feed(msg) {
+    renderMinesFeed(msg.feed);
+  },
+
   plinko_ball(msg) {
     pkAddBall(msg);
   },
@@ -4304,6 +4505,10 @@ const handlers = {
       releaseBalance();
     }
     vtCancelPending();
+    if (mn.waiting !== null) {
+      mn.waiting = null;
+      mnRender();
+    }
     if (msg.code === 'bad_token') {
       state.token = null;
       storage.remove(TOKEN_KEY);
