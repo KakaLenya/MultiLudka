@@ -137,7 +137,7 @@ function listItem(name, isSelf) {
 
 // Спрашиваем, только если игрок сам ввёл сумму в поле (не кнопками ½, ×2, «макс», не фишками)
 // и она больше половины баланса. В каждой игре — один раз до перезагрузки страницы.
-const BET_INPUTS = ['bet-amount', 'u-amount', 'vt-amount', 'b-amount', 'pl-stake', 'buyin', 'raise-amount', 'dv-stake'];
+const BET_INPUTS = ['bet-amount', 'u-amount', 'vt-amount', 'b-amount', 'pl-stake', 'buyin', 'raise-amount', 'dv-stake', 'pk-amount'];
 const confirmedGames = new Set();
 let betConfirm = null;   // { resolve } — окно открыто
 
@@ -445,13 +445,13 @@ const TAB_KEY = 'casino.tab';
 
 function showTab(name) {
   document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t.dataset.tab === name));
-  for (const id of ['crash', 'roulette', 'upgrade', 'verity', 'duel', 'bomb', 'pool', 'poker']) $(id).hidden = name !== id;
+  for (const id of ['crash', 'roulette', 'upgrade', 'plinko', 'verity', 'duel', 'bomb', 'pool', 'poker']) $(id).hidden = name !== id;
   // канвас апгрейдера создаётся ниже по файлу: рисуем на следующем кадре
   if (name === 'upgrade') requestAnimationFrame(() => drawUpgrader());
   storage.set(TAB_KEY, name);
 }
 document.querySelectorAll('.tab').forEach((t) => t.addEventListener('click', () => showTab(t.dataset.tab)));
-showTab(['roulette', 'upgrade', 'verity', 'duel', 'bomb', 'pool', 'poker'].includes(storage.get(TAB_KEY)) ? storage.get(TAB_KEY) : 'crash');
+showTab(['roulette', 'upgrade', 'plinko', 'verity', 'duel', 'bomb', 'pool', 'poker'].includes(storage.get(TAB_KEY)) ? storage.get(TAB_KEY) : 'crash');
 
 // ---------- Звуки (WebAudio, без файлов) ----------
 
@@ -1704,6 +1704,318 @@ $('u-go').addEventListener('click', async () => {
 });
 renderUpgradeForm();
 
+// ---------- Плинко ----------
+
+// Множители как на сервере (server/plinko.js).
+const PK_TABLES = {
+  8: {
+    low: [5.6, 2.1, 1.1, 1, 0.5, 1, 1.1, 2.1, 5.6],
+    medium: [13, 3, 1.3, 0.7, 0.4, 0.7, 1.3, 3, 13],
+    high: [29, 4, 1.5, 0.3, 0.2, 0.3, 1.5, 4, 29],
+  },
+  12: {
+    low: [10, 3, 1.6, 1.4, 1.1, 1, 0.5, 1, 1.1, 1.4, 1.6, 3, 10],
+    medium: [33, 11, 4, 2, 1.1, 0.6, 0.3, 0.6, 1.1, 2, 4, 11, 33],
+    high: [170, 24, 8.1, 2, 0.7, 0.2, 0.2, 0.2, 0.7, 2, 8.1, 24, 170],
+  },
+  16: {
+    low: [16, 9, 2, 1.4, 1.4, 1.2, 1.1, 1, 0.5, 1, 1.1, 1.2, 1.4, 1.4, 2, 9, 16],
+    medium: [110, 41, 10, 5, 3, 1.5, 1, 0.5, 0.3, 0.5, 1, 1.5, 3, 5, 10, 41, 110],
+    high: [1000, 130, 26, 9, 4, 2, 0.2, 0.2, 0.2, 0.2, 0.2, 2, 4, 9, 26, 130, 1000],
+  },
+};
+const PK_ROW_MS = 170;
+const PK_LAND_MS = 450;
+const PK_KEY = 'casino.plinko';
+
+const pk = {
+  rows: 12,
+  risk: 'medium',
+  balls: [],            // { path, slot, t0, color, payout, amount, multiplier, landed, mine }
+  pegHits: new Map(),   // 'ряд:номер' -> когда задет
+  slotHits: new Map(),  // номер лунки -> когда упал шарик
+  inFlight: 0,
+  auto: null,
+  history: [],
+  lastTick: 0,
+};
+try {
+  const saved = JSON.parse(storage.get(PK_KEY) || '{}');
+  if (PK_TABLES[saved.rows]) pk.rows = saved.rows;
+  if (['low', 'medium', 'high'].includes(saved.risk)) pk.risk = saved.risk;
+} catch { /* по умолчанию */ }
+
+// Цвет лунки: в центре золотая, к краям — красная.
+function pkSlotColor(i, rows) {
+  const k = Math.abs(i - rows / 2) / (rows / 2);   // 0 в центре, 1 на краю
+  const hue = 48 - 48 * k;
+  return `hsl(${hue}, 90%, ${58 - 8 * k}%)`;
+}
+
+// Геометрия доски для ширины w: штырьки, лунки, шаг.
+function pkGeometry(rows, w) {
+  const pad = 14;
+  const sx = (w - 2 * pad) / (rows + 2);
+  const sy = sx * 0.86;
+  const top = sx * 0.9;
+  const slotH = Math.max(22, sx * 0.72);
+  const h = top + rows * sy + slotH + pad;
+  const cx = w / 2;
+  return {
+    rows, w, h, sx, sy, top, cx, slotH,
+    pegR: Math.max(2.2, sx * 0.09),
+    ballR: Math.max(4, sx * 0.24),
+    rowY: (r) => top + r * sy,
+    slotY: top + rows * sy - sy * 0.2,
+    slotX: (k) => cx + (k - rows / 2) * sx,
+  };
+}
+
+// Где шарик в момент t (мс от броска): по рядам, с отскоком от штырька.
+function pkBallPos(g, path, t) {
+  const rowT = PK_ROW_MS;
+  const hop = g.sy * 0.32;
+  const xAfter = (r) => g.cx + (path.slice(0, r).reduce((s, b) => s + (b ? 1 : -1), 0) * g.sx) / 2;
+  const yAt = (r) => g.rowY(r) - g.pegR - g.ballR;
+  if (t < 0) return { x: g.cx, y: yAt(0) - g.sy, row: -1 };
+  const r = Math.floor(t / rowT);
+  if (r < g.rows) {
+    const u = (t - r * rowT) / rowT;
+    const x0 = xAfter(r);
+    const x1 = xAfter(r + 1);
+    const y0 = yAt(r);
+    const y1 = r + 1 < g.rows ? yAt(r + 1) : g.slotY;
+    return { x: x0 + (x1 - x0) * u, y: y0 + (y1 - y0) * u * u - hop * 4 * u * (1 - u), row: r };
+  }
+  // В лунке: пара затухающих подскоков.
+  const u = Math.min(1, (t - g.rows * rowT) / PK_LAND_MS);
+  const bounce = Math.abs(Math.sin(u * Math.PI * 2.5)) * (1 - u) * g.sy * 0.35;
+  return { x: xAfter(g.rows), y: g.slotY + g.slotH * 0.35 - bounce, row: g.rows };
+}
+
+// Нарисовать доску и шарики. balls: [{ path, t, color }].
+function pkDraw(canvas, rows, risk, balls, hits = pk) {
+  const w = canvas.clientWidth;
+  if (!w) return null;
+  const g = pkGeometry(rows, w);
+  const dpr = window.devicePixelRatio || 1;
+  if (canvas.width !== Math.round(w * dpr) || canvas.height !== Math.round(g.h * dpr)) {
+    canvas.width = Math.round(w * dpr);
+    canvas.height = Math.round(g.h * dpr);
+    canvas.style.height = `${g.h}px`;
+  }
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, w, g.h);
+  const now = performance.now();
+
+  // Штырьки: задетые на миг вспыхивают.
+  for (let r = 0; r < rows; r++) {
+    const n = r + 3;
+    for (let i = 0; i < n; i++) {
+      const x = g.cx + (i - (n - 1) / 2) * g.sx;
+      const y = g.rowY(r);
+      const hitAt = hits.pegHits.get(`${r}:${i}`);
+      const glow = hitAt ? Math.max(0, 1 - (now - hitAt) / 300) : 0;
+      ctx.beginPath();
+      ctx.arc(x, y, g.pegR * (1 + glow * 0.6), 0, 2 * Math.PI);
+      ctx.fillStyle = glow ? `rgba(255, 236, 170, ${0.55 + glow * 0.45})` : 'rgba(236, 230, 214, .55)';
+      ctx.fill();
+    }
+  }
+
+  // Лунки с множителями.
+  const table = PK_TABLES[rows][risk];
+  const fontSize = Math.max(8, Math.min(13, g.sx * 0.36));
+  ctx.font = `800 ${fontSize}px Manrope, sans-serif`;
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'middle';
+  table.forEach((m, k) => {
+    const x = g.slotX(k);
+    const hitAt = hits.slotHits.get(k);
+    const pop = hitAt ? Math.max(0, 1 - (now - hitAt) / 400) : 0;
+    const sw = g.sx - 3;
+    const sh = g.slotH * (1 - pop * 0.18);
+    const y = g.slotY + (g.slotH - sh) + pop * 4;
+    ctx.fillStyle = pkSlotColor(k, rows);
+    ctx.beginPath();
+    if (ctx.roundRect) ctx.roundRect(x - sw / 2, y, sw, sh, 5);
+    else ctx.rect(x - sw / 2, y, sw, sh);
+    ctx.fill();
+    if (pop) {
+      ctx.fillStyle = `rgba(255, 255, 255, ${pop * 0.5})`;
+      ctx.fill();
+    }
+    ctx.fillStyle = '#1b1203';
+    ctx.fillText(m >= 100 ? String(m) : String(m).replace('.', ','), x, y + sh / 2);
+  });
+
+  // Шарики.
+  for (const b of balls) {
+    const p = pkBallPos(g, b.path, b.t);
+    ctx.save();
+    ctx.shadowColor = b.color;
+    ctx.shadowBlur = 10;
+    const grad = ctx.createRadialGradient(p.x - g.ballR * 0.3, p.y - g.ballR * 0.35, 1, p.x, p.y, g.ballR);
+    grad.addColorStop(0, '#fff');
+    grad.addColorStop(1, b.color);
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, g.ballR, 0, 2 * Math.PI);
+    ctx.fillStyle = grad;
+    ctx.fill();
+    ctx.restore();
+  }
+  return g;
+}
+
+// Отметить штырёк, о который шарик стукнулся в ряду r, и лунку при падении.
+function pkTrackHits(b, t, hits, sound) {
+  const r = Math.min(b.path.length, Math.floor(t / PK_ROW_MS));
+  while (b.seenRow < r) {
+    b.seenRow += 1;
+    const row = b.seenRow;
+    if (row < b.path.length) {
+      const offset = b.path.slice(0, row).reduce((s, x) => s + (x ? 1 : -1), 0) / 2;
+      hits.pegHits.set(`${row}:${Math.round(offset + (row + 2) / 2)}`, performance.now());
+      if (sound && soundOn && performance.now() - pk.lastTick > 30) {
+        pk.lastTick = performance.now();
+        beep([[700 + row * 35, 0.018]], 'sine');
+      }
+    } else {
+      hits.slotHits.set(b.slot, performance.now());
+    }
+  }
+}
+
+function pkRenderControls() {
+  const busy = pk.balls.some((b) => b.mine && !b.landed);
+  document.querySelectorAll('[data-rows]').forEach((b) => {
+    b.classList.toggle('active', Number(b.dataset.rows) === pk.rows);
+    b.disabled = busy;
+  });
+  document.querySelectorAll('[data-risk]').forEach((b) => {
+    b.classList.toggle('active', b.dataset.risk === pk.risk);
+    b.disabled = busy;
+  });
+}
+function pkSave() {
+  storage.set(PK_KEY, JSON.stringify({ rows: pk.rows, risk: pk.risk }));
+  pkRenderControls();
+}
+document.querySelectorAll('[data-rows]').forEach((b) => b.addEventListener('click', () => { pk.rows = Number(b.dataset.rows); pkSave(); }));
+document.querySelectorAll('[data-risk]').forEach((b) => b.addEventListener('click', () => { pk.risk = b.dataset.risk; pkSave(); }));
+document.querySelectorAll('[data-pq]').forEach((b) => b.addEventListener('click', () => {
+  const v = Math.max(1, Math.floor(Number($('pk-amount').value) || 1));
+  const next = { half: Math.floor(v / 2), double: v * 2, max: state.balance }[b.dataset.pq];
+  $('pk-amount').value = Math.max(1, Math.min(next, Math.max(1, state.balance)));
+}));
+
+function pkAmount() {
+  return Math.max(0, Math.floor(Number($('pk-amount').value) || 0));
+}
+function pkSend() {
+  send({ type: 'plinko_drop', amount: pkAmount(), rows: pk.rows, risk: pk.risk });
+}
+$('pk-drop').addEventListener('click', async () => {
+  const amount = pkAmount();
+  if (amount < 1) return toast('Ставка — от 1 фишки');
+  if (!await confirmBet({ key: 'plinko', game: '🔺 Плинко', amount, input: $('pk-amount'), note: `${pk.rows} рядов, риск ${{ low: 'низкий', medium: 'средний', high: 'высокий' }[pk.risk]}` })) return;
+  pkSend();
+});
+// Пробел — бросить шарик (когда открыта вкладка и курсор не в поле ввода).
+document.addEventListener('keydown', (e) => {
+  if (e.code !== 'Space' || $('plinko').hidden || betConfirm) return;
+  if (/^(INPUT|TEXTAREA|SELECT|BUTTON)$/.test(document.activeElement && document.activeElement.tagName)) return;
+  e.preventDefault();
+  $('pk-drop').click();
+});
+
+function pkStopAuto() {
+  clearInterval(pk.auto);
+  pk.auto = null;
+  $('pk-auto').textContent = '▶ Автоброс';
+  $('pk-auto').classList.remove('on');
+}
+$('pk-auto').addEventListener('click', async () => {
+  if (pk.auto) return pkStopAuto();
+  const amount = pkAmount();
+  if (amount < 1) return toast('Ставка — от 1 фишки');
+  if (!await confirmBet({ key: 'plinko', game: '🔺 Плинко · автоброс', amount, input: $('pk-amount'), note: 'Шарик каждые полсекунды, пока не остановишь' })) return;
+  $('pk-auto').textContent = '■ Стоп';
+  $('pk-auto').classList.add('on');
+  pkSend();
+  pk.auto = setInterval(() => {
+    if (state.balance < pkAmount() || $('plinko').hidden) return pkStopAuto();
+    pkSend();
+  }, 500);
+});
+
+// Сервер прислал путь шарика — бросаем.
+function pkAddBall(msg) {
+  pk.balls.push({ ...msg, t0: performance.now(), color: '#f2c14e', seenRow: -1, mine: true, landed: false });
+  pkRenderControls();
+}
+
+function pkLanded(b) {
+  b.landed = true;
+  const net = b.payout - b.amount;
+  pk.history.unshift(b.multiplier);
+  if (pk.history.length > 14) pk.history.pop();
+  $('pk-strip').replaceChildren(...pk.history.map((m) => {
+    const s = document.createElement('span');
+    s.textContent = `×${String(m).replace('.', ',')}`;
+    s.style.background = pkSlotColor(PK_TABLES[b.rows][b.risk].indexOf(m), b.rows);
+    return s;
+  }));
+  const last = $('pk-last');
+  last.textContent = net > 0 ? `×${String(b.multiplier).replace('.', ',')} · +${net}` : `×${String(b.multiplier).replace('.', ',')} · ${net}`;
+  last.className = `pk-last ${net > 0 ? 'win' : 'lose'}`;
+  if (b.multiplier >= 10) {
+    sounds.win();
+    if (b.multiplier >= 100) effects.money();
+  } else {
+    beep([[b.multiplier >= 1 ? 880 : 440, 0.08], [b.multiplier >= 1 ? 1175 : 330, 0.1]], 'triangle');
+  }
+  pkRenderControls();
+}
+
+function pkFrame() {
+  if (!$('plinko').hidden) {
+    const now = performance.now();
+    const total = (rows) => rows * PK_ROW_MS + PK_LAND_MS;
+    for (const b of pk.balls) {
+      const t = now - b.t0;
+      pkTrackHits(b, t, pk, true);
+      if (!b.landed && t >= b.rows * PK_ROW_MS) pkLanded(b);
+    }
+    pk.balls = pk.balls.filter((b) => now - b.t0 < total(b.rows) + 300);
+    pkDraw($('pk-canvas'), pk.rows, pk.risk, pk.balls.filter((b) => b.rows === pk.rows).map((b) => ({ path: b.path, t: now - b.t0, color: b.color })));
+  } else if (pk.balls.length) {
+    // Вкладка не видна: шарики «долетают» без анимации.
+    const now = performance.now();
+    for (const b of pk.balls) if (!b.landed && now - b.t0 >= b.rows * PK_ROW_MS) pkLanded(b);
+    pk.balls = pk.balls.filter((b) => !b.landed);
+  }
+  requestAnimationFrame(pkFrame);
+}
+requestAnimationFrame(pkFrame);
+pkRenderControls();
+
+function renderPlinkoFeed(feed) {
+  const myId = state.me && state.me.playerId;
+  $('pk-feed').replaceChildren(...(feed.length ? feed.map((e) => {
+    const li = document.createElement('li');
+    li.className = e.payout > e.amount ? 'win' : 'lose';
+    if (e.playerId === myId) li.classList.add('self');
+    li.append(avatarEl(e.name));
+    const name = Object.assign(document.createElement('span'), { className: 'name', textContent: e.name });
+    const what = Object.assign(document.createElement('span'), { className: 'u-what', textContent: `${e.amount} → ${e.payout}` });
+    const m = Object.assign(document.createElement('span'), { className: 'u-ch', textContent: `×${String(e.multiplier).replace('.', ',')} · ${e.rows} р.` });
+    li.append(name, what, m);
+    return li;
+  }) : [Object.assign(document.createElement('li'), { className: 'muted', textContent: 'Шарики ещё никто не бросал' })]));
+}
+
 // ---------- Верити ----------
 
 const VT_LINES = {
@@ -2131,6 +2443,7 @@ const DV_GAMES = {
   roulette: { icon: '🎡', name: 'Рулетка', rule: 'У каждого своё колесо. У кого выпадет число больше — тот забирает банк.' },
   upgrade: { icon: '⬆️', name: 'Апгрейд', rule: 'Одно колесо, две стрелки. Чья встанет ближе к центру зелёной зоны — тот забирает банк.' },
   verity: { icon: '😊', name: 'Верити', rule: 'Верити проверяет обоих. Кого признает добрым, а соперника злым — тот забирает банк.' },
+  plinko: { icon: '🔺', name: 'Плинко', rule: 'Два шарика на одной доске: 12 рядов, высокий риск. У чьего множитель больше — тот забирает банк.' },
 };
 // Как на сервере (server/duel.js).
 const DV_CRASH_GROWTH = 0.18;
@@ -2162,6 +2475,7 @@ function dvWinner(d) {
   if (d.game === 'crash') return x.crash[0] > x.crash[1] ? 0 : 1;
   if (d.game === 'roulette') return x.numbers[0] > x.numbers[1] ? 0 : 1;
   if (d.game === 'upgrade') return dvUpgradeScore(x.landings[0], x.start, x.chance) > dvUpgradeScore(x.landings[1], x.start, x.chance) ? 0 : 1;
+  if (d.game === 'plinko') return x.multipliers[0] > x.multipliers[1] ? 0 : 1;
   return x.rounds.at(-1)[0] ? 0 : 1;
 }
 
@@ -2337,6 +2651,25 @@ function dvBuildStage(d) {
       if (total < 200) total += 100;
       return { path, k: total / free };
     });
+  } else if (d.game === 'plinko') {
+    s.canvas = Object.assign(document.createElement('canvas'), { className: 'dv-pk-canvas' });
+    const legend = document.createElement('div');
+    legend.className = 'dv-up-legend';
+    s.legend = d.players.map((p, i) => {
+      const row = document.createElement('div');
+      const dot = document.createElement('i');
+      dot.style.background = DV_COLORS[i];
+      row.append(dot, Object.assign(document.createElement('b'), { textContent: p.name }));
+      const res = document.createElement('span');
+      row.append(res);
+      legend.append(row);
+      return res;
+    });
+    stage.append(s.canvas, legend);
+    s.hits = { pegHits: new Map(), slotHits: new Map() };
+    s.balls = d.data.paths.map((path, i) => ({
+      path, slot: path.reduce((a, b) => a + b, 0), delay: i * 400, seenRow: -1, color: DV_COLORS[i], landed: false,
+    }));
   } else {
     s.faces = d.players.map((p, i) => {
       const col = document.createElement('div');
@@ -2605,6 +2938,19 @@ function dvDrawVerity(s, d, t) {
   }
 }
 
+function dvDrawPlinko(s, d, t) {
+  s.balls.forEach((b, i) => {
+    const bt = t - b.delay;
+    pkTrackHits(b, bt, s.hits, true);
+    if (!b.landed && bt >= d.data.rows * PK_ROW_MS) {
+      b.landed = true;
+      s.legend[i].textContent = `×${String(d.data.multipliers[i]).replace('.', ',')}`;
+      beep([[880, 0.08], [1175, 0.1]], 'triangle');
+    }
+  });
+  pkDraw(s.canvas, d.data.rows, d.data.risk, s.balls.map((b) => ({ path: b.path, t: t - b.delay, color: b.color })), s.hits);
+}
+
 function dvShowResult(d) {
   const w = dvWinner(d);
   const me = dvMyIndex(d);
@@ -2636,6 +2982,7 @@ function dvFrame() {
     if (d.game === 'crash') dvDrawCrash(s, d, t);
     else if (d.game === 'roulette') dvDrawRoulette(s, d, t);
     else if (d.game === 'upgrade') dvDrawUpgrade(s, d, t);
+    else if (d.game === 'plinko') dvDrawPlinko(s, d, t);
     else dvDrawVerity(s, d, t);
     if (!s.done && t >= dvAnimEnd(d)) {
       s.done = true;
@@ -3437,6 +3784,7 @@ const ACT_GAMES = {
   bomb: { icon: '💣', name: 'Бомба' },
   upgrade: { icon: '⬆️', name: 'Апгрейд' },
   verity: { icon: '😊', name: 'Верити' },
+  plinko: { icon: '🔺', name: 'Плинко' },
   poker: { icon: '🃏', name: 'Покер' },
   pool: { icon: '🎱', name: 'Пул' },
   duel: { icon: '⚔️', name: 'Дуэль' },
@@ -3759,6 +4107,14 @@ const handlers = {
 
   upgrade_feed(msg) {
     renderUpgradeFeed(msg.feed);
+  },
+
+  plinko_ball(msg) {
+    pkAddBall(msg);
+  },
+
+  plinko_feed(msg) {
+    renderPlinkoFeed(msg.feed);
   },
 
   verity_result(msg) {

@@ -47,6 +47,12 @@ test('первая победа, крупный куш и джекпот — п�
   assert.equal(ach.count(a.id), 3);
 });
 
+test('плинко: крайняя лунка и ×1000', () => {
+  const { a, ach, unlocked } = setup();
+  ach.record({ game: 'plinko', kind: 'win', player: a, amount: 99, meta: { multiplier: 1000, edge: true } });
+  assert.ok(unlocked.includes('Аня:plinko_edge') && unlocked.includes('Аня:plinko_1000'));
+});
+
 test('игровые достижения по подробностям события', () => {
   const { a, b, ach, unlocked } = setup();
   ach.record({ game: 'crash', kind: 'win', player: a, amount: 5, meta: { mult: 55.2 } });
@@ -75,11 +81,11 @@ test('Верити: пять раз подряд, серия сбрасывае�
   assert.ok(unlocked.includes('Аня:verity_evil'));
 });
 
-test('пул: пять побед — акула, все семь игр — завсегдатай, большая ставка — хайроллер', () => {
+test('пул: пять побед — акула, все восемь игр — завсегдатай, большая ставка — хайроллер', () => {
   const { a, ach, unlocked } = setup();
   for (let i = 0; i < 5; i++) ach.record({ game: 'pool', kind: 'win', player: a, amount: 100, meta: { byEight: i === 2 } });
   assert.ok(unlocked.includes('Аня:pool_shark') && unlocked.includes('Аня:pool_clean'));
-  for (const game of ['crash', 'roulette', 'upgrade', 'verity', 'bomb', 'poker']) {
+  for (const game of ['crash', 'roulette', 'upgrade', 'verity', 'plinko', 'bomb', 'poker']) {
     ach.record({ game, kind: 'bet', player: a, amount: 10, meta: { stake: game === 'roulette' ? 50_000 : 10 } });
   }
   assert.ok(unlocked.includes('Аня:regular'));

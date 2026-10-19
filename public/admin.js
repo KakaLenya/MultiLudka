@@ -317,6 +317,15 @@ function renderSeasonAdmin() {
     : [li('На этой неделе ещё никто не играл', 'muted')]));
 }
 
+function renderPlinkoAdmin() {
+  const p = admin.data.plinko;
+  if (!p) return;
+  $('pk-admin-info').textContent = `${p.rigged === 'edge' ? 'Следующий шарик (любого игрока) упадёт в крайнюю лунку' : 'Честно'} · в полёте шариков: ${p.inFlight}`;
+  $('pk-admin-feed').replaceChildren(...(p.feed.length
+    ? p.feed.slice(0, 8).map((e) => li(`${e.name}: ${e.amount} → ${e.payout} (×${e.multiplier}, ${e.rows} рядов)`))
+    : [li('Шарики ещё никто не бросал', 'muted')]));
+}
+
 function renderVerityAdmin() {
   const v = admin.data.verity;
   $('vt-rigged').textContent = v.rigged === 'good' ? 'Следующий раз (любой игрок): добрый 😊'
@@ -398,6 +407,7 @@ function render() {
   renderRoulette();
   renderUpgraderAdmin();
   renderVerityAdmin();
+  renderPlinkoAdmin();
   renderSeasonAdmin();
   renderBombAdmin();
   renderPoker();
@@ -554,6 +564,9 @@ document.querySelectorAll('[data-luck]').forEach((b) => b.addEventListener('clic
   const percent = Number(b.dataset.luck);
   run('/luck', { playerId: p.id, percent }, percent ? `🍀 ${p.name}: везение ${percent}%` : `${p.name}: везение выключено`);
 }));
+
+$('pk-rig-edge').addEventListener('click', () => run('/plinko/rig', { mode: 'edge' }, 'Следующий шарик плинко упадёт в край'));
+$('pk-rig-off').addEventListener('click', () => run('/plinko/rig', { mode: null }, 'Плинко снова честное'));
 
 $('se-end').addEventListener('click', () => {
   if (confirm('Подвести итоги недели прямо сейчас? Тройка лучших уйдёт в зал славы, очки обнулятся.')) {

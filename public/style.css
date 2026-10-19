@@ -1532,3 +1532,33 @@ body.fx-disco { animation: fx-disco .5s linear infinite; }
   .dv-face { width: 110px; height: 110px; }
   .dv-up-canvas { width: 240px; height: 240px; }
 }
+
+/* ---------- Плинко ---------- */
+.pk-wrap { display: grid; grid-template-columns: 230px 1fr; gap: 18px; align-items: start; }
+.pk-side { display: flex; flex-direction: column; gap: 12px; }
+.pk-side .field { margin: 0; }
+.pk-seg { display: grid; grid-template-columns: repeat(3, 1fr); }
+.pk-seg button { padding: 7px 4px; font-size: 13px; }
+.pk-seg button:disabled { opacity: .5; }
+.pk-side #pk-auto.on { border-color: var(--gold); color: var(--gold-2); }
+.pk-last { min-height: 24px; font-family: var(--display); font-size: 16px; text-align: center; }
+.pk-last.win { color: var(--green); }
+.pk-last.lose { color: var(--muted); }
+.pk-board {
+  border-radius: 16px; border: 1px solid var(--line); padding: 6px;
+  background: radial-gradient(ellipse at 50% 0%, rgba(242, 193, 78, .08), transparent 60%), rgba(0, 0, 0, .25);
+}
+.pk-board canvas, .dv-pk-canvas { width: 100%; max-width: 520px; margin: 0 auto; display: block; }
+.dv-pk-canvas { max-width: 520px; }
+.pk-strip span { min-width: 44px; text-align: center; color: #1b1203; font-weight: 800; border-color: transparent; }
+
+/* Доске нужна ширина: на узких экранах она сверху во всю карточку, настройки под ней. */
+@media (max-width: 1100px) {
+  .pk-wrap { grid-template-columns: 1fr; }
+  .pk-board { order: -1; }
+  .pk-side { display: grid; grid-template-columns: 1fr 1fr; align-items: end; }
+  .pk-side .action, .pk-side #pk-auto, .pk-side .pk-last { grid-column: 1 / -1; }
+}
+@media (max-width: 560px) {
+  .pk-side { grid-template-columns: 1fr; }
+}

@@ -12,6 +12,7 @@ const { createRoulette } = require('./roulette');
 const { createBomb } = require('./bomb');
 const { createUpgrader } = require('./upgrader');
 const { createVerity } = require('./verity');
+const { createPlinko } = require('./plinko');
 const { createAchievements, ACHIEVEMENTS } = require('./achievements');
 const { createLuck } = require('./luck');
 const { createPool } = require('./pool');
@@ -256,6 +257,14 @@ const verity = createVerity({
 });
 store.addReserver(verity.reserved);
 
+const plinko = createPlinko({
+  store,
+  lucky: luck.roll,
+  onEvent: onActivity,
+  onFeed: (feed) => broadcast({ type: 'plinko_feed', feed }),
+});
+store.addReserver(plinko.reserved);
+
 // Текущий трек переживает перезапуск сервера: пишем его в data/music-now.json.
 const MUSIC_NOW_FILE = path.join(DATA_DIR, 'music-now.json');
 const music = createMusic({
@@ -409,6 +418,7 @@ const handlers = {
     send(ws, { type: 'bomb_state', ...bomb.state() });
     send(ws, { type: 'upgrade_feed', feed: upgrader.feed() });
     send(ws, { type: 'verity_feed', feed: verity.feed() });
+    send(ws, { type: 'plinko_feed', feed: plinko.feed() });
     send(ws, { type: 'activity_history', entries: activity });
     send(ws, { type: 'achievements_defs', list: ACHIEVEMENTS, mine: achievements.unlockedOf(player.id) });
     send(ws, { type: 'season', ...achievements.season() });
@@ -518,6 +528,12 @@ const handlers = {
     const result = upgrader.spin(ws.player, msg.amount, msg.chance);
     if (result.error) return send(ws, { type: 'error', message: result.error });
     send(ws, { type: 'upgrade_result', ...result.spin });
+  },
+
+  plinko_drop(ws, msg) {
+    const result = plinko.drop(ws.player, msg.amount, Number(msg.rows), msg.risk);
+    if (result.error) return send(ws, { type: 'error', message: result.error });
+    send(ws, { type: 'plinko_ball', ...result.ball });
   },
 
   verity_play(ws, msg) {
@@ -640,6 +656,7 @@ function shutdown() {
     table.refundAll();
     upgrader.settleAll();
     verity.settleAll();
+    plinko.settleAll();
     store.flush();
     achievements.flush();
   } finally {
@@ -659,6 +676,7 @@ app.use('/admin/api', createAdminRouter({
   bomb,
   upgrader,
   verity,
+  plinko,
   achievements,
   luck,
   pool,

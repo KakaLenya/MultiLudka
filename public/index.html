@@ -46,6 +46,7 @@
           <button type="button" class="tab active" data-tab="crash">📈 Краш</button>
           <button type="button" class="tab" data-tab="roulette">🎡 Рулетка</button>
           <button type="button" class="tab" data-tab="upgrade">⬆️ Апгрейд</button>
+          <button type="button" class="tab" data-tab="plinko">🔺 Плинко</button>
           <button type="button" class="tab" data-tab="verity">😊 Верити</button>
           <button type="button" class="tab" data-tab="duel">⚔️ Дуэль <span class="dot" id="duel-dot" hidden></span></button>
           <button type="button" class="tab" data-tab="bomb">💣 Бомба <span class="dot" id="bomb-dot" hidden></span></button>
@@ -116,6 +117,47 @@
           <ul class="list u-feed" id="u-feed"></ul>
         </section>
 
+        <section class="card plinko" id="plinko" hidden>
+          <div class="history pk-strip" id="pk-strip" aria-label="Последние шарики"></div>
+          <div class="pk-wrap">
+            <div class="pk-side">
+              <label class="field">
+                <span>Ставка за шарик</span>
+                <input id="pk-amount" type="number" min="1" step="1" value="10" inputmode="numeric">
+              </label>
+              <div class="quick">
+                <button type="button" class="ghost" data-pq="half">½</button>
+                <button type="button" class="ghost" data-pq="double">×2</button>
+                <button type="button" class="ghost" data-pq="max">макс</button>
+              </div>
+              <div class="field">
+                <span>Рядов</span>
+                <div class="seg pk-seg" id="pk-rows">
+                  <button type="button" data-rows="8">8</button>
+                  <button type="button" data-rows="12">12</button>
+                  <button type="button" data-rows="16">16</button>
+                </div>
+              </div>
+              <div class="field">
+                <span>Риск</span>
+                <div class="seg pk-seg" id="pk-risk">
+                  <button type="button" data-risk="low">Низкий</button>
+                  <button type="button" data-risk="medium">Средний</button>
+                  <button type="button" data-risk="high">Высокий</button>
+                </div>
+              </div>
+              <button type="button" class="action" id="pk-drop" title="Или пробел">🔺 Бросить шарик <small>(пробел)</small></button>
+              <button type="button" class="ghost" id="pk-auto">▶ Автоброс</button>
+              <div class="pk-last" id="pk-last"></div>
+            </div>
+            <div class="pk-board">
+              <canvas id="pk-canvas"></canvas>
+            </div>
+          </div>
+          <h2 class="u-feed-title">Лента плинко</h2>
+          <ul class="list u-feed" id="pk-feed"></ul>
+        </section>
+
         <section class="card verity" id="verity" hidden>
           <div class="history vt-strip" id="vt-strip" aria-label="Последние решения Верити"></div>
           <div class="vt-stage" id="vt-stage">
@@ -162,6 +204,7 @@
                   <button type="button" data-dg="roulette"><b>🎡 Рулетка</b><small>у кого выпадет число больше</small></button>
                   <button type="button" data-dg="upgrade"><b>⬆️ Апгрейд</b><small>чья стрелка ближе к центру зелёной зоны</small></button>
                   <button type="button" data-dg="verity"><b>😊 Верити</b><small>кого Верити признает добрым</small></button>
+                  <button type="button" data-dg="plinko"><b>🔺 Плинко</b><small>у чьего шарика множитель больше</small></button>
                 </div>
               </div>
               <label class="field">

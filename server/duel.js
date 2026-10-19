@@ -3,6 +3,7 @@
 // выплата и лента — когда анимация закончилась.
 const { randomInt, randomFloat } = require('./rng');
 const { crashPointCents } = require('./crash');
+const { MULTIPLIERS: PLINKO, durationMs: plinkoMs } = require('./plinko');
 
 const INVITE_MS = 60_000;
 const MAX_STAKE = 1_000_000_000;
@@ -14,7 +15,10 @@ const GAMES = {
   roulette: 'Рулетка',
   upgrade: 'Апгрейд',
   verity: 'Верити',
+  plinko: 'Плинко',
 };
+const PLINKO_ROWS = 12;
+const PLINKO_RISK = 'high';
 
 // Тайминги анимаций (клиент рисует ровно столько же).
 const CRASH_GROWTH = 0.18;          // множитель в дуэли растёт быстрее, чем в общем краше
@@ -40,6 +44,7 @@ function winnerOf(game, data) {
     case 'roulette': return data.numbers[0] > data.numbers[1] ? 0 : 1;
     case 'upgrade': return upgradeScore(data.landings[0], data.start, data.chance) > upgradeScore(data.landings[1], data.start, data.chance) ? 0 : 1;
     case 'verity': return data.rounds.at(-1)[0] ? 0 : 1;
+    case 'plinko': return data.multipliers[0] > data.multipliers[1] ? 0 : 1;
     default: throw new Error(`Нет игры ${game}`);
   }
 }
@@ -51,6 +56,7 @@ function swapped(game, data) {
     case 'roulette': return { numbers: [data.numbers[1], data.numbers[0]] };
     case 'upgrade': return { ...data, landings: [data.landings[1], data.landings[0]] };
     case 'verity': return { rounds: data.rounds.map(([a, b]) => [b, a]) };
+    case 'plinko': return { ...data, paths: [data.paths[1], data.paths[0]], multipliers: [data.multipliers[1], data.multipliers[0]] };
     default: throw new Error(`Нет игры ${game}`);
   }
 }
@@ -62,6 +68,7 @@ function durationOf(game, data) {
     case 'roulette': return ROULETTE_SPIN_MS + REVEAL_PAD_MS;
     case 'upgrade': return UPGRADE_SPIN_MS + REVEAL_PAD_MS;
     case 'verity': return data.rounds.length * VERITY_ROUND_MS + REVEAL_PAD_MS;
+    case 'plinko': return plinkoMs(data.rows) + 400 + REVEAL_PAD_MS;
     default: throw new Error(`Нет игры ${game}`);
   }
 }
@@ -128,6 +135,15 @@ function createDuel({
         const first = randInt(2) === 1;
         rounds.push([first, !first]);
         return { rounds };
+      }
+      case 'plinko': {
+        // Два шарика, второй стартует чуть позже. Одинаковые множители (симметричные лунки) — бросаем заново.
+        const table = PLINKO[PLINKO_ROWS][PLINKO_RISK];
+        let paths;
+        do {
+          paths = [0, 1].map(() => Array.from({ length: PLINKO_ROWS }, () => randInt(2)));
+        } while (table[paths[0].reduce((a, b) => a + b, 0)] === table[paths[1].reduce((a, b) => a + b, 0)]);
+        return { rows: PLINKO_ROWS, risk: PLINKO_RISK, paths, multipliers: paths.map((p) => table[p.reduce((a, b) => a + b, 0)]) };
       }
       default: throw new Error(`Нет игры ${game}`);
     }
