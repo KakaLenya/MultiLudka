@@ -430,11 +430,12 @@ document.querySelectorAll('[data-quick]').forEach((btn) => {
   });
 });
 
-// Пробел: поставить/забрать, если фокус не в поле ввода.
+// Пробел в Краше: поставить/забрать, если фокус не в поле ввода. Только на вкладке Краша:
+// на других вкладках у пробела свои дела (в плинко он бросает шарики).
 document.addEventListener('keydown', (ev) => {
   if (ev.code !== 'Space' || ev.repeat) return;
   if (['INPUT', 'TEXTAREA', 'BUTTON'].includes(document.activeElement.tagName)) return;
-  if ($('lobby').hidden || $('crash-action').disabled) return;
+  if ($('lobby').hidden || $('crash').hidden || $('crash-action').disabled) return;
   ev.preventDefault();
   $('crash-form').requestSubmit();
 });
@@ -1887,16 +1888,10 @@ function pkTrackHits(b, t, hits, sound) {
   }
 }
 
+// Ряды и риск можно менять когда угодно: уже брошенные шарики долетят и засчитаются сами.
 function pkRenderControls() {
-  const busy = pk.balls.some((b) => b.mine && !b.landed);
-  document.querySelectorAll('[data-rows]').forEach((b) => {
-    b.classList.toggle('active', Number(b.dataset.rows) === pk.rows);
-    b.disabled = busy;
-  });
-  document.querySelectorAll('[data-risk]').forEach((b) => {
-    b.classList.toggle('active', b.dataset.risk === pk.risk);
-    b.disabled = busy;
-  });
+  document.querySelectorAll('[data-rows]').forEach((b) => b.classList.toggle('active', Number(b.dataset.rows) === pk.rows));
+  document.querySelectorAll('[data-risk]').forEach((b) => b.classList.toggle('active', b.dataset.risk === pk.risk));
 }
 function pkSave() {
   storage.set(PK_KEY, JSON.stringify({ rows: pk.rows, risk: pk.risk }));
@@ -1922,13 +1917,39 @@ $('pk-drop').addEventListener('click', async () => {
   if (!await confirmBet({ key: 'plinko', game: '🔺 Плинко', amount, input: $('pk-amount'), note: `${pk.rows} рядов, риск ${{ low: 'низкий', medium: 'средний', high: 'высокий' }[pk.risk]}` })) return;
   pkSend();
 });
-// Пробел — бросить шарик (когда открыта вкладка и курсор не в поле ввода).
-document.addEventListener('keydown', (e) => {
+// Пробел: нажал — шарик, зажал — поток шариков, пока держишь (каждые 0,15 с).
+const PK_HOLD_MS = 150;
+const PK_MAX_FLIGHT = 40;   // как на сервере
+let pkHold = null;          // null | 'starting' | id интервала
+const pkFlying = () => pk.balls.filter((b) => !b.landed).length;
+function pkStopHold() {
+  if (pkHold && pkHold !== 'starting') clearInterval(pkHold);
+  pkHold = null;
+}
+document.addEventListener('keydown', async (e) => {
   if (e.code !== 'Space' || $('plinko').hidden || betConfirm) return;
   if (/^(INPUT|TEXTAREA|SELECT|BUTTON)$/.test(document.activeElement && document.activeElement.tagName)) return;
   e.preventDefault();
-  $('pk-drop').click();
+  if (e.repeat || pkHold) return;
+  const amount = pkAmount();
+  if (amount < 1) return toast('Ставка — от 1 фишки');
+  pkHold = 'starting';
+  const ok = await confirmBet({ key: 'plinko', game: '🔺 Плинко', amount, input: $('pk-amount'), note: `${pk.rows} рядов, риск ${{ low: 'низкий', medium: 'средний', high: 'высокий' }[pk.risk]}` });
+  if (!ok) {
+    pkHold = null;
+    return;
+  }
+  pkSend();
+  if (pkHold !== 'starting') return;   // отпустил, пока подтверждал: один шарик и всё
+  pkHold = setInterval(() => {
+    if (state.balance < pkAmount() || $('plinko').hidden) return pkStopHold();
+    if (pkFlying() < PK_MAX_FLIGHT) pkSend();
+  }, PK_HOLD_MS);
 });
+document.addEventListener('keyup', (e) => {
+  if (e.code === 'Space') pkStopHold();
+});
+window.addEventListener('blur', pkStopHold);
 
 function pkStopAuto() {
   clearInterval(pk.auto);
@@ -1940,14 +1961,14 @@ $('pk-auto').addEventListener('click', async () => {
   if (pk.auto) return pkStopAuto();
   const amount = pkAmount();
   if (amount < 1) return toast('Ставка — от 1 фишки');
-  if (!await confirmBet({ key: 'plinko', game: '🔺 Плинко · автоброс', amount, input: $('pk-amount'), note: 'Шарик каждые полсекунды, пока не остановишь' })) return;
+  if (!await confirmBet({ key: 'plinko', game: '🔺 Плинко · автоброс', amount, input: $('pk-amount'), note: 'Четыре шарика в секунду, пока не остановишь' })) return;
   $('pk-auto').textContent = '■ Стоп';
   $('pk-auto').classList.add('on');
   pkSend();
   pk.auto = setInterval(() => {
     if (state.balance < pkAmount() || $('plinko').hidden) return pkStopAuto();
-    pkSend();
-  }, 500);
+    if (pkFlying() < PK_MAX_FLIGHT) pkSend();
+  }, 250);
 });
 
 // Сервер прислал путь шарика — бросаем.

@@ -4,7 +4,7 @@
 const { randomInt } = require('./rng');
 
 const MIN_BET = 1;
-const MAX_IN_FLIGHT = 15;          // столько шариков одного игрока может лететь сразу
+const MAX_IN_FLIGHT = 40;          // столько шариков одного игрока может лететь сразу (зажатый пробел — ~20)
 const FEED_SIZE = 20;
 const ROW_MS = 170;                // шарик проходит ряд
 const LAND_MS = 450;               // и ещё немного прыгает в лунке

@@ -46,9 +46,9 @@ test('бросок: путь из поворотов, лунка — число 
   assert.equal(p.feed()[0].multiplier, ball.multiplier);
 });
 
-test('много шариков сразу, но не больше 15 в полёте; проверки', () => {
+test('много шариков сразу, но не больше 40 в полёте; проверки', () => {
   const { p, a, flush } = setup();
-  for (let i = 0; i < 15; i++) assert.ok(p.drop(a, 10, 8, 'low').ok);
+  for (let i = 0; i < 40; i++) assert.ok(p.drop(a, 10, 8, 'low').ok);
   assert.match(p.drop(a, 10, 8, 'low').error, /Подожди/);
   flush();
   assert.ok(p.drop(a, 10, 8, 'low').ok);
