@@ -11,3 +11,8 @@
   (контрабас, электропиано, тенор-саксофон, вибрафон, джазовая гитара, труба с сурдиной, нейлоновая гитара).
   Лицензия [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/), эти файлы распространяются на тех же условиях.
   Отрендерено проектом MIDI.js Soundfonts (Benjamin Gleitzman): https://github.com/gleitz/midi-js-soundfonts
+
+- `accordion/`, `fiddle/`, `cello/`, `contrabass/`, `tuba/`, `horn/`, `choir/`, `timpani/`, `taiko/`, `bells/`, `flute/`, `harp/`, `strings/`, `glock/` —
+  тоже **Musyng Kite Soundfont** (аккордеон, скрипка, виолончель, контрабас, туба, валторна, хор «а», литавры, тайко,
+  трубчатые колокола, флейта, арфа, струнный ансамбль, глокеншпиль): пиратская музыка слота «Кракен».
+  Лицензия [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/), источник тот же: https://github.com/gleitz/midi-js-soundfonts

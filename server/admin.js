@@ -25,7 +25,7 @@ function tokenMatches(given, expected) {
 }
 
 function createAdminRouter({
-  adminToken, store, crash, table, roulette, wheel = null, bomb, upgrader, verity, plinko = null, mines = null, achievements, luck, pool, duel = null, music, songRequests, chat, mutes, cleanText,
+  adminToken, store, crash, table, roulette, wheel = null, bomb, upgrader, verity, plinko = null, mines = null, kraken = null, achievements, luck, pool, duel = null, music, songRequests, chat, mutes, cleanText,
   onlineIds, sendToPlayer, broadcast, refreshLists, disconnectPlayer = () => {}, shutdown = () => {},
 }) {
   const router = express.Router();
@@ -69,7 +69,7 @@ function createAdminRouter({
         createdAt: p.createdAt,
       }))
       .sort((a, b) => b.online - a.online || b.capital - a.capital);
-    res.json({ players, crash: crash.adminState(), roulette: roulette.adminState(), wheel: wheel ? wheel.adminState() : null, bomb: bomb.adminState(), upgrader: upgrader.adminState(), verity: verity.adminState(), plinko: plinko ? plinko.adminState() : null, mines: mines ? mines.adminState() : null, season: achievements.adminState(), pool: pool.adminState(), duel: duel ? duel.adminState() : null, poker: table.adminView(), chat: chat.log(),
+    res.json({ players, crash: crash.adminState(), roulette: roulette.adminState(), wheel: wheel ? wheel.adminState() : null, bomb: bomb.adminState(), upgrader: upgrader.adminState(), verity: verity.adminState(), plinko: plinko ? plinko.adminState() : null, mines: mines ? mines.adminState() : null, kraken: kraken ? kraken.adminState() : null, season: achievements.adminState(), pool: pool.adminState(), duel: duel ? duel.adminState() : null, poker: table.adminView(), chat: chat.log(),
       music: { current: music.state(), playlist: music.playlist(), autoplay: music.autoplay() },
       requests: songRequests.list() });
   });
@@ -145,6 +145,7 @@ function createAdminRouter({
     achievements.forget(p.id);
     luck.forget(p.id);
     if (mines) mines.forget(p.id);
+    if (kraken) kraken.forget(p.id);
     if (wheel) wheel.forget(p.id);
     if (verity.forget) verity.forget(p.id);
     const result = store.remove(p);
@@ -282,6 +283,14 @@ function createAdminRouter({
     if (!mines) return fail(res, 'Мины не подключены');
     const mode = req.body.mode === undefined ? null : req.body.mode;
     const result = mines.rig(mode);
+    if (result.error) return fail(res, result.error);
+    ok(res);
+  });
+
+  // { mode: 'fs' | 'hw' | 'tentacle' | 'lose' | null } — следующий спин Кракена (любого игрока).
+  router.post('/kraken/rig', (req, res) => {
+    if (!kraken) return fail(res, 'Кракен не подключён');
+    const result = kraken.rig(req.body.mode === undefined ? null : req.body.mode);
     if (result.error) return fail(res, result.error);
     ok(res);
   });

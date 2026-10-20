@@ -726,6 +726,7 @@
     vol: Number(STORE.get(VOL_KEY) ?? 30),
     playing: false,
     ducked: false,
+    holds: new Set(),      // кто попросил притихнуть (например, слот со своей музыкой)
     player: null,
     order: [],
     timer: null,
@@ -792,7 +793,8 @@
     if (!ctx) return;
     const target = state.playing ? userGain() : 0;
     master.gain.setTargetAtTime(target, ctx.currentTime, 0.25);
-    duck.gain.setTargetAtTime(state.ducked ? 0 : 1, ctx.currentTime, state.ducked ? 0.4 : 1.2);
+    const quiet = state.ducked || state.holds.size > 0;
+    duck.gain.setTargetAtTime(quiet ? 0 : 1, ctx.currentTime, quiet ? 0.4 : 1.2);
   }
 
   function play() {
@@ -860,6 +862,12 @@
       STORE.set(VOL_KEY, String(state.vol));
       applyVolume();
       emit();
+    },
+    // Притихнуть на время (reason — кто просит): джаз молчит, пока есть хоть одна просьба.
+    setHold(reason, on) {
+      if (on) state.holds.add(reason);
+      else state.holds.delete(reason);
+      applyVolume();
     },
     setDucked(on) {
       if (state.ducked === on) return;

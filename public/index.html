@@ -6,7 +6,8 @@
   <title>Казино-зал</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@500;600;700;800&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@500;600;700;800&family=Rubik:wght@700;900&family=Rubik+Wet+Paint&display=swap">
+  <link rel="stylesheet" href="kraken/kraken.css">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -60,6 +61,7 @@
           <button type="button" class="tab active" data-tab="crash">📈 Краш</button>
           <button type="button" class="tab" data-tab="roulette">🎡 Рулетка</button>
           <button type="button" class="tab" data-tab="wheel">🎰 Колесо</button>
+          <button type="button" class="tab" data-tab="kraken">🐙 Кракен</button>
           <button type="button" class="tab" data-tab="upgrade">⬆️ Апгрейд</button>
           <button type="button" class="tab" data-tab="plinko">🔺 Плинко</button>
           <button type="button" class="tab" data-tab="mines">💎 Мины</button>
@@ -93,6 +95,106 @@
             <thead><tr><th>Игрок</th><th>Ставки</th><th>Итог</th></tr></thead>
             <tbody id="r-bets"></tbody>
           </table>
+        </section>
+
+        <section class="card kraken" id="kraken" hidden>
+          <div class="kr-stage">
+            <canvas class="kr-bg" id="kr-bg"></canvas>
+            <div class="kr-top">
+              <div class="kr-jps">
+                <div class="kr-jp grand"><span>GRAND</span><b id="kr-jp-grand">…</b></div>
+                <div class="kr-jp minor"><span>MINOR</span><b id="kr-jp-minor">…</b></div>
+              </div>
+              <div class="kr-logo">
+                <div class="kr-logo-title">Кракен</div>
+                <div class="kr-logo-sub">сундук глубин</div>
+                <div class="kr-meter" id="kr-meter" hidden>
+                  <div class="kr-meter-eyes" id="kr-meter-eyes"></div>
+                  <div><span>Кракен</span><b id="kr-meter-mult">×1</b></div>
+                  <div><span>Осталось</span><b id="kr-meter-left">0</b></div>
+                </div>
+                <div class="kr-hw" id="kr-hw" hidden></div>
+              </div>
+              <div class="kr-jps">
+                <div class="kr-jp major"><span>MAJOR</span><b id="kr-jp-major">…</b></div>
+                <div class="kr-jp mini"><span>MINI</span><b id="kr-jp-mini">…</b></div>
+              </div>
+            </div>
+            <div class="kr-reels-box">
+              <canvas id="kr-reels" aria-label="Барабаны"></canvas>
+            </div>
+            <div class="kr-msg" id="kr-msg">Крути барабаны — пробел тоже работает</div>
+          </div>
+          <div class="kr-bar">
+            <div class="kr-bar-left">
+              <button type="button" class="kr-buy" id="kr-buy"><span>Купить</span><span>бонус</span></button>
+              <div class="kr-stats">
+                <div class="kr-stat"><span>Баланс</span><b id="kr-balance">0</b></div>
+                <div class="kr-stat"><span>Выигрыш</span><b id="kr-win">0</b></div>
+              </div>
+            </div>
+            <button type="button" class="kr-spin" id="kr-spin" title="Крутить (пробел)" aria-label="Крутить"><span>⟳</span></button>
+            <div class="kr-bar-right">
+            <div class="kr-bet">
+              <button type="button" id="kr-bet-down" aria-label="Меньше">−</button>
+              <div class="kr-stat"><span>Ставка</span><b id="kr-bet">100</b></div>
+              <button type="button" id="kr-bet-up" aria-label="Больше">+</button>
+              <button type="button" class="kr-max" id="kr-bet-max">макс</button>
+            </div>
+            <div class="kr-side">
+              <div class="kr-auto-wrap">
+                <button type="button" class="kr-small" id="kr-auto">Авто</button>
+                <div class="kr-auto-menu" id="kr-auto-menu" hidden>
+                  <button type="button" data-auto="10">10</button>
+                  <button type="button" data-auto="25">25</button>
+                  <button type="button" data-auto="50">50</button>
+                  <button type="button" data-auto="100">100</button>
+                  <button type="button" data-auto="1000000">∞</button>
+                  <label><input type="checkbox" id="kr-auto-stop" checked> стоп на бонусе</label>
+                </div>
+              </div>
+              <button type="button" class="kr-small" id="kr-turbo" title="Быстрые вращения">Турбо</button>
+              <button type="button" class="kr-small" id="kr-info" title="Правила и выплаты">Правила</button>
+              <button type="button" class="kr-small" id="kr-sound" title="Пиратская музыка">🎵</button>
+            </div>
+            </div>
+          </div>
+          <h2 class="u-feed-title">Лента Кракена</h2>
+          <ul class="list u-feed" id="kr-feed"></ul>
+
+          <div class="kr-modal" id="kr-buy-modal" hidden>
+            <div class="kr-dialog">
+              <button type="button" class="kr-close" data-close aria-label="Закрыть">✕</button>
+              <h3>Купить бонус</h3>
+              <div class="kr-buys">
+                <div class="kr-buy-card fs">
+                  <div class="kr-buy-title">Пробуждение Кракена</div>
+                  <p>8–12 фриспинов. Кракен собирает жемчуг со всего поля, каждые 4 Кракена — +5 вращений и множитель до ×10.</p>
+                  <button type="button" class="action" data-buy="buy-fs">Купить за <b id="kr-buy-fs-price">0</b></button>
+                </div>
+                <div class="kr-buy-card hw">
+                  <div class="kr-buy-title">Сундук глубин</div>
+                  <p>Жемчуг липнет, 3 вращения, каждая новая жемчужина — снова 3. Джекпоты и Гранд за полное поле.</p>
+                  <button type="button" class="action" data-buy="buy-hw">Купить за <b id="kr-buy-hw-price">0</b></button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="kr-modal" id="kr-pay-modal" hidden>
+            <div class="kr-dialog wide">
+              <button type="button" class="kr-close" data-close aria-label="Закрыть">✕</button>
+              <h3>Правила и выплаты <small>при ставке <b id="kr-pay-bet">0</b></small></h3>
+              <div class="kr-pays" id="kr-pays"></div>
+              <div class="kr-rules">
+                <div class="kr-rule"><div id="kr-pay-wild"></div><p><b>Кракен — дикий.</b> Бывает на барабанах 2–5, заменяет всё, кроме карты и жемчуга. Забирает себе жемчуг со своего барабана. Иногда щупальца хватают 1–3 барабана целиком — <b>Хватка Кракена</b>.</p></div>
+                <div class="kr-rule"><div id="kr-pay-map"></div><p><b>Карта сокровищ.</b> 3, 4 или 5 карт — 8, 10 или 12 фриспинов «Пробуждение Кракена» (и сами платят ×2, ×5, ×20 ставки). В фриспинах Кракен собирает жемчуг со всего поля, каждые 4 Кракена — +5 вращений и множитель жемчуга ×2 → ×3 → ×5 → ×10.</p></div>
+                <div class="kr-rule"><div id="kr-pay-pearl"></div><p><b>Жемчуг.</b> На жемчужине — её цена. 6 жемчужин и больше — <b>Сундук глубин</b>: жемчуг липнет, 3 вращения, новая жемчужина — снова 3. Бывают MINI ×20, MINOR ×50, MAJOR ×200 и жемчужина Кракена — забирает себе всё поле. Заполнил все 20 клеток — GRAND ×1000.</p></div>
+              </div>
+              <p class="muted small">20 линий, выигрыш слева направо от первого барабана, на линии платит лучшая комбинация. Отдача около 96%, максимальный выигрыш — ×5000 ставки. Покупка бонуса: фриспины ×100, сундук ×45 ставки.</p>
+              <div class="kr-lines" id="kr-lines"></div>
+            </div>
+          </div>
         </section>
 
         <section class="card fortune" id="wheel" hidden>
@@ -697,5 +799,8 @@
   <script src="fortune-physics.js"></script>
   <script src="lounge.js"></script>
   <script src="client.js"></script>
+  <script src="kraken/art.js"></script>
+  <script src="kraken/audio.js"></script>
+  <script src="kraken/slot.js"></script>
 </body>
 </html>

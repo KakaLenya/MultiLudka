@@ -349,6 +349,16 @@ function renderMinesAdmin() {
   $('mn-admin-list').replaceChildren(...(rows.length ? rows : [li('В мины ещё никто не играл', 'muted')]));
 }
 
+const KR_RIG = { fs: 'фриспины', hw: 'сундук глубин', tentacle: 'хватка Кракена', lose: 'проигрыш' };
+function renderKrakenAdmin() {
+  const k = admin.data.kraken;
+  if (!k) return;
+  $('kr-admin-info').textContent = k.rigged ? `Следующий спин (любого игрока): ${KR_RIG[k.rigged]}` : 'Честно';
+  $('kr-admin-feed').replaceChildren(...(k.feed.length
+    ? k.feed.slice(0, 8).map((e) => li(`${e.name}: ${e.cost} → ${e.payout} (×${e.mult}${e.bonus ? `, ${{ fs: 'фриспины', hw: 'сундук', both: 'сундук+фриспины' }[e.bonus]}` : ''})`))
+    : [li('В Кракена ещё никто не играл', 'muted')]));
+}
+
 function renderPlinkoAdmin() {
   const p = admin.data.plinko;
   if (!p) return;
@@ -438,6 +448,7 @@ function render() {
   renderCrash();
   renderRoulette();
   renderWheelAdmin();
+  renderKrakenAdmin();
   renderUpgraderAdmin();
   renderVerityAdmin();
   renderPlinkoAdmin();
@@ -665,6 +676,11 @@ $('rig-roulette').addEventListener('click', () => {
 document.querySelectorAll('[data-fwrig]').forEach((b) => b.addEventListener('click', () => {
   const mult = Number(b.dataset.fwrig);
   run('/wheel/rig', { mult }, (r) => `Выпадет ${fwLabel(mult)} ${r.round === 'current' ? 'в этом' : 'в следующем'} вращении`);
+}));
+
+document.querySelectorAll('[data-krrig]').forEach((b) => b.addEventListener('click', () => {
+  const mode = b.dataset.krrig || null;
+  run('/kraken/rig', { mode }, mode ? `Следующий спин Кракена: ${KR_RIG[mode]}` : 'Кракен снова честный');
 }));
 
 $('crash-now').addEventListener('click', () => {

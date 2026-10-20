@@ -14,6 +14,7 @@ const { createBomb } = require('./bomb');
 const { createUpgrader } = require('./upgrader');
 const { createVerity } = require('./verity');
 const { createPlinko } = require('./plinko');
+const { createKraken } = require('./kraken');
 const { createMines } = require('./mines');
 const { createAchievements, ACHIEVEMENTS } = require('./achievements');
 const { createLuck } = require('./luck');
@@ -294,6 +295,14 @@ const mines = createMines({
 });
 store.addReserver(mines.reserved);
 
+const kraken = createKraken({
+  store,
+  lucky: luck.roll,
+  onEvent: onActivity,
+  onFeed: (feed) => broadcast({ type: 'kraken_feed', feed }),
+});
+store.addReserver(kraken.reserved);
+
 // Текущий трек переживает перезапуск сервера: пишем его в data/music-now.json.
 const MUSIC_NOW_FILE = path.join(DATA_DIR, 'music-now.json');
 const music = createMusic({
@@ -469,6 +478,7 @@ const handlers = {
     send(ws, { type: 'upgrade_feed', feed: upgrader.feed() });
     send(ws, { type: 'verity_feed', feed: verity.feed() });
     send(ws, { type: 'plinko_feed', feed: plinko.feed() });
+    send(ws, { type: 'kraken_feed', feed: kraken.feed() });
     send(ws, { type: 'mines_feed', feed: mines.feed() });
     send(ws, { type: 'mines_state', ...mines.view(player) });
     send(ws, { type: 'activity_history', entries: activity });
@@ -615,6 +625,16 @@ const handlers = {
     send(ws, { type: 'mines_state', ...result.state });
   },
 
+  kraken_spin(ws, msg) {
+    const result = kraken.spin(ws.player, msg.bet, msg.mode || 'spin');
+    if (result.error) return send(ws, { type: 'error', message: result.error, game: 'kraken' });
+    send(ws, { type: 'kraken_result', ...result.result });
+  },
+
+  kraken_done(ws, msg) {
+    kraken.done(ws.player, msg.id);
+  },
+
   plinko_drop(ws, msg) {
     const result = plinko.drop(ws.player, msg.amount, Number(msg.rows), msg.risk);
     if (result.error) return send(ws, { type: 'error', message: result.error });
@@ -744,6 +764,7 @@ function shutdown() {
     upgrader.settleAll();
     verity.settleAll();
     plinko.settleAll();
+    kraken.settleAll();
     mines.settleAll();
     store.flush();
     achievements.flush();
@@ -767,6 +788,7 @@ app.use('/admin/api', createAdminRouter({
   verity,
   plinko,
   mines,
+  kraken,
   achievements,
   luck,
   pool,

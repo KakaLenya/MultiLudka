@@ -446,13 +446,14 @@ const TAB_KEY = 'casino.tab';
 
 function showTab(name) {
   document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t.dataset.tab === name));
-  for (const id of ['crash', 'roulette', 'wheel', 'upgrade', 'plinko', 'mines', 'verity', 'duel', 'bomb', 'pool', 'poker']) $(id).hidden = name !== id;
+  for (const id of ['crash', 'roulette', 'wheel', 'kraken', 'upgrade', 'plinko', 'mines', 'verity', 'duel', 'bomb', 'pool', 'poker']) $(id).hidden = name !== id;
   // канвас апгрейдера создаётся ниже по файлу: рисуем на следующем кадре
   if (name === 'upgrade') requestAnimationFrame(() => drawUpgrader());
   storage.set(TAB_KEY, name);
+  if (window.krakenTabShown) window.krakenTabShown(name === 'kraken');
 }
 document.querySelectorAll('.tab').forEach((t) => t.addEventListener('click', () => showTab(t.dataset.tab)));
-showTab(['roulette', 'wheel', 'upgrade', 'plinko', 'mines', 'verity', 'duel', 'bomb', 'pool', 'poker'].includes(storage.get(TAB_KEY)) ? storage.get(TAB_KEY) : 'crash');
+showTab(['roulette', 'wheel', 'kraken', 'upgrade', 'plinko', 'mines', 'verity', 'duel', 'bomb', 'pool', 'poker'].includes(storage.get(TAB_KEY)) ? storage.get(TAB_KEY) : 'crash');
 
 // ---------- Звуки (WebAudio, без файлов) ----------
 
@@ -4469,6 +4470,7 @@ const ACT_GAMES = {
   crash: { icon: '📈', name: 'Краш' },
   roulette: { icon: '🎡', name: 'Рулетка' },
   wheel: { icon: '🎰', name: 'Колесо' },
+  kraken: { icon: '🐙', name: 'Кракен' },
   bomb: { icon: '💣', name: 'Бомба' },
   upgrade: { icon: '⬆️', name: 'Апгрейд' },
   verity: { icon: '😊', name: 'Верити' },
@@ -4989,6 +4991,7 @@ const handlers = {
   },
 
   error(msg) {
+    if (window.krakenOnError) window.krakenOnError(msg);
     if (upg.awaiting) {
       upg.awaiting = false;
       $('u-go').disabled = false;
