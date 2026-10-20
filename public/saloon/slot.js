@@ -285,20 +285,37 @@
     if (m > 1) drawMultBadge(ctx, x, y, m, st);
   }
 
-  function drawReelsBackground(ctx, t) {
+  // Неподвижные слои барабанов и рамы — в картинках (SlotRig.layer), в кадре только копируются.
+  const UNDER = {};
+  const FRAME = {};
+  const layerDpr = () => Math.min(2, window.devicePixelRatio || 1);
+  function paintReelsUnder(ctx, duel) {
     for (let r = 0; r < REELS; r++) {
       const x = FR + r * CELL;
       const g = ctx.createLinearGradient(x, FR, x, FR + ROWS * CELL);
-      const duel = G.mode === 'duel';
       g.addColorStop(0, duel ? 'rgba(40, 6, 8, .84)' : 'rgba(24, 12, 6, .8)');
       g.addColorStop(1, duel ? 'rgba(8, 1, 2, .95)' : 'rgba(6, 3, 2, .94)');
       if (G.texReel) {
-        G.patReel ||= ctx.createPattern(G.texReel, 'repeat');
-        ctx.fillStyle = G.patReel;
+        ctx.fillStyle = ctx.createPattern(G.texReel, 'repeat');
         ctx.fillRect(x, FR, CELL, ROWS * CELL);
       }
       ctx.fillStyle = g;
       ctx.fillRect(x, FR, CELL, ROWS * CELL);
+    }
+    for (let r = 1; r < REELS; r++) {
+      const x = FR + r * CELL;
+      ctx.fillStyle = 'rgba(0, 0, 0, .5)';
+      ctx.fillRect(x - 2, FR, 4, ROWS * CELL);
+      ctx.fillStyle = 'rgba(190, 150, 100, .16)';
+      ctx.fillRect(x - 0.5, FR, 1, ROWS * CELL);
+    }
+  }
+  function drawReelsBackground(ctx, t) {
+    const dpr = layerDpr();
+    const duel = G.mode === 'duel';
+    ctx.drawImage(window.SlotRig.layer(UNDER, `${dpr}|${duel}|${!!G.texReel}`, W, H, dpr, (c) => paintReelsUnder(c, duel)), 0, 0, W, H);
+    for (let r = 0; r < REELS; r++) {
+      const x = FR + r * CELL;
       if (G.expanded.has(r)) {
         const wg = ctx.createLinearGradient(x, 0, x + CELL, 0);
         wg.addColorStop(0, 'rgba(255, 120, 30, 0)');
@@ -307,13 +324,6 @@
         ctx.fillStyle = wg;
         ctx.fillRect(x, FR, CELL, ROWS * CELL);
       }
-    }
-    for (let r = 1; r < REELS; r++) {
-      const x = FR + r * CELL;
-      ctx.fillStyle = 'rgba(0, 0, 0, .5)';
-      ctx.fillRect(x - 2, FR, 4, ROWS * CELL);
-      ctx.fillStyle = 'rgba(190, 150, 100, .16)';
-      ctx.fillRect(x - 0.5, FR, 1, ROWS * CELL);
     }
   }
 
@@ -329,6 +339,24 @@
 
   // Рама: доски салуна, железные уголки, фонари.
   function drawFrame(ctx, t) {
+    const dpr = layerDpr();
+    ctx.drawImage(window.SlotRig.layer(FRAME, `${dpr}|${!!G.texWood}|${!!G.texIron}`, W, H, dpr, paintFrame), 0, 0, W, H);
+    const x0 = FR - 12;
+    const y0 = FR - 12;
+    const w = REELS * CELL + 24;
+    // Фонари по верхним углам: тёплый мерцающий свет.
+    for (const lx of [x0 + 70, x0 + w - 70]) {
+      const fl = 0.75 + 0.25 * Math.sin(t / 90 + lx) * Math.sin(t / 37 + lx);
+      window.SlotRig.glowAt(ctx, lx, y0 + 4, 70, '255, 190, 80', 0.55 * fl);
+      ctx.fillStyle = INK;
+      ctx.fillRect(lx - 9, y0 - 8, 18, 22);
+      ctx.fillStyle = `rgba(255, 210, 110, ${fl})`;
+      ctx.fillRect(lx - 6, y0 - 4, 12, 15);
+    }
+  }
+
+  // Рама без фонарей — неподвижный слой.
+  function paintFrame(ctx) {
     const x0 = FR - 12;
     const y0 = FR - 12;
     const w = REELS * CELL + 24;
@@ -340,8 +368,7 @@
     roundRect(ctx, x0, y0, w, h, 12);
     ctx.stroke();
     if (G.texWood) {
-      G.patWood ||= ctx.createPattern(G.texWood, 'repeat');
-      ctx.strokeStyle = G.patWood;
+      ctx.strokeStyle = ctx.createPattern(G.texWood, 'repeat');
       ctx.lineWidth = 19;
       roundRect(ctx, x0, y0, w, h, 12);
       ctx.stroke();
@@ -382,9 +409,8 @@
       ctx.fillStyle = ig;
       ctx.fill();
       if (G.texIron) {
-        G.patIron ||= ctx.createPattern(G.texIron, 'repeat');
         ctx.globalAlpha = 0.75;
-        ctx.fillStyle = G.patIron;
+        ctx.fillStyle = ctx.createPattern(G.texIron, 'repeat');
         ctx.fill();
         ctx.globalAlpha = 1;
       }
@@ -400,19 +426,6 @@
       ctx.restore();
     }
     ctx.restore();
-    // Фонари по верхним углам: тёплый мерцающий свет.
-    for (const lx of [x0 + 70, x0 + w - 70]) {
-      const fl = 0.75 + 0.25 * Math.sin(t / 90 + lx) * Math.sin(t / 37 + lx);
-      const lg = ctx.createRadialGradient(lx, y0 + 4, 2, lx, y0 + 4, 70);
-      lg.addColorStop(0, `rgba(255, 200, 90, ${0.55 * fl})`);
-      lg.addColorStop(1, 'rgba(255, 160, 40, 0)');
-      ctx.fillStyle = lg;
-      ctx.fillRect(lx - 70, y0 - 66, 140, 140);
-      ctx.fillStyle = INK;
-      ctx.fillRect(lx - 9, y0 - 8, 18, 22);
-      ctx.fillStyle = `rgba(255, 210, 110, ${fl})`;
-      ctx.fillRect(lx - 6, y0 - 4, 12, 15);
-    }
   }
 
   function drawCells(ctx, t) {
@@ -946,11 +959,14 @@
   let lastFrame = 0;
   function frame(now) {
     requestAnimationFrame(frame);
-    const dt = Math.min(0.05, (now - (lastFrame || now)) / 1000);
+    const raw = now - (lastFrame || now);
+    const dt = Math.min(0.05, raw / 1000);
     lastFrame = now;
     tickClock(dt * 1000);
     try {
+      const t0 = performance.now();
       renderScene(now, dt);
+      if (!el('saloon').hidden) window.SlotRig.frameStats('saloon', raw, performance.now() - t0);
     } catch (err) {
       if (!G.drawError) console.error('Салун: ошибка рисования', err);
       G.drawError = true;
@@ -1000,7 +1016,49 @@
   // Небо цвета запёкшейся крови, низкое солнце в полосах облаков, столовые горы, кладбище с покосившимися
   // крестами, мёртвое дерево с петлёй и стервятники — всё рисуется кодом.
   const CROSSES = [[0.03, 0.95, 1, -0.12], [0.11, 0.93, 0.7, 0.08], [0.2, 0.96, 0.85, -0.05], [0.82, 0.94, 0.75, 0.1], [0.9, 0.96, 1, -0.07], [0.97, 0.93, 0.6, 0.15]];
-  function drawDusk(ctx, w, h, now, duel) {
+  // Неподвижная часть заката — картинкой; поверх в кадре только звёзды, петля и стервятники.
+  const DUSK = {};
+  const treeScale = (h) => Math.min(1.3, h / 500);
+  function drawDusk(ctx, w, h, now, duel, dpr) {
+    ctx.drawImage(window.SlotRig.layer(DUSK, `${w}x${h}@${dpr}|${duel}`, w, h, dpr, (c) => paintDusk(c, w, h, duel)), 0, 0, w, h);
+    for (let i = 0; i < 40; i++) {
+      const x = (i * 97.3) % w;
+      const y = (i * 41.7) % (h * 0.35);
+      ctx.fillStyle = `rgba(255, 235, 215, ${0.15 + 0.2 * Math.sin(now / 900 + i * 1.3)})`;
+      ctx.fillRect(x, y, 1.4, 1.4);
+    }
+    // Петля качается на ветке.
+    ctx.save();
+    ctx.translate(w * 0.93, h * 0.94);
+    ctx.scale(treeScale(h), treeScale(h));
+    ctx.translate(-58, -152);
+    ctx.rotate(Math.sin(now / 1700) * 0.08);
+    ctx.strokeStyle = '#080302';
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(0, 46);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.ellipse(0, 54, 6, 9, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+    // Стервятники кружат.
+    ctx.strokeStyle = 'rgba(8, 2, 2, .85)';
+    ctx.lineWidth = 2.5;
+    for (const b of BG.birds) {
+      const a = now / 2600 + b.ph;
+      const x = w * b.x + Math.cos(a) * b.r * 2;
+      const y = h * 0.2 + Math.sin(a) * b.r * 0.6;
+      const flap = Math.sin(now / 160 + b.ph) * 4;
+      ctx.beginPath();
+      ctx.moveTo(x - 12, y - flap);
+      ctx.quadraticCurveTo(x - 6, y - 6, x, y);
+      ctx.quadraticCurveTo(x + 6, y - 6, x + 12, y - flap);
+      ctx.stroke();
+    }
+  }
+  function paintDusk(ctx, w, h, duel) {
     const sky = ctx.createLinearGradient(0, 0, 0, h);
     sky.addColorStop(0, duel ? '#0a0204' : '#0e0612');
     sky.addColorStop(0.45, duel ? '#3a0610' : '#3a1214');
@@ -1008,12 +1066,6 @@
     sky.addColorStop(1, duel ? '#200406' : '#24100a');
     ctx.fillStyle = sky;
     ctx.fillRect(0, 0, w, h);
-    for (let i = 0; i < 40; i++) {
-      const x = (i * 97.3) % w;
-      const y = (i * 41.7) % (h * 0.35);
-      ctx.fillStyle = `rgba(255, 235, 215, ${0.15 + 0.2 * Math.sin(now / 900 + i * 1.3)})`;
-      ctx.fillRect(x, y, 1.4, 1.4);
-    }
     // Низкое солнце в полосах облаков.
     const sx = w * 0.5;
     const sy = h * 0.74;
@@ -1033,7 +1085,7 @@
     ctx.fill();
     for (let i = 0; i < 5; i++) {
       const y = sy - sr * 0.6 + i * sr * 0.3;
-      const off = Math.sin(now / 9000 + i) * 30;
+      const off = Math.sin(i) * 30;
       ctx.fillStyle = duel ? 'rgba(40, 4, 8, .7)' : 'rgba(58, 18, 20, .65)';
       ctx.beginPath();
       ctx.ellipse(sx + off + (i % 2 ? -60 : 50), y, w * 0.32, sr * 0.05 + i * 1.5, 0, 0, Math.PI * 2);
@@ -1064,7 +1116,7 @@
     // Мёртвое дерево с петлёй.
     ctx.save();
     ctx.translate(w * 0.93, h * 0.94);
-    ctx.scale(Math.min(1.3, h / 500), Math.min(1.3, h / 500));
+    ctx.scale(treeScale(h), treeScale(h));
     ctx.strokeStyle = '#080302';
     ctx.lineCap = 'round';
     const branch = (x0, y0, x1, y1, lw) => {
@@ -1079,19 +1131,6 @@
     branch(-40, -140, -54, -184, 3);
     branch(-4, -140, 30, -196, 5);
     branch(-6, -150, -20, -210, 4);
-    const sway = Math.sin(now / 1700) * 0.08;
-    ctx.save();
-    ctx.translate(-58, -152);
-    ctx.rotate(sway);
-    ctx.lineWidth = 1.6;
-    ctx.beginPath();
-    ctx.moveTo(0, 0);
-    ctx.lineTo(0, 46);
-    ctx.stroke();
-    ctx.beginPath();
-    ctx.ellipse(0, 54, 6, 9, 0, 0, Math.PI * 2);
-    ctx.stroke();
-    ctx.restore();
     ctx.restore();
     // Кладбище: покосившиеся кресты.
     for (const [fx, fy, s, rot] of CROSSES) {
@@ -1129,20 +1168,6 @@
     cactus(w * 0.07, h * 0.97, 1.1);
     cactus(w * 0.27, h * 0.93, 0.5);
     cactus(w * 0.76, h * 0.94, 0.6);
-    // Стервятники кружат.
-    ctx.strokeStyle = 'rgba(8, 2, 2, .85)';
-    ctx.lineWidth = 2.5;
-    for (const b of BG.birds) {
-      const a = now / 2600 + b.ph;
-      const x = w * b.x + Math.cos(a) * b.r * 2;
-      const y = h * 0.2 + Math.sin(a) * b.r * 0.6;
-      const flap = Math.sin(now / 160 + b.ph) * 4;
-      ctx.beginPath();
-      ctx.moveTo(x - 12, y - flap);
-      ctx.quadraticCurveTo(x - 6, y - 6, x, y);
-      ctx.quadraticCurveTo(x + 6, y - 6, x + 12, y - flap);
-      ctx.stroke();
-    }
     // Вечерняя дымка у земли.
     const haze = ctx.createLinearGradient(0, h * 0.7, 0, h);
     haze.addColorStop(0, 'rgba(120, 40, 20, 0)');
@@ -1159,7 +1184,7 @@
     const ctx = bctx;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     const duel = G.mode === 'duel';
-    drawDusk(ctx, w, h, now, duel);
+    drawDusk(ctx, w, h, now, duel, dpr);
     // Перекати-поле.
     if (BG.weeds.length < 1 && Math.random() < dt * 0.15) BG.weeds.push({ x: -40, v: 50 + Math.random() * 60, r: 10 + Math.random() * 12, ph: Math.random() * 6 });
     BG.weeds = BG.weeds.filter((t) => t.x < w + 60);

@@ -117,12 +117,81 @@
     const v = root.localStorage.getItem('casino.slots.lite');
     if (v === '1' || v === '0') Object.assign(perf, { lite: v === '1', forced: true });
   } catch (e) { /* хранилище недоступно — решим по замеру */ }
+  // Первые 3 секунды после показа вкладки не считаем: браузер впервые распаковывает картинки деталей.
+  let lastTick = 0;
+  let warm = 0;
   function frameTick(dt) {
+    const now = performance.now();
+    if (now - lastTick > 250) warm = 0;
+    lastTick = now;
     if (perf.lite || perf.forced || !(dt > 0) || dt > 250) return;
+    warm += dt;
+    if (warm < 3000) return;
     perf.ema += (dt - perf.ema) * 0.05;
     perf.slow = perf.ema > 24 ? perf.slow + dt : 0;
     if (perf.slow > 1500) perf.lite = true;
   }
+  // Статистика кадров слота: раз в 10 секунд уходит на сервер (slot_perf), чтобы видеть лаги
+  // на настоящих машинах игроков, а не гадать. dt — между кадрами, ms — сколько рисовали сами.
+  const stats = { game: '', dts: [], ms: [], long: 0, longN: 0 };
+  let gpu = null;
+  function gpuName() {
+    if (gpu !== null) return gpu;
+    try {
+      const gl = document.createElement('canvas').getContext('webgl');
+      const ext = gl && gl.getExtension('WEBGL_debug_renderer_info');
+      gpu = gl ? String(gl.getParameter(ext ? ext.UNMASKED_RENDERER_WEBGL : gl.RENDERER)).slice(0, 120) : 'no webgl';
+    } catch (e) {
+      gpu = 'unknown';
+    }
+    return gpu;
+  }
+  try {
+    new PerformanceObserver((list) => {
+      if (!stats.game) return;
+      for (const e of list.getEntries()) {
+        stats.long += e.duration;
+        stats.longN += 1;
+      }
+    }).observe({ type: 'longtask', buffered: false });
+  } catch (e) { /* браузер не умеет — обойдёмся */ }
+  function frameStats(game, dt, ms) {
+    if (!(dt > 0) || dt > 1000) return;
+    stats.game = game;
+    stats.dts.push(dt);
+    stats.ms.push(ms);
+  }
+  const pct = (a, p) => a[Math.min(a.length - 1, Math.floor(a.length * p))];
+  setInterval(() => {
+    const n = stats.dts.length;
+    if (n < 30 || typeof root.send !== 'function') {
+      Object.assign(stats, { game: '', dts: [], ms: [], long: 0, longN: 0 });
+      return;
+    }
+    const d = stats.dts.slice().sort((a, b) => a - b);
+    const m = stats.ms.slice().sort((a, b) => a - b);
+    const sum = d.reduce((s, x) => s + x, 0);
+    root.send({
+      type: 'slot_perf',
+      game: stats.game,
+      fps: Math.round((n / sum) * 1000),
+      dt50: Math.round(pct(d, 0.5)),
+      dt95: Math.round(pct(d, 0.95)),
+      dtMax: Math.round(d[n - 1]),
+      slow: d.filter((x) => x > 34).length,
+      frames: n,
+      ms50: +pct(m, 0.5).toFixed(1),
+      ms95: +pct(m, 0.95).toFixed(1),
+      long: Math.round(stats.long),
+      longN: stats.longN,
+      lite: perf.lite,
+      dpr: root.devicePixelRatio || 1,
+      gpu: gpuName(),
+      ua: navigator.userAgent.slice(0, 160),
+    });
+    Object.assign(stats, { game: '', dts: [], ms: [], long: 0, longN: 0 });
+  }, 10000);
+
   function drawCached(ctx, slot, rig, x, y, size, t, w = 0, k = 0, alpha = 1, fps = 15) {
     if (!perf.lite) {
       draw(ctx, rig, x, y, size, t, w, k, alpha);
@@ -153,6 +222,23 @@
     ctx.globalAlpha = prev * alpha;
     ctx.drawImage(cv, x - full / 2, y - full / 2, full, full);
     ctx.globalAlpha = prev;
+  }
+
+  // Неподвижный слой сцены (небо, горы, подложка барабанов, рама): рисуется один раз в картинку,
+  // пока не сменится key (размер, режим), и дальше только копируется. Без видеоускорения перерисовка
+  // всего фона каждый кадр стоила десятки миллисекунд. store — объект, где слой живёт.
+  function layer(store, key, w, h, dpr, paint) {
+    if (store.key !== key || !store.cv) {
+      const cv = store.cv || document.createElement('canvas');
+      cv.width = Math.max(1, Math.round(w * dpr));
+      cv.height = Math.max(1, Math.round(h * dpr));
+      const c = cv.getContext('2d');
+      c.setTransform(dpr, 0, 0, dpr, 0, 0);
+      paint(c);
+      store.cv = cv;
+      store.key = key;
+    }
+    return store.cv;
   }
 
   // Помощники для движений.
@@ -327,5 +413,5 @@
     }
   }
 
-  root.SlotRig = { build, draw, drawCached, frameTick, perf, wave, blip, ease, smoke, glowAt, bubbles, sweep, tentacle, catmull };
+  root.SlotRig = { build, draw, drawCached, layer, frameTick, frameStats, perf, wave, blip, ease, smoke, glowAt, bubbles, sweep, tentacle, catmull };
 })(window);

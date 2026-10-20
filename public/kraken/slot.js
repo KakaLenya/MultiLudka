@@ -300,22 +300,40 @@
     if (s === 'pearl' && v !== null && v !== undefined && v !== 'kraken') drawPearlValue(ctx, x, y + CELL * 0.26 * scale, v, CELL * scale, alpha);
   }
 
-  function drawReelsBackground(ctx, t) {
-    // Окно барабанов: тёмная вода, колонки, лёгкая рябь света.
+  // Неподвижные слои барабанов и рамы — в картинках (SlotRig.layer), в кадре только копируются.
+  const UNDER = {};
+  const FRAME = {};
+  const layerDpr = () => Math.min(2, window.devicePixelRatio || 1);
+  function paintReelsUnder(ctx, mode) {
+    // Окно барабанов: тёмная вода, колонки.
     for (let r = 0; r < REELS; r++) {
       const x = FR + r * CELL;
       const g = ctx.createLinearGradient(x, FR, x, FR + ROWS * CELL);
-      const hw = G.mode === 'hw';
-      const fsm = G.mode === 'fs';
+      const hw = mode === 'hw';
+      const fsm = mode === 'fs';
       g.addColorStop(0, hw ? 'rgba(26, 16, 48, .82)' : fsm ? 'rgba(42, 8, 24, .82)' : 'rgba(6, 30, 40, .8)');
       g.addColorStop(1, hw ? 'rgba(4, 2, 10, .94)' : fsm ? 'rgba(10, 2, 8, .94)' : 'rgba(2, 8, 12, .94)');
       if (G.texStone) {
-        G.patStone ||= ctx.createPattern(G.texStone, 'repeat');
-        ctx.fillStyle = G.patStone;
+        ctx.fillStyle = ctx.createPattern(G.texStone, 'repeat');
         ctx.fillRect(x, FR, CELL, ROWS * CELL);
       }
       ctx.fillStyle = g;
       ctx.fillRect(x, FR, CELL, ROWS * CELL);
+    }
+    // Разделители колонок.
+    for (let r = 1; r < REELS; r++) {
+      const x = FR + r * CELL;
+      ctx.fillStyle = 'rgba(0, 0, 0, .45)';
+      ctx.fillRect(x - 2, FR, 4, ROWS * CELL);
+      ctx.fillStyle = 'rgba(201, 161, 74, .22)';
+      ctx.fillRect(x - 0.5, FR, 1, ROWS * CELL);
+    }
+  }
+  function drawReelsBackground(ctx, t) {
+    const dpr = layerDpr();
+    ctx.drawImage(window.SlotRig.layer(UNDER, `${dpr}|${G.mode}|${!!G.texStone}`, W, H, dpr, (c) => paintReelsUnder(c, G.mode)), 0, 0, W, H);
+    for (let r = 0; r < REELS; r++) {
+      const x = FR + r * CELL;
       if (G.wild.has(r)) {
         const wg = ctx.createLinearGradient(x, 0, x + CELL, 0);
         wg.addColorStop(0, 'rgba(192, 35, 74, 0)');
@@ -338,18 +356,21 @@
       ctx.fillRect(FR, yy - 40, REELS * CELL, 80);
     }
     ctx.restore();
-    // Разделители колонок.
-    for (let r = 1; r < REELS; r++) {
-      const x = FR + r * CELL;
-      ctx.fillStyle = 'rgba(0, 0, 0, .45)';
-      ctx.fillRect(x - 2, FR, 4, ROWS * CELL);
-      ctx.fillStyle = 'rgba(201, 161, 74, .22)';
-      ctx.fillRect(x - 0.5, FR, 1, ROWS * CELL);
-    }
   }
 
   function drawFrame(ctx, t) {
-    // Золотая рама с канатом и заклёпками.
+    const dpr = layerDpr();
+    ctx.drawImage(window.SlotRig.layer(FRAME, `${dpr}|${!!G.texMetal}`, W, H, dpr, paintFrame), 0, 0, W, H);
+    // Щупальца обвивают углы рамы.
+    const sway = (k) => Math.sin(t / 900 + k) * 6;
+    tentacle(ctx, [[-10, H * 0.75], [10, H * 0.62 + sway(1)], [6, H * 0.48], [28 + sway(2), H * 0.4], [44, H * 0.47 + sway(3)]], 20, 4, t, 0);
+    tentacle(ctx, [[W + 10, H * 0.78], [W - 12, H * 0.64 + sway(2)], [W - 6, H * 0.5], [W - 30 + sway(3), H * 0.42], [W - 46, H * 0.5 + sway(4)]], 20, 4, t, 1);
+    tentacle(ctx, [[-14, -6], [16, 12 + sway(5)], [44, 4], [58 + sway(1), 26], [46, 40]], 15, 3, t, 2);
+    tentacle(ctx, [[W + 14, -6], [W - 16, 12 + sway(6)], [W - 44, 4], [W - 58 + sway(2), 26], [W - 46, 40]], 15, 3, t, 3);
+  }
+
+  // Золотая рама с канатом и заклёпками — неподвижный слой.
+  function paintFrame(ctx) {
     ctx.save();
     const x0 = FR - 10;
     const y0 = FR - 10;
@@ -361,8 +382,7 @@
     roundRect(ctx, x0, y0, w, h, 18);
     ctx.stroke();
     if (G.texMetal) {
-      G.patMetal ||= ctx.createPattern(G.texMetal, 'repeat');
-      ctx.strokeStyle = G.patMetal;
+      ctx.strokeStyle = ctx.createPattern(G.texMetal, 'repeat');
       ctx.lineWidth = 15;
       roundRect(ctx, x0, y0, w, h, 18);
       ctx.stroke();
@@ -403,12 +423,6 @@
       ctx.stroke();
     }
     ctx.restore();
-    // Щупальца обвивают углы рамы.
-    const sway = (k) => Math.sin(t / 900 + k) * 6;
-    tentacle(ctx, [[-10, H * 0.75], [10, H * 0.62 + sway(1)], [6, H * 0.48], [28 + sway(2), H * 0.4], [44, H * 0.47 + sway(3)]], 20, 4, t, 0);
-    tentacle(ctx, [[W + 10, H * 0.78], [W - 12, H * 0.64 + sway(2)], [W - 6, H * 0.5], [W - 30 + sway(3), H * 0.42], [W - 46, H * 0.5 + sway(4)]], 20, 4, t, 1);
-    tentacle(ctx, [[-14, -6], [16, 12 + sway(5)], [44, 4], [58 + sway(1), 26], [46, 40]], 15, 3, t, 2);
-    tentacle(ctx, [[W + 14, -6], [W - 16, 12 + sway(6)], [W - 44, 4], [W - 58 + sway(2), 26], [W - 46, 40]], 15, 3, t, 3);
   }
 
   function roundRect(ctx, x, y, w, h, r) {
@@ -423,7 +437,7 @@
 
   // Щупальце по опорным точкам (от основания к кончику): сужается, присоски с одной стороны.
   function tentacle(ctx, pts, w0, w1, t, seed, color = ['#7a1a2c', '#2a0612']) {
-    const N = 36;
+    const N = 22;
     const spine = [];
     for (let i = 0; i <= N; i++) spine.push(catmull(pts, i / N));
     const left = [];
@@ -914,11 +928,14 @@
   function frame(now) {
     // Следующий кадр — сразу: ошибка в рисовании не должна остановить показ (и часы ожиданий).
     requestAnimationFrame(frame);
-    const dt = Math.min(0.05, (now - (lastFrame || now)) / 1000);
+    const raw = now - (lastFrame || now);
+    const dt = Math.min(0.05, raw / 1000);
     lastFrame = now;
     tickClock(dt * 1000);
     try {
+      const t0 = performance.now();
       renderScene(now, dt);
+      if (!el('kraken').hidden) window.SlotRig.frameStats('kraken', raw, performance.now() - t0);
     } catch (err) {
       if (!G.drawError) console.error('Кракен: ошибка рисования', err);
       G.drawError = true;
@@ -1046,7 +1063,6 @@
     window.SlotRig.tentacle(ctx, pts, 46, 6, { colors: ['#05090c', '#0a1418', '#12242a'], sucker: 'rgba(40, 70, 76, .5)', ink: '#010406', suckerSide: side, line: 2 });
   }
   function drawAbyss(ctx, w, h, now, fsm, hw) {
-    drawRocks(ctx, w, h, ROCKS[0], fsm ? 'rgba(20, 4, 10, .8)' : hw ? 'rgba(12, 8, 26, .8)' : 'rgba(4, 22, 28, .85)', true);
     drawWreck(ctx, w * 0.8, h * 0.84, Math.min(1.2, w / 900), now);
     drawDeepTentacle(ctx, w * 0.04, h, h * 0.75, 1, now, 0);
     drawDeepTentacle(ctx, w * 0.96, h, h * 0.65, -1, now, 2.1);
@@ -1070,31 +1086,23 @@
     }
   }
   const BG = { bubbles: [], fish: [], eyeAt: 0, size: [0, 0], motes: [] };
-  function drawBackground(now, dt) {
-    const box = bgCv.getBoundingClientRect();
-    const w = Math.max(1, Math.round(box.width));
-    const h = Math.max(1, Math.round(box.height));
-    const dpr = fitCanvas(bgCv, w, h);
-    const ctx = bctx;
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    const fsm = G.mode === 'fs';
-    const hw = G.mode === 'hw';
-    // Толща воды: сверху мутный свет, вниз — чернота. Фриспины — кровь в воде, сундук — фиолетовая тьма.
+  // Толща воды: сверху мутный свет, вниз — чернота. Фриспины — кровь в воде, сундук — фиолетовая тьма.
+  const DEEP = {};
+  function paintDeep(ctx, w, h, fsm, hw) {
     const g = ctx.createLinearGradient(0, 0, 0, h);
     g.addColorStop(0, fsm ? '#2a0814' : hw ? '#160c30' : '#0a2a30');
     g.addColorStop(0.5, fsm ? '#12030a' : hw ? '#090518' : '#041418');
     g.addColorStop(1, '#010507');
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, w, h);
-    drawAbyss(ctx, w, h, now, fsm, hw);
     // Лучи света сверху.
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
     for (let i = 0; i < 6; i++) {
-      const x = w * (0.1 + i * 0.17) + Math.sin(now / 4000 + i) * 40;
+      const x = w * (0.1 + i * 0.17) + Math.sin(i) * 40;
       const rg = ctx.createLinearGradient(x, 0, x + 80, h * 0.8);
       const a = fsm ? 0.02 : 0.045;
-      rg.addColorStop(0, `rgba(170, 230, 255, ${a + 0.03 * Math.sin(now / 1300 + i * 2)})`);
+      rg.addColorStop(0, `rgba(170, 230, 255, ${a + 0.03 * Math.sin(i * 2)})`);
       rg.addColorStop(1, 'rgba(170, 230, 255, 0)');
       ctx.fillStyle = rg;
       ctx.beginPath();
@@ -1106,6 +1114,20 @@
       ctx.fill();
     }
     ctx.restore();
+    drawRocks(ctx, w, h, ROCKS[0], fsm ? 'rgba(20, 4, 10, .8)' : hw ? 'rgba(12, 8, 26, .8)' : 'rgba(4, 22, 28, .85)', true);
+  }
+  function drawBackground(now, dt) {
+    const box = bgCv.getBoundingClientRect();
+    const w = Math.max(1, Math.round(box.width));
+    const h = Math.max(1, Math.round(box.height));
+    const dpr = fitCanvas(bgCv, w, h);
+    const ctx = bctx;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const fsm = G.mode === 'fs';
+    const hw = G.mode === 'hw';
+    // Неподвижная толща воды (свет, лучи, дальние скалы) — картинкой; поверх в кадре всё, что движется.
+    ctx.drawImage(window.SlotRig.layer(DEEP, `${w}x${h}@${dpr}|${G.mode}`, w, h, dpr, (c) => paintDeep(c, w, h, fsm, hw)), 0, 0, w, h);
+    drawAbyss(ctx, w, h, now, fsm, hw);
     // Глаз Кракена во тьме: иногда открывается.
     if (now > BG.eyeAt + 14000) BG.eyeAt = now;
     const ek = (now - BG.eyeAt) / 3000;

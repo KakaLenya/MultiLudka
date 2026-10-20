@@ -655,6 +655,26 @@ const handlers = {
     saloon.done(ws.player, msg.id);
   },
 
+  // Статистика кадров слотов с машин игроков — чтобы искать лаги по цифрам (data/logs/perf.log).
+  slot_perf(ws, msg) {
+    const now = Date.now();
+    if (now - (ws.perfAt || 0) < 5000) return;
+    ws.perfAt = now;
+    const num = (x) => (Number.isFinite(Number(x)) ? Math.round(Number(x) * 10) / 10 : null);
+    const str = (x, n) => String(x ?? '').replace(/[\r\n]+/g, ' ').slice(0, n);
+    const row = {
+      at: new Date(now).toISOString(),
+      player: ws.player ? ws.player.name : null,
+      game: str(msg.game, 12),
+      lite: !!msg.lite,
+      gpu: str(msg.gpu, 120),
+      ua: str(msg.ua, 160),
+    };
+    for (const k of ['fps', 'dt50', 'dt95', 'dtMax', 'slow', 'frames', 'ms50', 'ms95', 'long', 'longN', 'dpr']) row[k] = num(msg[k]);
+    fs.mkdirSync(path.join(DATA_DIR, 'logs'), { recursive: true });
+    fs.appendFile(path.join(DATA_DIR, 'logs', 'perf.log'), `${JSON.stringify(row)}\n`, () => {});
+  },
+
   plinko_drop(ws, msg) {
     const result = plinko.drop(ws.player, msg.amount, Number(msg.rows), msg.risk);
     if (result.error) return send(ws, { type: 'error', message: result.error });
