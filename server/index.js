@@ -3,7 +3,7 @@ const http = require('node:http');
 const path = require('node:path');
 const express = require('express');
 const { WebSocketServer } = require('ws');
-const { createStore } = require('./players');
+const { createStore, passwordError } = require('./players');
 const { randomToken } = require('./rng');
 const { createCrashGame } = require('./crash');
 const { createHoldem } = require('./holdem');
@@ -111,6 +111,17 @@ let chatSeq = 0;
 const mutes = new Map();  // playerId -> до какого времени молчит (админ)
 
 const registrations = new Map();  // ip -> [время регистрации, ...]
+const loginFails = new Map();     // ip -> [время неверного пароля, ...]
+const LOGIN_FAILS = 10;
+const LOGIN_WINDOW_MS = 10 * 60 * 1000;
+
+// Подбор пароля: не больше 10 неверных попыток с адреса за 10 минут.
+function loginBlocked(ip) {
+  const t = Date.now();
+  const recent = (loginFails.get(ip) || []).filter((at) => t - at < LOGIN_WINDOW_MS);
+  loginFails.set(ip, recent);
+  return recent.length >= LOGIN_FAILS;
+}
 
 function canRegister(ip) {
   const t = Date.now();
@@ -403,13 +414,32 @@ const handlers = {
         // Токен из localStorage не узнали (например, удалили data/). Клиент покажет форму входа.
         return send(ws, { type: 'error', code: 'bad_token', message: 'Сессия не найдена, войди заново' });
       }
-      if (!canRegister(ws.ip)) {
-        return send(ws, { type: 'error', code: 'bad_name', message: 'Слишком много новых игроков с этого адреса, попробуй позже' });
+      const existing = store.findByName(msg.name);
+      if (existing) {
+        // Имя занято: это вход в свой аккаунт с новой ссылки — по паролю.
+        if (!store.hasPassword(existing)) {
+          return send(ws, { type: 'error', code: 'no_password', message: `У «${existing.name}» ещё нет пароля. Попроси админа задать его — и входи с любой ссылки` });
+        }
+        if (loginBlocked(ws.ip)) {
+          return send(ws, { type: 'error', code: 'bad_password', message: 'Слишком много неверных паролей, подожди 10 минут' });
+        }
+        if (!store.checkPassword(existing, msg.password)) {
+          loginFails.get(ws.ip).push(Date.now());
+          return send(ws, { type: 'error', code: 'bad_password', message: 'Неверный пароль' });
+        }
+        player = existing;
+      } else {
+        const pwErr = passwordError(msg.password);
+        if (pwErr) return send(ws, { type: 'error', code: 'bad_password', message: `${pwErr}: с ним войдёшь в свой аккаунт с любой ссылки` });
+        if (!canRegister(ws.ip)) {
+          return send(ws, { type: 'error', code: 'bad_name', message: 'Слишком много новых игроков с этого адреса, попробуй позже' });
+        }
+        const result = store.register(msg.name);
+        if (result.error) return send(ws, { type: 'error', code: 'bad_name', message: result.error });
+        registrations.get(ws.ip).push(Date.now());
+        player = result.player;
+        store.setPassword(player, msg.password);
       }
-      const result = store.register(msg.name);
-      if (result.error) return send(ws, { type: 'error', code: 'bad_name', message: result.error });
-      registrations.get(ws.ip).push(Date.now());
-      player = result.player;
     }
 
     ws.player = player;
@@ -419,6 +449,7 @@ const handlers = {
       token: player.token,
       name: player.name,
       balance: player.balance,
+      hasPassword: store.hasPassword(player),
     });
     send(ws, balanceMsg(player));
     send(ws, leaderboardMsg());
@@ -441,6 +472,13 @@ const handlers = {
     send(ws, { type: 'music', track: music.state() });
     send(ws, libraryMsg());
     broadcastOnline();
+  },
+
+  // Задать или сменить пароль (игрок уже вошёл — значит, это он).
+  set_password(ws, msg) {
+    const result = store.setPassword(ws.player, msg.password);
+    if (result.error) return send(ws, { type: 'error', message: result.error });
+    send(ws, { type: 'password_set' });
   },
 
   claim_bonus(ws) {

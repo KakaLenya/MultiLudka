@@ -1616,3 +1616,15 @@ body.fx-disco { animation: fx-disco .5s linear infinite; }
   .mn-wrap { grid-template-columns: 1fr; }
   .mn-grid { order: -1; }
 }
+
+/* ---------- Вход и пароль ---------- */
+.login-form { display: grid; grid-template-columns: 1fr 1fr auto; gap: 8px; }
+.login-hint { margin: 10px 0 0; }
+.pw-card { display: flex; flex-direction: column; gap: 10px; border-color: rgba(242, 193, 78, .55); background: linear-gradient(135deg, rgba(242, 193, 78, .1), rgba(255, 255, 255, .02)); }
+.pw-card h2 { margin: 0 0 4px; }
+.pw-card p { margin: 0; }
+.pw-card .row { margin: 0; flex-wrap: wrap; }
+.pw-card input { flex: 1 1 200px; }
+@media (max-width: 560px) {
+  .login-form { grid-template-columns: 1fr; }
+}

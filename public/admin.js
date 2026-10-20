@@ -147,6 +147,7 @@ function renderSelected() {
     p.reserved ? `в играх ${p.reserved}` : null,
     p.mutedFor > 0 ? `мут ещё ${fmtMs(p.mutedFor)}` : null,
     p.luck ? `🍀 везение ${p.luck}%` : null,
+    p.hasPassword ? '🔑 пароль есть' : '⚠️ пароля нет — на новой ссылке не войдёт',
     p.bonusReadyIn > 0 ? `пособие через ${fmtMs(p.bonusReadyIn)}` : 'пособие доступно',
   ];
   $('sel-info').textContent = parts.filter(Boolean).join(' · ');
@@ -569,6 +570,14 @@ document.querySelectorAll('[data-uprig]').forEach((b) => b.addEventListener('cli
   const mode = b.dataset.uprig === 'fair' ? null : b.dataset.uprig;
   run('/upgrader/rig', { mode }, mode === 'win' ? 'Следующий апгрейд выиграет' : mode === 'lose' ? 'Следующий апгрейд проиграет' : 'Апгрейды снова честные');
 }));
+
+$('sel-password-btn').addEventListener('click', () => {
+  const p = selectedPlayer();
+  const password = $('sel-password').value;
+  if (!p || !password) return;
+  run('/set-password', { playerId: p.id, password }, `🔑 Пароль для ${p.name} задан. Скажи ему: имя «${p.name}» и этот пароль.`);
+  $('sel-password').value = '';
+});
 
 document.querySelectorAll('[data-luck]').forEach((b) => b.addEventListener('click', () => {
   const p = selectedPlayer();

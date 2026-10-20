@@ -4293,6 +4293,15 @@ const handlers = {
     $('me-name').textContent = msg.name;
     $('me-balance').textContent = msg.balance;
     state.balance = msg.balance;
+    // Старый аккаунт без пароля: предлагаем задать, иначе на новой ссылке не войти.
+    if (!msg.hasPassword) showPasswordCard(false);
+    else $('pw-card').hidden = true;
+  },
+
+  password_set() {
+    if (state.me) state.me.hasPassword = true;
+    $('pw-card').hidden = true;
+    toast('Пароль сохранён: теперь входи по имени и паролю с любой ссылки', true);
   },
 
   music(msg) {
@@ -4523,15 +4532,36 @@ const handlers = {
 $('login-form').addEventListener('submit', (ev) => {
   ev.preventDefault();
   const name = $('name').value.trim();
+  const password = $('password').value;
   if (!name) return;
   $('login-error').textContent = '';
-  send({ type: 'hello', name });
+  send({ type: 'hello', name, password });
+});
+
+// Пароль: задать (старым аккаунтам без пароля) или сменить (кнопка 🔑 в шапке).
+function showPasswordCard(change) {
+  $('pw-title').textContent = change ? '🔑 Сменить пароль' : '🔒 Задай пароль';
+  $('pw-text').textContent = change
+    ? 'С ним входишь в свой аккаунт с любой ссылки: имя + пароль.'
+    : 'Ссылка на зал иногда меняется, и на новой ссылке браузер тебя не узнает. С паролем войдёшь в свой аккаунт откуда угодно: имя + пароль.';
+  $('pw-card').hidden = false;
+  $('pw-input').value = '';
+  $('pw-input').focus();
+}
+$('me-pass').addEventListener('click', () => showPasswordCard(state.me && state.me.hasPassword));
+$('pw-later').addEventListener('click', () => { $('pw-card').hidden = true; });
+$('pw-card').addEventListener('submit', (ev) => {
+  ev.preventDefault();
+  const password = $('pw-input').value;
+  if (password.length < 4) return toast('Пароль: от 4 символов');
+  send({ type: 'set_password', password });
 });
 
 $('bonus-btn').addEventListener('click', () => send({ type: 'claim_bonus' }));
 
 $('logout').addEventListener('click', () => {
-  if (!confirm('Выйти? Без этого браузера вернуться к игроку не получится.')) return;
+  const back = state.me && state.me.hasPassword ? 'Вернуться можно по имени и паролю.' : 'У тебя нет пароля: без этого браузера вернуться к игроку не получится. Сначала задай пароль (🔑).';
+  if (!confirm(`Выйти? ${back}`)) return;
   storage.remove(TOKEN_KEY);
   location.reload();
 });

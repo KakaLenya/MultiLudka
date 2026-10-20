@@ -63,6 +63,7 @@ function createAdminRouter({
         bonusReadyIn: store.bonusStatus(p).availableIn,
         mutedFor: Math.max(0, (mutes.get(p.id) || 0) - t),
         luck: luck.percentOf(p.id),
+        hasPassword: store.hasPassword(p),
         createdAt: p.createdAt,
       }))
       .sort((a, b) => b.online - a.online || b.capital - a.capital);
@@ -243,6 +244,15 @@ function createAdminRouter({
   router.post('/chat/clear', (req, res) => {
     chat.clear();
     ok(res);
+  });
+
+  // Задать игроку пароль, чтобы он вошёл с новой ссылки: { playerId, password }.
+  router.post('/set-password', (req, res) => {
+    const p = findPlayer(req.body.playerId);
+    if (!p) return fail(res, 'Игрок не найден', 404);
+    const result = store.setPassword(p, req.body.password);
+    if (result.error) return fail(res, result.error);
+    ok(res, { name: p.name });
   });
 
   // Режим везения: { playerId, percent } — 1..100 включить, 0 выключить.

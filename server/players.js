@@ -1,5 +1,6 @@
 // Игроки и балансы. Хранение в JSON-файле: запись с дебаунсом, атомарно (tmp + rename).
 const fs = require('node:fs');
+const crypto = require('node:crypto');
 const path = require('node:path');
 const { randomToken } = require('./rng');
 
@@ -10,6 +11,19 @@ const BONUS_COOLDOWN_MS = 24 * 60 * 60 * 1000;
 const NAME_MAX = 20;
 const TOKEN_MAX = 64;
 const SAVE_DELAY_MS = 500;
+const PASSWORD_MIN = 4;
+const PASSWORD_MAX = 64;
+
+// Пароль не храним: только соль и хэш scrypt.
+function hashPassword(password, salt = crypto.randomBytes(16).toString('hex')) {
+  const hash = crypto.scryptSync(password, salt, 32).toString('hex');
+  return `${salt}:${hash}`;
+}
+function passwordError(password) {
+  if (typeof password !== 'string' || password.length < PASSWORD_MIN) return `Пароль: от ${PASSWORD_MIN} символов`;
+  if (password.length > PASSWORD_MAX) return `Пароль: не длиннее ${PASSWORD_MAX} символов`;
+  return null;
+}
 
 // Имя: строка, без управляющих символов, 1..NAME_MAX символов. null, если не годится.
 function cleanName(raw) {
@@ -82,6 +96,7 @@ function createStore({ file = null, now = Date.now, saveDelayMs = SAVE_DELAY_MS 
         balance: p.balance + refund,
         lastBonusAt: Number.isFinite(p.lastBonusAt) ? p.lastBonusAt : null,
         createdAt: Number.isFinite(p.createdAt) ? p.createdAt : now(),
+        passHash: typeof p.passHash === 'string' ? p.passHash : null,
       });
       nextId = Math.max(nextId, Number(p.id) + 1 || 0);
     }
@@ -100,6 +115,7 @@ function createStore({ file = null, now = Date.now, saveDelayMs = SAVE_DELAY_MS 
       reserved: reserved(p),   // фишки в играх: вернутся при следующем старте
       lastBonusAt: p.lastBonusAt,
       createdAt: p.createdAt,
+      passHash: p.passHash || null,
     }));
     writeAtomic(file, JSON.stringify({ version: 1, nextId, players }, null, 2));
   }
@@ -195,6 +211,23 @@ function createStore({ file = null, now = Date.now, saveDelayMs = SAVE_DELAY_MS 
     return { ok: true };
   }
 
+  // Пароль, чтобы входить с любой ссылки (браузер помнит вход только для своего адреса).
+  function setPassword(player, password) {
+    const err = passwordError(password);
+    if (err) return { error: err };
+    player.passHash = hashPassword(password);
+    scheduleSave();
+    return { ok: true };
+  }
+
+  function checkPassword(player, password) {
+    if (!player.passHash || typeof password !== 'string' || password.length > PASSWORD_MAX) return false;
+    const [salt, hash] = player.passHash.split(':');
+    const got = Buffer.from(hashPassword(password, salt).split(':')[1], 'hex');
+    const want = Buffer.from(hash, 'hex');
+    return got.length === want.length && crypto.timingSafeEqual(got, want);
+  }
+
   // Админ: удалить игрока совсем (имя освобождается, токен перестаёт работать).
   function remove(player) {
     if (byId.get(player.id) !== player) return { error: 'Игрок не найден' };
@@ -224,6 +257,13 @@ function createStore({ file = null, now = Date.now, saveDelayMs = SAVE_DELAY_MS 
     findByToken,
     register,
     get: (id) => byId.get(id) || null,
+    findByName: (rawName) => {
+      const name = cleanName(rawName);
+      return name ? byName.get(nameKey(name)) || null : null;
+    },
+    setPassword,
+    checkPassword,
+    hasPassword: (player) => !!player.passHash,
     adjust,
     capital,
     reserved,
@@ -246,6 +286,7 @@ module.exports = {
   createStore,
   cleanName,
   writeAtomic,
+  passwordError,
   START_BALANCE,
   BONUS_AMOUNT,
   BONUS_THRESHOLD,

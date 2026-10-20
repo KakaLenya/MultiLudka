@@ -17,6 +17,7 @@
       <span class="chips" id="me-balance"></span>
       <button class="link ach-btn" id="me-ach" type="button" title="Мои достижения">🏅 <b id="me-ach-count">0</b></button>
       <button class="link" id="sound" type="button" title="Звук">🔊</button>
+      <button class="link" id="me-pass" type="button" title="Пароль для входа с любой ссылки">🔑</button>
       <button class="link" id="logout" type="button" title="Выйти из этого игрока">выйти</button>
     </div>
     <div class="conn" id="conn" data-state="connecting">подключение…</div>
@@ -25,16 +26,29 @@
   <main>
     <section class="card login" id="login" hidden>
       <h1>Казино-зал</h1>
-      <p class="muted">Краш, рулетка, покер, пул и ещё три игры с друзьями. Фишки виртуальные, азарт настоящий.</p>
-      <form id="login-form" autocomplete="off">
-        <input id="name" maxlength="20" placeholder="Твоё имя" required>
+      <p class="muted">Краш, рулетка, плинко, мины, покер, пул и не только — с друзьями. Фишки виртуальные, азарт настоящий.</p>
+      <form id="login-form" class="login-form">
+        <input id="name" maxlength="20" placeholder="Твоё имя" autocomplete="username" required>
+        <input id="password" type="password" maxlength="64" placeholder="Пароль" autocomplete="current-password" required>
         <button type="submit" id="login-btn" disabled>Войти</button>
       </form>
+      <p class="muted small login-hint">Новое имя — создадим аккаунт с этим паролем. Уже играл — введи своё имя и пароль: войдёшь в свой аккаунт с любой ссылки.</p>
       <p class="error" id="login-error"></p>
     </section>
 
     <section class="lobby" id="lobby" hidden>
       <div class="main-col">
+        <form class="card pw-card" id="pw-card" hidden autocomplete="off">
+          <div>
+            <h2 id="pw-title">🔒 Задай пароль</h2>
+            <p class="muted small" id="pw-text">Ссылка на зал иногда меняется, и на новой ссылке браузер тебя не узнает. С паролем войдёшь в свой аккаунт откуда угодно: имя + пароль.</p>
+          </div>
+          <div class="row">
+            <input id="pw-input" type="password" maxlength="64" placeholder="Новый пароль (от 4 символов)" autocomplete="new-password">
+            <button type="submit" id="pw-save">Сохранить</button>
+            <button type="button" class="ghost" id="pw-later">Позже</button>
+          </div>
+        </form>
         <div class="card bonus" id="bonus" hidden>
           <div>
             <h2>Фишки кончились</h2>

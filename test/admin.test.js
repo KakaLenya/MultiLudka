@@ -231,3 +231,14 @@ test('API: выключение зала — только с этого комп
     assert.equal((await post(`${base}/shutdown`, {}, { 'cf-connecting-ip': '1.2.3.4' })).status, 403);
   });
 });
+
+test('API: админ задаёт игроку пароль', async () => {
+  await withServer(async ({ base, a, store }) => {
+    assert.equal((await post(`${base}/set-password`, { playerId: a.id, password: 'qwerty' })).status, 200);
+    assert.equal(store.checkPassword(a, 'qwerty'), true);
+    assert.equal((await post(`${base}/set-password`, { playerId: a.id, password: '1' })).status, 400);
+    const st = await (await fetch(`${base}/state`)).json();
+    assert.equal(st.players.find((p) => p.id === a.id).hasPassword, true);
+    assert.equal((await post(`${base}/set-password`, { playerId: a.id, password: 'qwerty' }, { 'cf-connecting-ip': '1.2.3.4' })).status, 403, 'через туннель без токена нельзя');
+  });
+});

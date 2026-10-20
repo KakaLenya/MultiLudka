@@ -158,3 +158,25 @@ test('удаление игрока: пропадает, имя и токен о
   const names = createStore({ file }).all().map((p) => p.name);
   assert.deepEqual(names.sort(), ['Глад', 'данек'].sort());
 });
+
+test('пароль: хранится только хэш, проверка, вход по имени, переживает перезапуск', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pw-'));
+  const file = path.join(dir, 'players.json');
+  let store = createStore({ file, saveDelayMs: 0 });
+  const a = store.register('Аня').player;
+  assert.equal(store.hasPassword(a), false);
+  assert.ok(store.setPassword(a, '12').error, 'короткий');
+  assert.ok(store.setPassword(a, 'x'.repeat(65)).error, 'длинный');
+  assert.ok(store.setPassword(a, 'секрет42').ok);
+  assert.equal(store.checkPassword(a, 'секрет42'), true);
+  assert.equal(store.checkPassword(a, 'секрет43'), false);
+  assert.equal(store.checkPassword(a, undefined), false);
+  assert.equal(store.findByName('  аня '), a, 'имя без учёта регистра и пробелов');
+  store.flush();
+  const saved = fs.readFileSync(file, 'utf8');
+  assert.ok(!saved.includes('секрет42'), 'пароль не лежит в файле открытым текстом');
+  store = createStore({ file });
+  const again = store.findByName('Аня');
+  assert.equal(store.checkPassword(again, 'секрет42'), true, 'после перезапуска пароль работает');
+  fs.rmSync(dir, { recursive: true, force: true });
+});
