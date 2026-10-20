@@ -1,6 +1,7 @@
 // «Салун мертвецов»: музыка и звуки на живых сэмплах (Musyng Kite, см. samples/CREDITS.md).
 // Две темы, обе написаны по нотам: «Салун» — жутковато-весёлый рэгтайм в ми миноре
-// (расстроенное пианино страйдом, банджо, губная гармошка, в припеве — соль мажор) и
+// (расстроенное пианино страйдом, банджо, губная гармошка; под ними тёмные струнные, литавры,
+// твэнг-гитара и шёпот хора; в припеве — соль мажор с трубой вторым голосом) и
 // «Дуэль» — в духе вестернов Морриконе (свист, твэнг-гитара, хор, колокол, литавры,
 // во второй половине — труба марьячи). Звуки: выстрелы, рикошеты, щелчок курка, шпоры.
 // window.SaloonAudio: unlock(), setActive(on), music(theme), sfx(name, arg), toggle().
@@ -75,7 +76,7 @@
     return chords.map((ch, i) => ({ chords: ch, i, ...opts, mel: opts.mel ? opts.mel[i] : null }));
   }
   // Громкость темы: выравнивает темы между собой и с джазом зала (~−25 дБ).
-  const THEME_GAIN = { base: 2.4, duel: 2.3 };
+  const THEME_GAIN = { base: 2.15, duel: 2.3 };
   const THEMES = {
     base: {
       step: 60 / 112 / 4,
@@ -124,7 +125,17 @@
     comp.ratio.value = 3;
     comp.attack.value = 0.005;
     comp.release.value = 0.25;
-    comp.connect(ctx.destination);
+    // Мягкое ограничение на выходе: до 0,8 звук не трогаем, выше плавно сжимаем к 1 — редкие острые
+    // пики (удар по реверберации) не щёлкают. Компрессор как лимитер не годится: он сам добавляет громкости.
+    const clip = ctx.createWaveShaper();
+    const curve = new Float32Array(2049);
+    for (let i = 0; i < curve.length; i++) {
+      const x = (i / 1024) - 1;
+      const a = Math.abs(x);
+      curve[i] = Math.sign(x) * (a <= 0.8 ? a : 0.8 + 0.2 * Math.tanh((a - 0.8) / 0.2));
+    }
+    clip.curve = curve;
+    comp.connect(clip).connect(ctx.destination);
     master = ctx.createGain();
     master.gain.value = 0;
     master.connect(comp);
@@ -380,6 +391,28 @@
         v.forEach((n, k) => playNote('banjo', out, at(tk) + swing(tk) + k * 0.012, n, st * 1.4, 0.18, { send: 0.3 }));
       }
       if (bar.part === 'intro' && bar.i === 0) playNote('bells', out, at(0), midi('E5'), 1.4, 0.3, { send: 0.6 });
+      // Краски вестерна поверх рэгтайма: тёмные струнные, твэнг с тремоло, шёпот хора, литавры,
+      // труба вторым голосом в припеве и музыкальная шкатулка в концах фраз.
+      const chorus = bar.part === 'B';
+      const phraseEnd = bar.i === 3 || bar.i === 7;
+      const ch0 = bar.chords[0];
+      for (const n of voice(ch0, chorus ? 55 : 48)) playNote('strings', out, at(0), n, st * 15.5, bar.part === 'intro' ? 0.1 : chorus ? 0.18 : 0.13, { send: 0.6 });
+      if (bar.part !== 'intro') {
+        playNote('timpani', out, at(0), rootOf(ch0, 40), 0.7, bar.i % 4 === 0 ? 0.42 : 0.22, { send: 0.4 });
+        if (phraseEnd) for (let k = 0; k < 4; k++) playNote('timpani', out, at(12 + k), rootOf(bar.chords[bar.chords.length - 1], 40), 0.2, 0.16 + k * 0.06);
+      }
+      if (phraseEnd || bar.lead === 'steelgtr' || chorus) {
+        // Твэнг-гитара: корень и октава, первая нота — с дрожащим тремоло.
+        const r = rootOf(ch0, 40);
+        playNote('twang', out, at(0), r, st * 3.5, 0.3, { send: 0.6, tremolo: true });
+        playNote('twang', out, at(6) + swing(6), r + 12, st * 1.8, 0.2, { send: 0.6 });
+      }
+      if (chorus || bar.double === 'honkytonk') {
+        if (bar.i % 2 === 0) for (const n of voice(ch0, 57)) playNote('choir', out, at(0), n, st * 31, chorus ? 0.17 : 0.12, { send: 0.9 });
+      }
+      if (chorus && bar.mel) for (const n of bar.mel) if (n.len >= 4) playNote('opentrumpet', out, at(n.tick) + swing(n.tick), n.midi - 12, n.len * st * 0.85, 0.2, { send: 0.5 });
+      if (chorus && bar.i === 7) playNote('whistle', out, at(12), midi('B5'), st * 4, 0.28, { send: 0.9 });
+      if (phraseEnd && bar.part !== 'intro') playNote('glock', out, at(14), voice(bar.chords[bar.chords.length - 1], 84)[bar.i === 3 ? 0 : 2], 0.8, 0.3, { send: 0.9 });
       if (bar.mel) {
         for (const n of bar.mel) {
           const accent = n.tick === 0 ? 1.12 : 1;
@@ -422,7 +455,7 @@
     if (!ctx) return;
     if (S.player && S.player.theme === theme) return;
     const needs = {
-      base: ['honkytonk', 'contrabass', 'banjo', 'harmonica', 'steelgtr', 'bells'],
+      base: ['honkytonk', 'contrabass', 'banjo', 'harmonica', 'steelgtr', 'bells', 'strings', 'timpani', 'twang', 'choir', 'opentrumpet', 'whistle', 'glock'],
       duel: ['twang', 'timpani', 'choir', 'bells', 'whistle', 'opentrumpet', 'strings'],
     }[theme];
     const token = {};
@@ -552,6 +585,7 @@
   function setActive(on) {
     S.active = on;
     if (window.Lounge && window.Lounge.setHold) window.Lounge.setHold('saloon', on && S.musicOn);
+    if (window.setMusicHold) window.setMusicHold('saloon', on && S.musicOn);   // и песню зала
     if (!ctx) return;
     if (on) {
       if (ctx.state !== 'running') ctx.resume();
@@ -568,6 +602,7 @@
     S.musicOn = !S.musicOn;
     STORE.set(MUSIC_KEY, S.musicOn ? 'on' : 'off');
     if (window.Lounge && window.Lounge.setHold) window.Lounge.setHold('saloon', S.active && S.musicOn);
+    if (window.setMusicHold) window.setMusicHold('saloon', S.active && S.musicOn);   // и песню зала
     applyVolume();
     return S.musicOn;
   }

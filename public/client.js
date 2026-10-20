@@ -1686,6 +1686,14 @@ const volumeFromSlider = (pos) => (pos / 100) ** 2;
 function applyVolume() {
   audioEl.volume = volumeFromSlider(Number($('music-volume').value));
 }
+// Слоты со своей музыкой просят песню зала помолчать: звук выключается, а трек идёт дальше
+// вместе со всеми — уйдёшь со слота, и песня зазвучит с того же места, что у остальных.
+const musicHolds = new Set();
+window.setMusicHold = (reason, on) => {
+  if (on) musicHolds.add(reason);
+  else musicHolds.delete(reason);
+  audioEl.muted = musicHolds.size > 0;
+};
 const savedPos = Number(storage.get(VOLUME_KEY));
 $('music-volume').value = Number.isFinite(savedPos) && storage.get(VOLUME_KEY) !== null ? savedPos : 70;
 applyVolume();

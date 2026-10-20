@@ -1,6 +1,7 @@
 // «Кракен»: музыка и звуки слота на живых сэмплах (Musyng Kite, см. samples/CREDITS.md).
 // Три темы, все написаны по нотам: «Сундук глубин» (пиратская шанти 6/8 в ре миноре: аккордеон,
-// скрипка, туба «умпа», бубен и колокол; в припеве хор и валторна), «Пробуждение Кракена»
+// скрипка, туба «умпа», струнные, виолончель, арфа, тайко и литавры, бубен и колокол; в припеве
+// хор и валторна), «Пробуждение Кракена»
 // (шторм: валторна, тайко и литавры, хор, тремоло струнных, быстрая джига скрипки) и «Сундук»
 // (ожидание: арфа-остинато, виолончель, литавры-сердце). Под всем — шум моря.
 // window.KrakenAudio: unlock(), setActive(on), music(theme), sfx(name, arg), toggle().
@@ -341,34 +342,59 @@
     const swing = (tick) => (tick % 4 === 2 ? st * 0.08 : 0);   // чуть «качает»
 
     if (p.theme === 'base') {
+      // Шанти в полный рост: туба и контрабас качают, струнные держат воздух, арфа переливается
+      // всю песню, тайко и литавры отбивают сильные доли, хор и валторна поднимают припев.
       const quiet = bar.part === 'intro' || bar.part === 'turn';
+      const chorus = bar.part === 'B';
+      const second = bar.i >= 4;                 // вторая половина куплета — плотнее
+      const phraseEnd = bar.i === 3 || bar.i === 7;
       // Туба «ум-па»: корень на раз, квинта на четыре.
       playNote('tuba', out, at(0), rootOf(ch, 38), st * 3.5, 0.55, { send: 0.2 });
       playNote('tuba', out, at(6), fifthOf(ch, 33), st * 3, 0.45, { send: 0.2 });
       playNote('contrabass', out, at(0), rootOf(ch, 38), st * 4, 0.35, { send: 0.2 });
+      // Струнные: долгий аккорд на весь такт, в припеве — выше и плотнее.
+      for (const n of voice(ch, chorus ? 60 : 55)) playNote('strings', out, at(0), n, st * 11.8, quiet ? 0.12 : chorus ? 0.2 : 0.15, { send: 0.6 });
+      // Виолончель: тянет корень, во втором куплете отвечает мелодии ходом по аккорду.
+      if (bar.part === 'A' && bar.lead === 'fiddle' && !phraseEnd) {
+        const c = voice(ch, 48);
+        [[0, c[0], 4], [4, c[1], 2], [6, c[2], 4], [10, c[1], 2]].forEach(([tk, n, len]) => playNote('cello', out, at(tk), n, len * st * 0.95, 0.32, { send: 0.4 }));
+      } else {
+        playNote('cello', out, at(0), rootOf(ch, 38) + 12, st * 11.5, quiet ? 0.2 : 0.26, { send: 0.45 });
+      }
       // Аккордеон «па-па» на слабые восьмые.
       const v = voice(ch, 57);
-      for (const tk of [2, 4, 8, 10]) for (const n of v) playNote('accordion', out, at(tk) + swing(tk), n, st * 1.4, bar.lead === 'accordion' ? 0.18 : 0.26, { send: 0.3 });
-      // Ударные.
+      for (const tk of [2, 4, 8, 10]) for (const n of v) playNote('accordion', out, at(tk) + swing(tk), n, st * 1.4, bar.lead === 'accordion' ? 0.16 : 0.22, { send: 0.3 });
+      // Ударные: бочка, бубен и шейкер, а под ними — тайко на сильную долю и литавры в конце фразы.
       kick(at(0), out, 0.5);
       kick(at(6), out, 0.4);
       if (!quiet || bar.i === 1) {
         frame(at(4), out, 0.9);
         frame(at(10), out, 0.9);
         for (let tk = 0; tk < 12; tk += 2) shaker(at(tk) + swing(tk), out, tk % 6 === 0 ? 1 : 0.6);
+        playNote('taiko', out, at(0), 41, 0.5, chorus ? 0.55 : 0.32, { send: 0.45 });
+        if (chorus || second) playNote('taiko', out, at(6), 38, 0.4, chorus ? 0.38 : 0.22, { send: 0.4 });
       }
+      if (phraseEnd || bar.part === 'turn') for (let k = 0; k < 4; k++) playNote('timpani', out, at(8 + k), rootOf(ch, 38), 0.2, 0.18 + k * 0.07);
+      else if (!quiet) playNote('timpani', out, at(0), rootOf(ch, 38), 0.9, 0.3, { send: 0.4 });
       // Колокол: в начале каждого раздела.
-      if (bar.i === 0) playNote('bells', out, at(0), bar.part === 'B' ? midi('A5') : midi('D5'), 1.5, 0.35, { send: 0.7 });
-      // Арфа переливается во вступлении и в припеве.
-      if (bar.part === 'intro' || bar.part === 'B' || bar.part === 'turn') {
+      if (bar.i === 0) playNote('bells', out, at(0), chorus ? midi('A5') : midi('D5'), 1.5, 0.35, { send: 0.7 });
+      // Арфа переливается всю песню: тише под мелодией, в полную силу во вступлении и в припеве.
+      {
         const arp = [...voice(ch, 62), ...voice(ch, 74)];
-        [0, 2, 4, 6, 8, 10].forEach((tk, k) => playNote('harp', out, at(tk), arp[k % arp.length], st * 4, 0.28, { send: 0.6 }));
+        const vel = bar.part === 'A' ? 0.17 : 0.28;
+        [0, 2, 4, 6, 8, 10].forEach((tk, k) => playNote('harp', out, at(tk), arp[k % arp.length], st * 4, vel, { send: 0.6 }));
       }
-      // Хор и валторна в припеве.
-      if (bar.part === 'B') {
-        for (const n of voice(ch, 60)) playNote('choir', out, at(0), n, st * 11.5, 0.22, { send: 0.8 });
-        playNote('horn', out, at(0), voice(ch, 53)[1], st * 11, 0.25, { send: 0.6 });
+      // Хор: тихое «у-у» в куплетах, в припеве — во весь голос с валторной.
+      if (chorus) {
+        for (const n of voice(ch, 60)) playNote('choir', out, at(0), n, st * 11.5, 0.26, { send: 0.8 });
+        playNote('horn', out, at(0), voice(ch, 53)[1], st * 11, 0.3, { send: 0.6 });
+        playNote('horn', out, at(6), voice(ch, 53)[2], st * 5, 0.22, { send: 0.6 });
+      } else if (bar.part === 'A') {
+        if (bar.i % 2 === 0) for (const n of voice(ch, 60)) playNote('choir', out, at(0), n, st * 23, 0.12, { send: 0.9 });
+        if (second) playNote('horn', out, at(0), voice(ch, 53)[1], st * 11, 0.16, { send: 0.6 });
       }
+      // Колокольчики: искра в конце фразы.
+      if (phraseEnd && !quiet) playNote('glock', out, at(10), voice(ch, 86)[bar.i === 3 ? 1 : 2], 0.6, 0.35, { send: 0.9 });
       // Мелодия.
       if (bar.mel) {
         for (const n of bar.mel) {
@@ -427,7 +453,7 @@
   function startTheme(theme) {
     if (!ctx) return;
     if (S.player && S.player.theme === theme) return;
-    const needs = { base: ['tuba', 'contrabass', 'accordion', 'fiddle', 'flute', 'bells', 'harp', 'choir', 'horn'], fs: ['taiko', 'timpani', 'strings', 'tuba', 'choir', 'horn', 'fiddle', 'accordion'], hw: ['harp', 'cello', 'strings', 'timpani', 'choir', 'glock'] }[theme];
+    const needs = { base: ['tuba', 'contrabass', 'accordion', 'fiddle', 'flute', 'bells', 'harp', 'choir', 'horn', 'strings', 'cello', 'taiko', 'timpani', 'glock'], fs: ['taiko', 'timpani', 'strings', 'tuba', 'choir', 'horn', 'fiddle', 'accordion'], hw: ['harp', 'cello', 'strings', 'timpani', 'choir', 'glock'] }[theme];
     const token = {};
     S.starting = token;
     Promise.all(needs.map(loadInstrument)).then(() => {
@@ -577,6 +603,7 @@
   function setActive(on) {
     S.active = on;
     if (window.Lounge && window.Lounge.setHold) window.Lounge.setHold('kraken', on && S.musicOn);
+    if (window.setMusicHold) window.setMusicHold('kraken', on && S.musicOn);   // и песню зала
     if (!ctx) return;
     if (on) {
       if (ctx.state !== 'running') ctx.resume();
@@ -593,6 +620,7 @@
     S.musicOn = !S.musicOn;
     STORE.set(MUSIC_KEY, S.musicOn ? 'on' : 'off');
     if (window.Lounge && window.Lounge.setHold) window.Lounge.setHold('kraken', S.active && S.musicOn);
+    if (window.setMusicHold) window.setMusicHold('kraken', S.active && S.musicOn);   // и песню зала
     applyVolume();
     return S.musicOn;
   }
