@@ -11,11 +11,11 @@ const MSK = 3 * 60 * 60 * 1000;
 const HALL_SIZE = 12;
 const SEASON_TOP = 10;
 const SAVE_DELAY_MS = 1000;
-const GAMES = ['crash', 'roulette', 'wheel', 'upgrade', 'verity', 'plinko', 'mines', 'kraken', 'bomb', 'pool', 'poker'];
+const GAMES = ['crash', 'roulette', 'wheel', 'upgrade', 'verity', 'plinko', 'mines', 'kraken', 'saloon', 'bomb', 'pool', 'poker'];
 
 const ACHIEVEMENTS = [
   { id: 'first_win', icon: '🩸', name: 'Первая кровь', desc: 'Выиграть в любой игре' },
-  { id: 'regular', icon: '🎪', name: 'Завсегдатай', desc: 'Сыграть во все одиннадцать игр зала' },
+  { id: 'regular', icon: '🎪', name: 'Завсегдатай', desc: 'Сыграть во все двенадцать игр зала' },
   { id: 'big_win', icon: '💰', name: 'Крупный куш', desc: 'Выиграть 10 000 за раз' },
   { id: 'jackpot', icon: '💎', name: 'Джекпот', desc: 'Выиграть 100 000 за раз' },
   { id: 'high_roller', icon: '🎩', name: 'Хайроллер', desc: 'Поставить 50 000 за раз' },
@@ -37,6 +37,9 @@ const ACHIEVEMENTS = [
   { id: 'kraken_awake', icon: '🐙', name: 'Кракен проснулся', desc: 'Разбудить Кракена в фриспинах до множителя ×10' },
   { id: 'kraken_grand', icon: '🏴‍☠️', name: 'Сундук Дейви Джонса', desc: 'Заполнить жемчугом весь сундук глубин' },
   { id: 'kraken_1000', icon: '🌊', name: 'Ужас глубин', desc: 'Выиграть ×1000 в Кракене' },
+  { id: 'saloon_sniper', icon: '🎯', name: 'Меткий стрелок', desc: 'Пробить в дуэли одну клетку трижды — вайлд ×3' },
+  { id: 'saloon_long', icon: '🤠', name: 'Неуловимый', desc: 'Продержаться в дуэли на закате 15 вращений' },
+  { id: 'saloon_1000', icon: '💀', name: 'Награда за голову', desc: 'Выиграть ×1000 в Салуне мертвецов' },
   { id: 'mines_x10', icon: '💎', name: 'Алмазная жила', desc: 'Забрать в минах ×10 или больше' },
   { id: 'mines_clear', icon: '🧹', name: 'Чистое поле', desc: 'Открыть в минах все безопасные клетки' },
   { id: 'bomb_win', icon: '🧨', name: 'Сапёр', desc: 'Выиграть в Бомбе' },
@@ -209,6 +212,11 @@ function createAchievements({
         if (meta.level >= 4) unlock(player, 'kraken_awake');
         if (meta.grand) unlock(player, 'kraken_grand');
         if (kind === 'win' && meta.mult >= 1000) unlock(player, 'kraken_1000');
+        break;
+      case 'saloon':
+        if (meta.maxMult >= 3) unlock(player, 'saloon_sniper');
+        if (meta.spins >= 15) unlock(player, 'saloon_long');
+        if (kind === 'win' && meta.mult >= 1000) unlock(player, 'saloon_1000');
         break;
       case 'plinko':
         if (meta.edge) unlock(player, 'plinko_edge');

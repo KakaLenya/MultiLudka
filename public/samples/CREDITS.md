@@ -16,3 +16,8 @@
   тоже **Musyng Kite Soundfont** (аккордеон, скрипка, виолончель, контрабас, туба, валторна, хор «а», литавры, тайко,
   трубчатые колокола, флейта, арфа, струнный ансамбль, глокеншпиль): пиратская музыка слота «Кракен».
   Лицензия [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/), источник тот же: https://github.com/gleitz/midi-js-soundfonts
+
+- `honkytonk/`, `banjo/`, `harmonica/`, `whistle/`, `twang/`, `steelgtr/`, `opentrumpet/` — тоже **Musyng Kite Soundfont**
+  (расстроенное салунное пианино, банджо, губная гармошка, свист, чистая электрогитара, акустическая гитара со стальными
+  струнами, открытая труба): музыка слота «Салун мертвецов».
+  Лицензия [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/), источник тот же: https://github.com/gleitz/midi-js-soundfonts

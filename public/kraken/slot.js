@@ -45,12 +45,14 @@
   const cellOf = (r, y) => r * ROWS + y;
   const INK = '#0d1b2a';
 
-  const fmt = (n) => Math.floor(n).toLocaleString('ru-RU');
+  const fmt = (n) => chips(Math.floor(n));   // 60.000.000 — общая функция зала
   const short = (n) => {
     n = Math.floor(n);
-    if (n >= 1e9) return `${+(n / 1e9).toFixed(n >= 1e10 ? 0 : 1)}B`;
-    if (n >= 1e6) return `${+(n / 1e6).toFixed(n >= 1e7 ? 0 : 1)}M`;
-    if (n >= 1e4) return `${+(n / 1e3).toFixed(n >= 1e5 ? 0 : 1)}K`;
+    // Дробная часть — через запятую: точка в зале разделяет разряды.
+    const d = (x, k) => String(+x.toFixed(k)).replace('.', ',');
+    if (n >= 1e9) return `${d(n / 1e9, n >= 1e10 ? 0 : 1)}B`;
+    if (n >= 1e6) return `${d(n / 1e6, n >= 1e7 ? 0 : 1)}M`;
+    if (n >= 1e4) return `${d(n / 1e3, n >= 1e5 ? 0 : 1)}K`;
     return String(n);
   };
   const ease = {

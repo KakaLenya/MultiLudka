@@ -6,8 +6,9 @@
   <title>Казино-зал</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@500;600;700;800&family=Rubik:wght@700;900&family=Rubik+Wet+Paint&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@500;600;700;800&family=Rubik:wght@700;900&family=Rubik+Wet+Paint&family=Ruslan+Display&display=swap">
   <link rel="stylesheet" href="kraken/kraken.css">
+  <link rel="stylesheet" href="saloon/saloon.css">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -62,6 +63,7 @@
           <button type="button" class="tab" data-tab="roulette">🎡 Рулетка</button>
           <button type="button" class="tab" data-tab="wheel">🎰 Колесо</button>
           <button type="button" class="tab" data-tab="kraken">🐙 Кракен</button>
+          <button type="button" class="tab" data-tab="saloon">🤠 Салун</button>
           <button type="button" class="tab" data-tab="upgrade">⬆️ Апгрейд</button>
           <button type="button" class="tab" data-tab="plinko">🔺 Плинко</button>
           <button type="button" class="tab" data-tab="mines">💎 Мины</button>
@@ -193,6 +195,97 @@
               </div>
               <p class="muted small">20 линий, выигрыш слева направо от первого барабана, на линии платит лучшая комбинация. Отдача около 96%, максимальный выигрыш — ×5000 ставки. Покупка бонуса: фриспины ×100, сундук ×45 ставки.</p>
               <div class="kr-lines" id="kr-lines"></div>
+            </div>
+          </div>
+        </section>
+
+        <section class="card kraken saloon" id="saloon" hidden>
+          <div class="kr-stage sl-stage">
+            <canvas class="kr-bg" id="sl-bg"></canvas>
+            <div class="sl-top">
+              <div class="sl-plaque"><span>Награда за голову</span><b id="sl-maxwin">…</b></div>
+              <div class="sl-logo">
+                <div class="sl-logo-title">Салун</div>
+                <div class="sl-logo-sub">мертвецов</div>
+                <div class="sl-duel" id="sl-duel" hidden>
+                  <div class="sl-hats" id="sl-hats"></div>
+                  <div><span>Раунд</span><b id="sl-duel-spins">0</b></div>
+                  <div><span>Вайлдов</span><b id="sl-duel-wilds">0</b></div>
+                </div>
+              </div>
+              <div class="sl-plaque"><span>Пути</span><b>243</b></div>
+            </div>
+            <div class="kr-reels-box">
+              <canvas id="sl-reels" aria-label="Барабаны"></canvas>
+            </div>
+            <div class="kr-msg sl-msg" id="sl-msg">Заходи, ковбой — пробел тоже крутит</div>
+          </div>
+          <div class="kr-bar sl-bar">
+            <div class="kr-bar-left">
+              <button type="button" class="kr-buy sl-buy" id="sl-buy"><span>Купить</span><span>дуэль</span></button>
+              <div class="kr-stats">
+                <div class="kr-stat"><span>Баланс</span><b id="sl-balance">0</b></div>
+                <div class="kr-stat"><span>Выигрыш</span><b id="sl-win">0</b></div>
+              </div>
+            </div>
+            <button type="button" class="kr-spin sl-spin" id="sl-spin" title="Крутить (пробел)" aria-label="Крутить"><span>⟳</span></button>
+            <div class="kr-bar-right">
+              <div class="kr-bet">
+                <button type="button" id="sl-bet-down" aria-label="Меньше">−</button>
+                <div class="kr-stat"><span>Ставка</span><b id="sl-bet">100</b></div>
+                <button type="button" id="sl-bet-up" aria-label="Больше">+</button>
+                <button type="button" class="kr-max" id="sl-bet-max">макс</button>
+              </div>
+              <div class="kr-side">
+                <div class="kr-auto-wrap">
+                  <button type="button" class="kr-small" id="sl-auto">Авто</button>
+                  <div class="kr-auto-menu" id="sl-auto-menu" hidden>
+                    <button type="button" data-auto="10">10</button>
+                    <button type="button" data-auto="25">25</button>
+                    <button type="button" data-auto="50">50</button>
+                    <button type="button" data-auto="100">100</button>
+                    <button type="button" data-auto="1000000">∞</button>
+                    <label><input type="checkbox" id="sl-auto-stop" checked> стоп на дуэли</label>
+                  </div>
+                </div>
+                <button type="button" class="kr-small" id="sl-turbo" title="Быстрые вращения">Турбо</button>
+                <button type="button" class="kr-small" id="sl-info" title="Правила и выплаты">Правила</button>
+                <button type="button" class="kr-small" id="sl-sound" title="Музыка салуна">🎵</button>
+              </div>
+            </div>
+          </div>
+          <h2 class="u-feed-title">Лента салуна</h2>
+          <ul class="list u-feed" id="sl-feed"></ul>
+
+          <div class="kr-modal saloon-modal" id="sl-buy-modal" hidden>
+            <div class="kr-dialog">
+              <button type="button" class="kr-close" data-close aria-label="Закрыть">✕</button>
+              <h3>Купить дуэль</h3>
+              <div class="kr-buys">
+                <div class="kr-buy-card fs">
+                  <div class="kr-buy-title">Дуэль на закате</div>
+                  <p>3 шляпы. Каждый раунд — обмен выстрелами: твоя пуля оставляет липкий вайлд, повторное попадание поднимает его до ×3. Пуля шерифа сбивает шляпу.</p>
+                  <button type="button" class="action" data-buy="buy-duel">Купить за <b id="sl-buy-duel-price">0</b></button>
+                </div>
+                <div class="kr-buy-card hw">
+                  <div class="kr-buy-title">Дуэль на рассвете</div>
+                  <p>4 шляпы и два липких вайлда на поле с первого раунда. Дороже — но и выигрывает в среднем намного больше.</p>
+                  <button type="button" class="action" data-buy="buy-super">Купить за <b id="sl-buy-super-price">0</b></button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="kr-modal saloon-modal" id="sl-pay-modal" hidden>
+            <div class="kr-dialog wide">
+              <button type="button" class="kr-close" data-close aria-label="Закрыть">✕</button>
+              <h3>Правила и выплаты <small>при ставке <b id="sl-pay-bet">0</b>, за один путь</small></h3>
+              <div class="kr-pays" id="sl-pays"></div>
+              <div class="kr-rules">
+                <div class="kr-rule"><div id="sl-pay-colt"></div><p><b>Кольт — дикий.</b> Бывает на барабанах 2–4 и раскрывается на весь барабан. Заменяет всё, кроме плаката. Иногда по барабанам стреляет <b>шальная пуля</b>: 1–4 клетки становятся дикими.</p></div>
+                <div class="kr-rule"><div id="sl-pay-wanted"></div><p><b>Розыск.</b> 3, 4 или 5 плакатов — <b>Дуэль на закате</b> с 3, 4 или 5 шляпами (и сами платят ×2, ×5, ×20 ставки). Перед каждым вращением ты и шериф стреляете: твоё попадание оставляет липкий вайлд до конца дуэли, повторное попадание в ту же клетку — ×2, потом ×3; попадание шерифа сбивает шляпу. Нет шляп — дуэль окончена. Множители вайлдов на одном пути перемножаются.</p></div>
+              </div>
+              <p class="muted small">243 пути: символ платит, если стоит на соседних барабанах слева направо в любом ряду; выплата умножается на число путей. Отдача около 97%, максимальный выигрыш — ×10 000 ставки. Покупка: дуэль на закате ×115, на рассвете ×500 ставки.</p>
             </div>
           </div>
         </section>
@@ -802,5 +895,8 @@
   <script src="kraken/art.js"></script>
   <script src="kraken/audio.js"></script>
   <script src="kraken/slot.js"></script>
+  <script src="saloon/art.js"></script>
+  <script src="saloon/audio.js"></script>
+  <script src="saloon/slot.js"></script>
 </body>
 </html>

@@ -47,6 +47,13 @@ function showLogin() {
 }
 
 let toastTimer = null;
+// Фишки с разрядами через точку: 60000000 → 60.000.000 (отрицательные — с минусом «−»).
+function chips(n) {
+  const v = Math.trunc(Number(n) || 0);
+  const t = String(Math.abs(v)).replace(/\B(?=(\d{3})+(?!\d))/g, '.');
+  return v < 0 ? `−${t}` : t;
+}
+
 function toast(text, ok = false) {
   $('toast').textContent = text;
   $('toast').classList.toggle('ok', ok);
@@ -101,12 +108,12 @@ function renderBonus() {
   $('bonus').hidden = false;
   const wait = b.readyAt - Date.now();
   if (wait > 0) {
-    $('bonus-text').textContent = `Следующее пособие (${b.amount} фишек) через ${formatWait(wait)}.`;
+    $('bonus-text').textContent = `Следующее пособие (${chips(b.amount)} фишек) через ${formatWait(wait)}.`;
     $('bonus-btn').hidden = true;
   } else {
-    $('bonus-text').textContent = `Раз в сутки можно взять пособие: ${b.amount} фишек.`;
+    $('bonus-text').textContent = `Раз в сутки можно взять пособие: ${chips(b.amount)} фишек.`;
     $('bonus-btn').hidden = false;
-    $('bonus-btn').textContent = `Забрать ${b.amount}`;
+    $('bonus-btn').textContent = `Забрать ${chips(b.amount)}`;
   }
 }
 setInterval(renderBonus, 30_000);
@@ -151,7 +158,7 @@ function confirmBet({ key, game, amount, note = '', input = null, of = state.bal
   if (!(amount > 0) || confirmedGames.has(key) || !typedByPlayer(input) || amount <= of / 2) return Promise.resolve(true);
   if (betConfirm) closeBetConfirm(false);
   $('bc-game').textContent = game;
-  $('bc-amount').textContent = amount.toLocaleString('ru-RU');
+  $('bc-amount').textContent = chips(amount);
   $('bc-note').textContent = note;
   $('bc-note').hidden = !note;
   const share = of > 0 ? Math.round((amount / of) * 100) : 100;
@@ -216,11 +223,11 @@ function crashAction() {
   if (!c) return { mode: null, label: '…' };
   if (c.phase === 'betting') {
     return mine
-      ? { mode: null, label: `Ставка ${mine.amount} принята` }
+      ? { mode: null, label: `Ставка ${chips(mine.amount)} принята` }
       : { mode: 'bet', label: 'Поставить' };
   }
   if (c.phase === 'running' && mine && mine.cashout === null) {
-    return { mode: 'cashout', label: `Забрать ${Math.floor(mine.amount * liveMultiplier())}` };
+    return { mode: 'cashout', label: `Забрать ${chips(Math.floor(mine.amount * liveMultiplier()))}` };
   }
   return { mode: null, label: 'Ждём следующий раунд' };
 }
@@ -253,13 +260,13 @@ function renderCrash() {
     const name = document.createElement('td');
     name.textContent = p.name;
     const amount = document.createElement('td');
-    amount.textContent = p.amount;
+    amount.textContent = chips(p.amount);
     const result = document.createElement('td');
     if (p.cashout !== null) {
-      result.textContent = `${p.cashout.toFixed(2)}× · +${p.payout - p.amount}`;
+      result.textContent = `${p.cashout.toFixed(2)}× · +${chips(p.payout - p.amount)}`;
       result.className = 'won';
     } else if (c.phase === 'crashed') {
-      result.textContent = `−${p.amount}`;
+      result.textContent = `−${chips(p.amount)}`;
       result.className = 'lost';
     } else {
       result.textContent = '…';
@@ -271,10 +278,10 @@ function renderCrash() {
   const mine = myCrashBet();
   const my = $('crash-my');
   if (mine && mine.cashout !== null) {
-    my.textContent = `Забрал ${mine.payout} на ${mine.cashout.toFixed(2)}× (+${mine.payout - mine.amount})`;
+    my.textContent = `Забрал ${chips(mine.payout)} на ${mine.cashout.toFixed(2)}× (+${chips(mine.payout - mine.amount)})`;
     my.className = 'my-result win';
   } else if (mine && c.phase === 'crashed') {
-    my.textContent = `Сгорело ${mine.amount}`;
+    my.textContent = `Сгорело ${chips(mine.amount)}`;
     my.className = 'my-result lose';
   } else {
     my.textContent = '';
@@ -446,14 +453,15 @@ const TAB_KEY = 'casino.tab';
 
 function showTab(name) {
   document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t.dataset.tab === name));
-  for (const id of ['crash', 'roulette', 'wheel', 'kraken', 'upgrade', 'plinko', 'mines', 'verity', 'duel', 'bomb', 'pool', 'poker']) $(id).hidden = name !== id;
+  for (const id of ['crash', 'roulette', 'wheel', 'kraken', 'saloon', 'upgrade', 'plinko', 'mines', 'verity', 'duel', 'bomb', 'pool', 'poker']) $(id).hidden = name !== id;
   // канвас апгрейдера создаётся ниже по файлу: рисуем на следующем кадре
   if (name === 'upgrade') requestAnimationFrame(() => drawUpgrader());
   storage.set(TAB_KEY, name);
   if (window.krakenTabShown) window.krakenTabShown(name === 'kraken');
+  if (window.saloonTabShown) window.saloonTabShown(name === 'saloon');
 }
 document.querySelectorAll('.tab').forEach((t) => t.addEventListener('click', () => showTab(t.dataset.tab)));
-showTab(['roulette', 'wheel', 'kraken', 'upgrade', 'plinko', 'mines', 'verity', 'duel', 'bomb', 'pool', 'poker'].includes(storage.get(TAB_KEY)) ? storage.get(TAB_KEY) : 'crash');
+showTab(['roulette', 'wheel', 'kraken', 'saloon', 'upgrade', 'plinko', 'mines', 'verity', 'duel', 'bomb', 'pool', 'poker'].includes(storage.get(TAB_KEY)) ? storage.get(TAB_KEY) : 'crash');
 
 // ---------- Звуки (WebAudio, без файлов) ----------
 
@@ -601,7 +609,7 @@ function renderPokerSeats() {
 
     const stack = document.createElement('div');
     stack.className = 'pk-stack';
-    stack.textContent = s.allIn && inPlay ? `${s.stack} · олл-ин` : `${s.stack}`;
+    stack.textContent = s.allIn && inPlay ? `${chips(s.stack)} · олл-ин` : `${chips(s.stack)}`;
 
     // Карты: во вскрытии лицом, во время раздачи рубашкой (свои лицом).
     const cards = document.createElement('div');
@@ -632,7 +640,7 @@ function renderPokerSeats() {
     const note = document.createElement('div');
     note.className = 'pk-note';
     if (won.has(i)) {
-      note.textContent = `+${won.get(i).won}${won.get(i).hand ? ` · ${won.get(i).hand}` : ''}`;
+      note.textContent = `+${chips(won.get(i).won)}${won.get(i).hand ? ` · ${won.get(i).hand}` : ''}`;
       note.classList.add('won');
     } else if (reveal) {
       note.textContent = reveal.hand;
@@ -649,7 +657,7 @@ function renderPokerSeats() {
     if (s.committed > 0 && pkBetting(v)) {
       const bet = document.createElement('div');
       bet.className = 'pk-bet';
-      bet.textContent = s.committed;
+      bet.textContent = chips(s.committed);
       el.append(bet);
     }
 
@@ -684,7 +692,7 @@ function renderBoard() {
   })));
   if (board.length > prev) beep([[520, 0.03], [700, 0.03]], 'triangle');
   poker.boardShown = board.length;
-  $('pk-pot-center').textContent = v.pot > 0 ? `Банк ${v.pot}` : '';
+  $('pk-pot-center').textContent = v.pot > 0 ? `Банк ${chips(v.pot)}` : '';
 }
 
 function renderPoker() {
@@ -692,7 +700,7 @@ function renderPoker() {
   if (!v) return;
   const you = v.you;
 
-  $('poker-pot').textContent = v.pot;
+  $('poker-pot').textContent = chips(v.pot);
   renderPokerPhase();
   renderBoard();
   renderPokerSeats();
@@ -701,7 +709,7 @@ function renderPoker() {
   // Итог раздачи.
   const res = v.result;
   if (res) {
-    const winners = res.winners.map((w) => `${w.name} +${w.won}`).join(', ');
+    const winners = res.winners.map((w) => `${w.name} +${chips(w.won)}`).join(', ');
     const how = res.revealed ? (res.winners[0] && res.winners[0].hand) : 'все сбросили';
     $('poker-result').textContent = `${res.winners.length > 1 ? 'Делёж' : 'Банк'}: ${winners} · ${how}`;
     $('poker-result').hidden = false;
@@ -727,7 +735,7 @@ function renderPoker() {
     const suited = you.hole[0][1] === you.hole[1][1];
     $('my-hand-name').textContent = you.hand || (pair ? 'Карманная пара' : suited ? 'Одномастные' : '');
     $('poker-hint').textContent = you.myTurn
-      ? (you.toCall > 0 ? `Твой ход: колл ${you.toCall}, рейз или фолд` : 'Твой ход: чек или ставка')
+      ? (you.toCall > 0 ? `Твой ход: колл ${chips(you.toCall)}, рейз или фолд` : 'Твой ход: чек или ставка')
       : !you.inHand && pkBetting(v) ? 'Ты сбросил'
         : v.phase === 'showdown' ? '' : pkBetting(v) ? 'Ждём остальных' : '';
   }
@@ -744,7 +752,7 @@ function renderPoker() {
     const btn = (a) => document.querySelector(`[data-act="${a}"]`);
     btn('check').hidden = !you.canCheck;
     btn('call').hidden = !you.canCall;
-    btn('call').textContent = `Колл ${you.toCall}`;
+    btn('call').textContent = `Колл ${chips(you.toCall)}`;
     $('pk-raise').hidden = !you.canRaise;
     if (you.canRaise) {
       const slider = $('raise-slider');
@@ -813,7 +821,7 @@ document.querySelectorAll('[data-act]').forEach((btn) => {
     if (action !== 'raise') return send(msg);
     confirmBet({
       key: 'poker', game: '🃏 Покер', amount: msg.amount - put, input: $('raise-amount'),
-      of: seat ? seat.stack + put : state.balance, note: `Повысить до ${msg.amount}`,
+      of: seat ? seat.stack + put : state.balance, note: `Повысить до ${chips(msg.amount)}`,
     }).then((ok) => ok && send(msg));
   });
 });
@@ -1000,19 +1008,19 @@ function renderRoulette() {
     if (amt) {
       const s = document.createElement('span');
       s.className = 'stake';
-      s.textContent = amt >= 1000 ? `${Math.round(amt / 100) / 10}k` : amt;
+      s.textContent = amt >= 1000 ? `${String(Math.round(amt / 100) / 10).replace('.', ',')}k` : amt;
       c.el.append(s);
     }
     c.el.classList.toggle('win', v.phase === 'result' && R_WINS[c.type](v.result, c.number));
   }
 
-  $('r-mytotal').textContent = mine ? `Твои ставки: ${mine.total}` : '';
+  $('r-mytotal').textContent = mine ? `Твои ставки: ${chips(mine.total)}` : '';
   $('r-clear').disabled = !(betting && mine);
 
   // Итог раунда.
   const res = $('r-result');
   if (v.phase === 'result' && mine) {
-    res.textContent = mine.won > 0 ? `Выигрыш ${mine.won} (+${mine.won - mine.total})` : `Мимо: −${mine.total}`;
+    res.textContent = mine.won > 0 ? `Выигрыш ${chips(mine.won)} (+${chips(mine.won - mine.total)})` : `Мимо: −${chips(mine.total)}`;
     res.className = `r-result ${mine.won > 0 ? 'win' : 'lose'}`;
   } else {
     res.textContent = '';
@@ -1031,10 +1039,10 @@ function renderRoulette() {
     const name = document.createElement('td');
     name.textContent = p.name;
     const total = document.createElement('td');
-    total.textContent = p.total;
+    total.textContent = chips(p.total);
     const won = document.createElement('td');
     if (p.won !== null) {
-      won.textContent = p.won > 0 ? `+${p.won - p.total}` : `−${p.total}`;
+      won.textContent = p.won > 0 ? `+${chips(p.won - p.total)}` : `−${chips(p.total)}`;
       won.className = p.won > 0 ? 'won' : 'lost';
     } else {
       won.textContent = '…';
@@ -1547,7 +1555,7 @@ $('fw-clear').addEventListener('click', () => send({ type: 'wheel_clear' }));
 
 const fwTimeLeft = () => (fw.view ? Math.max(0, fw.view.timeLeft - (performance.now() - fw.recvAt)) : 0);
 const fwMine = () => (fw.view && state.me ? fw.view.players.find((p) => p.id === state.me.playerId) || null : null);
-const fwShort = (n) => (n >= 1e6 ? `${Math.round(n / 1e5) / 10}М` : n >= 1e4 ? `${Math.round(n / 100) / 10}k` : String(n));
+const fwShort = (n) => (n >= 1e6 ? `${String(Math.round(n / 1e5) / 10).replace('.', ',')}М` : n >= 1e4 ? `${String(Math.round(n / 100) / 10).replace('.', ',')}k` : chips(n));
 
 function renderWheel() {
   const v = fw.view;
@@ -1568,12 +1576,12 @@ function renderWheel() {
     c.b.classList.toggle('win', v.phase === 'result' && v.mult === m);
     c.b.classList.toggle('dim', v.phase === 'result' && v.mult !== m);
   }
-  $('fw-mytotal').textContent = mine ? `Твои ставки: ${mine.total.toLocaleString('ru-RU')}` : '';
+  $('fw-mytotal').textContent = mine ? `Твои ставки: ${chips(mine.total)}` : '';
   $('fw-clear').disabled = !(betting && mine);
 
   const res = $('fw-result');
   if (v.phase === 'result' && mine) {
-    res.textContent = mine.won > 0 ? `Выигрыш ${mine.won.toLocaleString('ru-RU')} (+${(mine.won - mine.total).toLocaleString('ru-RU')})` : `Мимо: −${mine.total.toLocaleString('ru-RU')}`;
+    res.textContent = mine.won > 0 ? `Выигрыш ${chips(mine.won)} (+${chips(mine.won - mine.total)})` : `Мимо: −${chips(mine.total)}`;
     res.className = `r-result ${mine.won > 0 ? 'win' : 'lose'}`;
   } else {
     res.textContent = '';
@@ -1599,7 +1607,7 @@ function renderWheel() {
     }
     const won = document.createElement('td');
     if (p.won !== null) {
-      won.textContent = p.won > 0 ? `+${(p.won - p.total).toLocaleString('ru-RU')}` : `−${p.total.toLocaleString('ru-RU')}`;
+      won.textContent = p.won > 0 ? `+${chips(p.won - p.total)}` : `−${chips(p.total)}`;
       won.className = p.won > 0 ? 'won' : 'lost';
     } else {
       won.textContent = '…';
@@ -1999,7 +2007,7 @@ function finishUpgrade() {
   $('u-go').disabled = false;
   const res = $('u-result');
   if (r.win) {
-    res.textContent = `Апгрейд! ${r.amount} → ${r.payout} (+${r.payout - r.amount})`;
+    res.textContent = `Апгрейд! ${chips(r.amount)} → ${chips(r.payout)} (+${chips(r.payout - r.amount)})`;
     res.className = 'u-result win';
     sounds.win();
     if (r.multiplier >= 5) effects.confetti();
@@ -2008,7 +2016,7 @@ function finishUpgrade() {
     const after = (((r.landing - r.start - r.chance) % 100) + 100) % 100;
     const before = (((r.start - r.landing) % 100) + 100) % 100;
     const miss = Math.min(after, before);
-    res.textContent = miss < 3 ? `Мимо на ${miss.toFixed(1).replace('.', ',')}%: −${r.amount}` : `Мимо: −${r.amount}`;
+    res.textContent = miss < 3 ? `Мимо на ${miss.toFixed(1).replace('.', ',')}%: −${chips(r.amount)}` : `Мимо: −${chips(r.amount)}`;
     res.className = 'u-result lose';
     sounds.lose();
   }
@@ -2052,7 +2060,7 @@ function renderUpgradeFeed(feed) {
     name.textContent = e.name;
     const what = document.createElement('span');
     what.className = 'u-what';
-    what.textContent = e.win ? `${e.amount} → ${e.payout}` : `${e.amount} ✕`;
+    what.textContent = e.win ? `${chips(e.amount)} → ${chips(e.payout)}` : `${chips(e.amount)} ✕`;
     const ch = document.createElement('span');
     ch.className = 'u-ch';
     ch.textContent = `${e.chance}% · ×${e.multiplier.toFixed(2)}`;
@@ -2370,7 +2378,7 @@ function pkLanded(b) {
     return s;
   }));
   const last = $('pk-last');
-  last.textContent = net > 0 ? `×${String(b.multiplier).replace('.', ',')} · +${net}` : `×${String(b.multiplier).replace('.', ',')} · ${net}`;
+  last.textContent = net > 0 ? `×${String(b.multiplier).replace('.', ',')} · +${chips(net)}` : `×${String(b.multiplier).replace('.', ',')} · ${chips(net)}`;
   last.className = `pk-last ${net > 0 ? 'win' : 'lose'}`;
   if (b.multiplier >= 10) {
     sounds.win();
@@ -2411,7 +2419,7 @@ function renderPlinkoFeed(feed) {
     if (e.playerId === myId) li.classList.add('self');
     li.append(avatarEl(e.name));
     const name = Object.assign(document.createElement('span'), { className: 'name', textContent: e.name });
-    const what = Object.assign(document.createElement('span'), { className: 'u-what', textContent: `${e.amount} → ${e.payout}` });
+    const what = Object.assign(document.createElement('span'), { className: 'u-what', textContent: `${chips(e.amount)} → ${chips(e.payout)}` });
     const m = Object.assign(document.createElement('span'), { className: 'u-ch', textContent: `×${String(e.multiplier).replace('.', ',')} · ${e.rows} р.` });
     li.append(name, what, m);
     return li;
@@ -2470,10 +2478,10 @@ function mnRenderForm() {
   const mult = mnMult(count, picks);
   $('mn-mult').textContent = mnFmt(mult);
   $('mn-next').textContent = picks < MN_TILES - count ? mnFmt(mnMult(count, picks + 1)) : '—';
-  $('mn-payout').textContent = s.active && picks ? Math.floor(s.bet * mult + 1e-9) : '—';
+  $('mn-payout').textContent = s.active && picks ? chips(Math.floor(s.bet * mult + 1e-9)) : '—';
   const go = $('mn-go');
   if (s.active) {
-    go.textContent = picks ? `💰 Забрать ${Math.floor(s.bet * mult + 1e-9)}` : '💰 Забрать (открой клетку)';
+    go.textContent = picks ? `💰 Забрать ${chips(Math.floor(s.bet * mult + 1e-9))}` : '💰 Забрать (открой клетку)';
     go.disabled = !picks || mn.waiting !== null;
   } else {
     go.textContent = '💣 Играть';
@@ -2580,12 +2588,12 @@ function mnApply(msg) {
     void $('mines').offsetWidth;
     $('mines').classList.add('shake');
     setTimeout(() => $('mines').classList.remove('shake'), 500);
-    res.textContent = `💥 Мина! −${msg.bet}`;
+    res.textContent = `💥 Мина! −${chips(msg.bet)}`;
     res.className = 'u-result lose';
   }
   if (msg.status === 'won' && mn.lastStatus === 'playing') {
     const mult = mnMult(msg.mines, msg.revealed.length);
-    res.textContent = `Забрал ${msg.payout} (${mnFmt(mult)}, +${msg.payout - msg.bet})`;
+    res.textContent = `Забрал ${chips(msg.payout)} (${mnFmt(mult)}, +${chips(msg.payout - msg.bet)})`;
     res.className = 'u-result win';
     sounds.win();
     if (mult >= 10) effects.confetti();
@@ -2602,7 +2610,7 @@ function renderMinesFeed(feed) {
     if (e.playerId === myId) li.classList.add('self');
     li.append(avatarEl(e.name));
     const name = Object.assign(document.createElement('span'), { className: 'name', textContent: e.name });
-    const what = Object.assign(document.createElement('span'), { className: 'u-what', textContent: e.payout ? `${e.bet} → ${e.payout}` : `${e.bet} 💥` });
+    const what = Object.assign(document.createElement('span'), { className: 'u-what', textContent: e.payout ? `${chips(e.bet)} → ${chips(e.payout)}` : `${chips(e.bet)} 💥` });
     const m = Object.assign(document.createElement('span'), { className: 'u-ch', textContent: `${e.mines} мин · ${e.payout ? mnFmt(e.multiplier) : `на ${e.picks + 1}-й`}` });
     li.append(name, what, m);
     return li;
@@ -2800,7 +2808,7 @@ function vtSetPile(amount, { drop = false, extra = 0, mood = '' } = {}) {
   pile.getAnimations().forEach((a) => a.cancel());
   pile.replaceChildren(...Array.from({ length: n }, (_, i) => vtChip(i, drop)));
   const label = $('vt-pile-label');
-  label.textContent = amount ? `${amount}` : '';
+  label.textContent = amount ? `${chips(amount)}` : '';
   label.className = `vt-pile-label ${mood}`;
 }
 
@@ -2938,16 +2946,16 @@ function vtShowResult(good, amount, r = {}) {
   if (msg) handlers.balance(good && pre ? { ...msg, balance: msg.balance + 2 * amount } : msg);
   const res = $('vt-result');
   const streak = r.streak || 1;
-  if (good && streak > 1) res.textContent = `🔥 Серия ×${2 ** streak}: ${r.base.toLocaleString('ru-RU')} → ${(2 * amount).toLocaleString('ru-RU')}`;
-  else if (!good && streak > 1) res.textContent = `Злой Верити оборвал серию ×${2 ** (streak - 1)} и съел ${amount.toLocaleString('ru-RU')}`;
-  else res.textContent = good ? `Добрый Верити: +${amount}` : `Злой Верити съел ${amount}`;
+  if (good && streak > 1) res.textContent = `🔥 Серия ×${2 ** streak}: ${chips(r.base)} → ${chips(2 * amount)}`;
+  else if (!good && streak > 1) res.textContent = `Злой Верити оборвал серию ×${2 ** (streak - 1)} и съел ${chips(amount)}`;
+  else res.textContent = good ? `Добрый Верити: +${chips(amount)}` : `Злой Верити съел ${chips(amount)}`;
   res.className = `u-result ${good ? 'win' : 'lose'}`;
   // Серия: после победы можно поставить весь выигрыш ещё раз.
   vt.series = good ? { base: r.base || amount, streak, next: 2 * amount } : null;
   renderVtSeries();
 }
 
-const vtFmt = (n) => n.toLocaleString('ru-RU');
+const vtFmt = chips;
 function renderVtSeries() {
   const s = vt.series;
   $('vt-series').hidden = !s || vt.busy || vt.awaiting;
@@ -3022,7 +3030,7 @@ function renderVerityFeed(feed) {
     const s = document.createElement('span');
     s.className = e.good ? 'vt-g' : 'vt-e';
     s.textContent = e.good ? '😊' : '😈';
-    s.title = `${e.name}: ${e.good ? '+' : '−'}${e.amount}`;
+    s.title = `${e.name}: ${e.good ? '+' : '−'}${chips(e.amount)}`;
     return s;
   }));
   $('vt-feed').replaceChildren(...(feed.length ? feed.map((e) => {
@@ -3035,7 +3043,7 @@ function renderVerityFeed(feed) {
     name.textContent = e.name;
     const what = document.createElement('span');
     what.className = 'u-what';
-    what.textContent = e.good ? `+${e.amount}` : `−${e.amount}`;
+    what.textContent = e.good ? `+${chips(e.amount)}` : `−${chips(e.amount)}`;
     const who = document.createElement('span');
     who.className = 'u-ch';
     const streak = e.streak || 1;
@@ -3179,7 +3187,7 @@ function dvRenderLobby() {
   if (!v) return;
 
   const g = (game) => `${DV_GAMES[game].icon} ${DV_GAMES[game].name}`;
-  const stakeText = (s) => (s ? ` · по ${s} 🪙` : ' · без ставки');
+  const stakeText = (s) => (s ? ` · по ${chips(s)} 🪙` : ' · без ставки');
   const out = v.inviteOut;
   $('dv-out').replaceChildren(...(out ? [plInviteRow(`Ждём ответа: ${out.toName} · ${g(out.game)}${stakeText(out.stake)}`,
     [['Отменить', 'ghost', () => send({ type: 'duel_cancel' })]])] : []));
@@ -3193,7 +3201,7 @@ function dvRenderLobby() {
     const li = document.createElement('li');
     const name = document.createElement('span');
     name.className = 'name';
-    name.textContent = `${d.players[0].name} ⚔️ ${d.players[1].name} · ${g(d.game)}${d.stake ? ` · ${d.stake}` : ''}`;
+    name.textContent = `${d.players[0].name} ⚔️ ${d.players[1].name} · ${g(d.game)}${d.stake ? ` · ${chips(d.stake)}` : ''}`;
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'ghost';
@@ -3214,7 +3222,7 @@ function dvRenderLobby() {
     name.textContent = `${h.winner.name} обыграл ${h.loser.name}`;
     const game = document.createElement('span');
     game.className = 'dv-h-game';
-    game.textContent = `${g(h.game)}${h.stake ? ` · +${h.stake}` : ''}`;
+    game.textContent = `${g(h.game)}${h.stake ? ` · +${chips(h.stake)}` : ''}`;
     li.append(name, game);
     return li;
   }) : [Object.assign(document.createElement('li'), { className: 'muted', textContent: 'Дуэлей ещё не было' })]));
@@ -3229,7 +3237,7 @@ function dvRenderPopup() {
   $('duel-dot').hidden = !inv;
   if (!inv) return;
   $('dv-popup-from').textContent = inv.fromName;
-  $('dv-popup-what').textContent = `${DV_GAMES[inv.game].icon} ${DV_GAMES[inv.game].name}${inv.stake ? `, по ${inv.stake} 🪙` : ', без ставки'}`;
+  $('dv-popup-what').textContent = `${DV_GAMES[inv.game].icon} ${DV_GAMES[inv.game].name}${inv.stake ? `, по ${chips(inv.stake)} 🪙` : ', без ставки'}`;
   $('dv-popup').dataset.id = inv.id;
   if (!dv.seenInvites.has(inv.id)) {
     dv.seenInvites.add(inv.id);
@@ -3380,7 +3388,7 @@ function dvRender() {
     dvPlayerBox($('dv-p0'), d, 0);
     dvPlayerBox($('dv-p1'), d, 1);
     $('dv-game-name').textContent = `${DV_GAMES[d.game].icon} ${DV_GAMES[d.game].name}`;
-    $('dv-bank').textContent = d.stake ? `банк ${2 * d.stake} 🪙` : 'без ставки';
+    $('dv-bank').textContent = d.stake ? `банк ${chips(2 * d.stake)} 🪙` : 'без ставки';
     $('dv-rule').textContent = DV_GAMES[d.game].rule;
     $('dv-result').textContent = '';
     $('dv-result').className = 'dv-result';
@@ -3644,14 +3652,14 @@ function dvShowResult(d) {
   $(`dv-p${w}`).classList.add('win');
   $(`dv-p${1 - w}`).classList.add('lose');
   const res = $('dv-result');
-  const prize = d.stake ? ` и забирает ${2 * d.stake} 🪙` : '';
+  const prize = d.stake ? ` и забирает ${chips(2 * d.stake)} 🪙` : '';
   if (me === w) {
-    res.textContent = `🏆 Ты победил${prize ? `: +${d.stake} 🪙` : '!'}`;
+    res.textContent = `🏆 Ты победил${prize ? `: +${chips(d.stake)} 🪙` : '!'}`;
     res.className = 'dv-result win';
     sounds.win();
     effects.confetti();
   } else if (me >= 0) {
-    res.textContent = `${d.players[w].name} победил${d.stake ? `: −${d.stake} 🪙` : ''}`;
+    res.textContent = `${d.players[w].name} победил${d.stake ? `: −${chips(d.stake)} 🪙` : ''}`;
     res.className = 'dv-result lose';
     sounds.lose();
   } else {
@@ -4044,9 +4052,9 @@ function plRenderLobby() {
   if (people.some((p) => p.id === cur)) sel.value = cur;
 
   const out = v.inviteOut;
-  $('pl-out').replaceChildren(...(out ? [plInviteRow(`Ждём ответа: ${out.toName}${out.stake ? ` · ставка ${out.stake}` : ''}`, [['Отменить', 'ghost', () => send({ type: 'pool_cancel' })]])] : []));
+  $('pl-out').replaceChildren(...(out ? [plInviteRow(`Ждём ответа: ${out.toName}${out.stake ? ` · ставка ${chips(out.stake)}` : ''}`, [['Отменить', 'ghost', () => send({ type: 'pool_cancel' })]])] : []));
   $('pl-in').replaceChildren(...v.invitesIn.map((i) => plInviteRow(
-    `${i.fromName} зовёт тебя${i.stake ? ` · ставка ${i.stake}` : ' · без ставки'}`,
+    `${i.fromName} зовёт тебя${i.stake ? ` · ставка ${chips(i.stake)}` : ' · без ставки'}`,
     [['Принять', '', () => plAccept(i)], ['Отказ', 'ghost', () => send({ type: 'pool_decline', inviteId: i.id })]],
   )));
 
@@ -4054,7 +4062,7 @@ function plRenderLobby() {
     const li = document.createElement('li');
     const name = document.createElement('span');
     name.className = 'name';
-    name.textContent = `${m.players[0].name} — ${m.players[1].name}${m.stake ? ` · ${m.stake}` : ''}${m.phase === 'over' ? ' · окончен' : ''}`;
+    name.textContent = `${m.players[0].name} — ${m.players[1].name}${m.stake ? ` · ${chips(m.stake)}` : ''}${m.phase === 'over' ? ' · окончен' : ''}`;
     const b = document.createElement('button');
     b.type = 'button';
     b.className = 'ghost';
@@ -4107,8 +4115,8 @@ function plRender() {
   plPlayerBox($('pl-p1'), m, 1);
   const turnName = m.turn >= 0 ? m.players[m.turn].name : '';
   $('pl-status').textContent = m.phase === 'over'
-    ? `🏆 ${m.players[m.winner].name}${m.stake ? ` +${2 * m.stake}` : ''}`
-    : `${m.stake ? `Ставка ${m.stake} · ` : ''}бьёт ${turnName}`;
+    ? `🏆 ${m.players[m.winner].name}${m.stake ? ` +${chips(2 * m.stake)}` : ''}`
+    : `${m.stake ? `Ставка ${chips(m.stake)} · ` : ''}бьёт ${turnName}`;
   $('pl-msg').textContent = m.message || '';
   $('pl-concede').hidden = !(me >= 0 && m.phase === 'playing');
   $('pl-back').hidden = me >= 0 && m.phase === 'playing';
@@ -4145,7 +4153,7 @@ function plRenderPopup() {
   $('pl-popup').hidden = !inv || !!pl.view.myMatchId;
   if (!inv) return;
   $('pl-popup-from').textContent = inv.fromName;
-  $('pl-popup-stake').textContent = inv.stake ? `на ${inv.stake} 🪙` : 'без ставки';
+  $('pl-popup-stake').textContent = inv.stake ? `на ${chips(inv.stake)} 🪙` : 'без ставки';
   $('pl-popup').dataset.id = inv.id;
   if (!pl.seenInvites.has(inv.id)) {
     pl.seenInvites.add(inv.id);
@@ -4358,7 +4366,7 @@ function bombPlayerCard(v, p) {
   st.className = 'b-status';
   if (p.status === 'boom') st.textContent = '💥 взорвался';
   else if (p.status === 'out') st.textContent = `🏃 ${p.lastMove || 'сбежал'}`;
-  else if (p.payout) st.textContent = `+${p.payout}`;
+  else if (p.payout) st.textContent = `+${chips(p.payout)}`;
   else if (p.id === v.turn) st.textContent = '🔥 ходит';
   else st.textContent = p.lastMove || '';
   d.append(avatarEl(p.name), name, sum, st);
@@ -4372,7 +4380,7 @@ function renderBomb() {
   const myTurn = !!(v.phase === 'playing' && me && v.turn === me.id);
   const inGame = !!(me && me.status === 'in');
 
-  $('b-bank').textContent = v.bank;
+  $('b-bank').textContent = chips(v.bank);
   const el = $('b-bomb');
   el.dataset.heat = bombHeat(v);
   el.classList.toggle('lit', v.phase === 'playing');
@@ -4386,7 +4394,7 @@ function renderBomb() {
 
   $('b-history').replaceChildren(...v.history.map((h) => {
     const s = document.createElement('span');
-    s.textContent = `${h.boom ? '💥' : '🏆'} ${h.fuse}`;
+    s.textContent = `${h.boom ? '💥' : '🏆'} ${chips(h.fuse)}`;
     s.className = h.boom ? '' : 'good';
     s.title = h.boom ? 'фитиль, на котором рвануло' : 'никто не взорвался';
     return s;
@@ -4406,8 +4414,8 @@ function renderBomb() {
   if (r) {
     const mine = r.payouts.find((p) => state.me && p.id === state.me.playerId);
     $('b-result').textContent = r.type === 'boom'
-      ? `Фитиль был на ${r.fuse}. Банк ${r.bank} делят: ${r.payouts.map((p) => `${p.name} +${p.amount}`).join(', ')}`
-      : `Все сбежали, ${r.winnerName} забирает ${r.bank}. Фитиль был на ${r.fuse}`;
+      ? `Фитиль был на ${chips(r.fuse)}. Банк ${chips(r.bank)} делят: ${r.payouts.map((p) => `${p.name} +${chips(p.amount)}`).join(', ')}`
+      : `Все сбежали, ${r.winnerName} забирает ${chips(r.bank)}. Фитиль был на ${chips(r.fuse)}`;
     $('b-result').className = `b-result ${mine ? 'win' : me ? 'lose' : ''}`;
     if (bomb.lastResultRound !== v.roundId) {
       bomb.lastResultRound = v.roundId;
@@ -4471,6 +4479,7 @@ const ACT_GAMES = {
   roulette: { icon: '🎡', name: 'Рулетка' },
   wheel: { icon: '🎰', name: 'Колесо' },
   kraken: { icon: '🐙', name: 'Кракен' },
+  saloon: { icon: '🤠', name: 'Салун' },
   bomb: { icon: '💣', name: 'Бомба' },
   upgrade: { icon: '⬆️', name: 'Апгрейд' },
   verity: { icon: '😊', name: 'Верити' },
@@ -4519,7 +4528,7 @@ function renderActivity() {
     body.append(name, what);
     const amount = document.createElement('span');
     amount.className = 'act-amount';
-    amount.textContent = e.kind === 'win' ? `+${e.amount}` : e.kind === 'lose' ? `−${e.amount}` : `${e.amount}`;
+    amount.textContent = e.kind === 'win' ? `+${chips(e.amount)}` : e.kind === 'lose' ? `−${chips(e.amount)}` : `${chips(e.amount)}`;
     li.append(icon, avatarEl(e.name), body, amount);
     return li;
   }));
@@ -4595,7 +4604,7 @@ const ach = {
 };
 const RARE_ACH = new Set(['jackpot', 'millionaire', 'poker_royal', 'crash_x50', 'season_champ']);
 
-const signed = (n) => (n > 0 ? `+${n}` : String(n));
+const signed = (n) => (n > 0 ? `+${chips(n)}` : chips(n));
 const mskDay = (t) => new Date(t).toLocaleDateString('ru-RU', { day: 'numeric', month: 'short', timeZone: 'Europe/Moscow' });
 const weekLabel = (s) => `${mskDay(s.startedAt)} – ${mskDay(s.endsAt - 1)}`;
 
@@ -4700,7 +4709,7 @@ function renderProfile(msg) {
   $('prof-avatar').replaceChildren(avatarEl(msg.name));
   $('prof-name').textContent = msg.name;
   const week = msg.week.place ? `${msg.week.place}-е место в неделе (${signed(msg.week.net)})` : 'на этой неделе ещё не играл';
-  $('prof-sub').textContent = `Капитал ${msg.capital} · ${week}`;
+  $('prof-sub').textContent = `Капитал ${chips(msg.capital)} · ${week}`;
   $('prof-count').textContent = `${count} из ${ach.defs.length}`;
   $('prof-bar').style.width = `${ach.defs.length ? (count / ach.defs.length) * 100 : 0}%`;
   // Открытые первыми, остальные в обычном порядке.
@@ -4768,7 +4777,7 @@ const handlers = {
     $('lobby').hidden = false;
     $('me').hidden = false;
     $('me-name').textContent = msg.name;
-    $('me-balance').textContent = msg.balance;
+    $('me-balance').textContent = chips(msg.balance);
     state.balance = msg.balance;
     // Старый аккаунт без пароля: предлагаем задать, иначе на новой ссылке не войти.
     if (!msg.hasPassword) showPasswordCard(false);
@@ -4928,7 +4937,7 @@ const handlers = {
   balance(msg) {
     if (upgradeHoldsBalance(msg) || verityHoldsBalance(msg)) return;
     state.balance = msg.balance;
-    $('me-balance').textContent = msg.balance;
+    $('me-balance').textContent = chips(msg.balance);
     state.bonus = {
       amount: msg.bonus.amount,
       eligible: msg.bonus.eligible,
@@ -4984,7 +4993,7 @@ const handlers = {
       }
       const score = document.createElement('span');
       score.className = 'score';
-      score.textContent = p.capital;
+      score.textContent = chips(p.capital);
       li.append(score);
       return li;
     }));
@@ -4992,6 +5001,7 @@ const handlers = {
 
   error(msg) {
     if (window.krakenOnError) window.krakenOnError(msg);
+    if (window.saloonOnError) window.saloonOnError(msg);
     if (upg.awaiting) {
       upg.awaiting = false;
       $('u-go').disabled = false;

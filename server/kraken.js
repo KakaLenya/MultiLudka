@@ -37,7 +37,7 @@ function createKraken({
     if (pending.has(player.id)) return { error: 'Барабаны ещё крутятся' };
     const cost = K.costOf(mode, bet);
     if (!Number.isSafeInteger(cost)) return { error: 'Слишком большая ставка' };
-    if (cost > player.balance) return { error: mode === 'spin' ? 'Не хватает фишек' : `Бонус стоит ${cost.toLocaleString('ru-RU')} — не хватает фишек` };
+    if (cost > player.balance) return { error: mode === 'spin' ? 'Не хватает фишек' : `Бонус стоит ${String(cost).replace(/B(?=(d{3})+(?!d))/g, '.')} — не хватает фишек` };
 
     const rig = rigged;
     rigged = null;

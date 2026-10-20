@@ -78,6 +78,13 @@ function selectedPlayer() {
   return admin.data && admin.data.players.find((p) => p.id === admin.selected);
 }
 
+// Фишки с разрядами через точку: 60000000 → 60.000.000.
+function chips(n) {
+  const v = Math.trunc(Number(n) || 0);
+  const t = String(Math.abs(v)).replace(/B(?=(d{3})+(?!d))/g, '.');
+  return v < 0 ? `−${t}` : t;
+}
+
 function fmtMs(ms) {
   const min = Math.ceil(ms / 60000);
   return min >= 60 ? `${Math.floor(min / 60)} ч ${min % 60} мин` : `${min} мин`;
@@ -125,9 +132,9 @@ function renderPlayers() {
         }
         return frag;
       },
-      () => String(p.balance),
-      () => (p.reserved ? String(p.reserved) : '—'),
-      () => String(p.capital),
+      () => chips(p.balance),
+      () => (p.reserved ? chips(p.reserved) : '—'),
+      () => chips(p.capital),
     ];
     for (const make of cells) {
       const td = document.createElement('td');
@@ -150,8 +157,8 @@ function renderSelected() {
   if (!p) return;
   const parts = [
     p.online ? 'онлайн' : 'офлайн',
-    `баланс ${p.balance}`,
-    p.reserved ? `в играх ${p.reserved}` : null,
+    `баланс ${chips(p.balance)}`,
+    p.reserved ? `в играх ${chips(p.reserved)}` : null,
     p.mutedFor > 0 ? `мут ещё ${fmtMs(p.mutedFor)}` : null,
     p.luck ? `🍀 везение ${p.luck}%` : null,
     p.hasPassword ? (p.password ? `🔑 пароль: ${p.password}` : '🔑 пароль есть (задан раньше, не сохранён)') : '⚠️ пароля нет — на новой ссылке не войдёт',
@@ -359,6 +366,16 @@ function renderKrakenAdmin() {
     : [li('В Кракена ещё никто не играл', 'muted')]));
 }
 
+const SL_RIG = { duel: 'дуэль на закате', bullets: 'шальная пуля', lose: 'проигрыш' };
+function renderSaloonAdmin() {
+  const k = admin.data.saloon;
+  if (!k) return;
+  $('sl-admin-info').textContent = k.rigged ? `Следующий спин (любого игрока): ${SL_RIG[k.rigged]}` : 'Честно';
+  $('sl-admin-feed').replaceChildren(...(k.feed.length
+    ? k.feed.slice(0, 8).map((e) => li(`${e.name}: ${e.cost} → ${e.payout} (×${e.mult}${e.duel ? `, дуэль ${e.spins} вращ.` : ''})`))
+    : [li('В Салун ещё никто не заходил', 'muted')]));
+}
+
 function renderPlinkoAdmin() {
   const p = admin.data.plinko;
   if (!p) return;
@@ -449,6 +466,7 @@ function render() {
   renderRoulette();
   renderWheelAdmin();
   renderKrakenAdmin();
+  renderSaloonAdmin();
   renderUpgraderAdmin();
   renderVerityAdmin();
   renderPlinkoAdmin();
@@ -494,7 +512,7 @@ function parseChips(raw) {
 }
 function renderAmountHint() {
   const n = parseChips($('amount').value);
-  $('amount-hint').textContent = n === null ? 'не понял сумму: например 1000, 5кк, 1.5м' : n > MAX_CHIPS ? 'больше квадриллиона нельзя' : `= ${n.toLocaleString('ru-RU')}`;
+  $('amount-hint').textContent = n === null ? 'не понял сумму: например 1000, 5кк, 1.5м' : n > MAX_CHIPS ? 'больше квадриллиона нельзя' : `= ${chips(n)}`;
 }
 $('amount').addEventListener('input', renderAmountHint);
 function readAmount() {
@@ -517,7 +535,7 @@ function grant(sign) {
     body.playerId = p.id;
   }
   run('/grant', body, (r) => (r.results.length
-    ? r.results.map((x) => `${x.name} ${x.delta >= 0 ? '+' : ''}${x.delta} → ${x.balance}`).join(', ')
+    ? r.results.map((x) => `${x.name} ${x.delta >= 0 ? '+' : ''}${chips(x.delta)} → ${chips(x.balance)}`).join(', ')
     : 'Некому: никого нет'));
 }
 
@@ -538,7 +556,7 @@ $('take-all').addEventListener('click', () => {
     if (!confirm(`Забрать все фишки у ${p.name}?`)) return;
     body.playerId = p.id;
   }
-  run('/grant', body, (r) => (r.results.length ? r.results.map((x) => `${x.name}: ${x.delta} → ${x.balance}`).join(', ') : 'Некому: никого нет'));
+  run('/grant', body, (r) => (r.results.length ? r.results.map((x) => `${x.name}: ${chips(x.delta)} → ${chips(x.balance)}`).join(', ') : 'Некому: никого нет'));
 });
 
 $('set-balance').addEventListener('click', () => {
@@ -546,7 +564,7 @@ $('set-balance').addEventListener('click', () => {
   const n = parseChips($('amount').value);
   if (!p) return;
   if (n === null || n < 0) return toast('Баланс: например 1000, 5кк, 1.5м', true);
-  run('/set-balance', { playerId: p.id, balance: n }, (r) => `${p.name}: баланс ${r.balance}`);
+  run('/set-balance', { playerId: p.id, balance: n }, (r) => `${p.name}: баланс ${chips(r.balance)}`);
 });
 
 $('rename-btn').addEventListener('click', () => {
@@ -681,6 +699,11 @@ document.querySelectorAll('[data-fwrig]').forEach((b) => b.addEventListener('cli
 document.querySelectorAll('[data-krrig]').forEach((b) => b.addEventListener('click', () => {
   const mode = b.dataset.krrig || null;
   run('/kraken/rig', { mode }, mode ? `Следующий спин Кракена: ${KR_RIG[mode]}` : 'Кракен снова честный');
+}));
+
+document.querySelectorAll('[data-slrig]').forEach((b) => b.addEventListener('click', () => {
+  const mode = b.dataset.slrig || null;
+  run('/saloon/rig', { mode }, mode ? `Следующий спин Салуна: ${SL_RIG[mode]}` : 'Салун снова честный');
 }));
 
 $('crash-now').addEventListener('click', () => {
