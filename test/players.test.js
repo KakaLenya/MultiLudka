@@ -159,7 +159,7 @@ test('удаление игрока: пропадает, имя и токен о
   assert.deepEqual(names.sort(), ['Глад', 'данек'].sort());
 });
 
-test('пароль: хранится только хэш, проверка, вход по имени, переживает перезапуск', () => {
+test('пароль: проверка по хэшу, вход по имени, админ видит пароль, переживает перезапуск', () => {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pw-'));
   const file = path.join(dir, 'players.json');
   let store = createStore({ file, saveDelayMs: 0 });
@@ -174,7 +174,8 @@ test('пароль: хранится только хэш, проверка, вх
   assert.equal(store.findByName('  аня '), a, 'имя без учёта регистра и пробелов');
   store.flush();
   const saved = fs.readFileSync(file, 'utf8');
-  assert.ok(!saved.includes('секрет42'), 'пароль не лежит в файле открытым текстом');
+  assert.ok(JSON.parse(saved).players[0].passHash.includes(':'), 'для проверки — соль и хэш');
+  assert.equal(store.passwordOf(a), 'секрет42', 'админ видит пароль');
   store = createStore({ file });
   const again = store.findByName('Аня');
   assert.equal(store.checkPassword(again, 'секрет42'), true, 'после перезапуска пароль работает');

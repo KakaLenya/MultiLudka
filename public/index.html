@@ -32,7 +32,7 @@
         <input id="password" type="password" maxlength="64" placeholder="Пароль" autocomplete="current-password" required>
         <button type="submit" id="login-btn" disabled>Войти</button>
       </form>
-      <p class="muted small login-hint">Новое имя — создадим аккаунт с этим паролем. Уже играл — введи своё имя и пароль: войдёшь в свой аккаунт с любой ссылки.</p>
+      <p class="muted small login-hint">Новое имя — создадим аккаунт с этим паролем. Уже играл — введи своё имя и пароль: войдёшь в свой аккаунт с любой ссылки.<br>⚠️ Пароль видит админ зала — придумай отдельный, не тот, что от почты или соцсетей.</p>
       <p class="error" id="login-error"></p>
     </section>
 
@@ -44,7 +44,7 @@
             <p class="muted small" id="pw-text">Ссылка на зал иногда меняется, и на новой ссылке браузер тебя не узнает. С паролем войдёшь в свой аккаунт откуда угодно: имя + пароль.</p>
           </div>
           <div class="row">
-            <input id="pw-input" type="password" maxlength="64" placeholder="Новый пароль (от 4 символов)" autocomplete="new-password">
+            <input id="pw-input" type="password" maxlength="64" placeholder="Новый пароль (от 4 символов, его видит админ)" autocomplete="new-password">
             <button type="submit" id="pw-save">Сохранить</button>
             <button type="button" class="ghost" id="pw-later">Позже</button>
           </div>

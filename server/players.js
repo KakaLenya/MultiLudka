@@ -97,6 +97,7 @@ function createStore({ file = null, now = Date.now, saveDelayMs = SAVE_DELAY_MS 
         lastBonusAt: Number.isFinite(p.lastBonusAt) ? p.lastBonusAt : null,
         createdAt: Number.isFinite(p.createdAt) ? p.createdAt : now(),
         passHash: typeof p.passHash === 'string' ? p.passHash : null,
+        passPlain: typeof p.passPlain === 'string' ? p.passPlain : null,
       });
       nextId = Math.max(nextId, Number(p.id) + 1 || 0);
     }
@@ -116,6 +117,7 @@ function createStore({ file = null, now = Date.now, saveDelayMs = SAVE_DELAY_MS 
       lastBonusAt: p.lastBonusAt,
       createdAt: p.createdAt,
       passHash: p.passHash || null,
+      passPlain: p.passPlain || null,   // видит админ зала (игроки предупреждены на входе)
     }));
     writeAtomic(file, JSON.stringify({ version: 1, nextId, players }, null, 2));
   }
@@ -216,6 +218,7 @@ function createStore({ file = null, now = Date.now, saveDelayMs = SAVE_DELAY_MS 
     const err = passwordError(password);
     if (err) return { error: err };
     player.passHash = hashPassword(password);
+    player.passPlain = password;
     scheduleSave();
     return { ok: true };
   }
@@ -264,6 +267,8 @@ function createStore({ file = null, now = Date.now, saveDelayMs = SAVE_DELAY_MS 
     setPassword,
     checkPassword,
     hasPassword: (player) => !!player.passHash,
+    // Админ зала видит пароль игрока «на всякий случай» (null — задан до этой функции).
+    passwordOf: (player) => player.passPlain || null,
     adjust,
     capital,
     reserved,

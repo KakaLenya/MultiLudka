@@ -64,6 +64,7 @@ function createAdminRouter({
         mutedFor: Math.max(0, (mutes.get(p.id) || 0) - t),
         luck: luck.percentOf(p.id),
         hasPassword: store.hasPassword(p),
+        password: store.passwordOf(p),
         createdAt: p.createdAt,
       }))
       .sort((a, b) => b.online - a.online || b.capital - a.capital);

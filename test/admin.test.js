@@ -242,3 +242,11 @@ test('API: админ задаёт игроку пароль', async () => {
     assert.equal((await post(`${base}/set-password`, { playerId: a.id, password: 'qwerty' }, { 'cf-connecting-ip': '1.2.3.4' })).status, 403, 'через туннель без токена нельзя');
   });
 });
+
+test('API: админ видит пароль игрока', async () => {
+  await withServer(async ({ base, a, store }) => {
+    store.setPassword(a, 'кошка12');
+    const st = await (await fetch(`${base}/state`)).json();
+    assert.equal(st.players.find((p) => p.id === a.id).password, 'кошка12');
+  });
+});

@@ -109,6 +109,13 @@ function renderPlayers() {
           m.textContent = '🤐';
           frag.append(m);
         }
+        if (!p.hasPassword) {
+          const w = document.createElement('span');
+          w.className = 'muted-tag';
+          w.textContent = '⚠️';
+          w.title = 'Нет пароля: на новой ссылке не войдёт';
+          frag.append(w);
+        }
         if (p.luck) {
           const l = document.createElement('span');
           l.className = 'muted-tag';
@@ -147,7 +154,7 @@ function renderSelected() {
     p.reserved ? `в играх ${p.reserved}` : null,
     p.mutedFor > 0 ? `мут ещё ${fmtMs(p.mutedFor)}` : null,
     p.luck ? `🍀 везение ${p.luck}%` : null,
-    p.hasPassword ? '🔑 пароль есть' : '⚠️ пароля нет — на новой ссылке не войдёт',
+    p.hasPassword ? (p.password ? `🔑 пароль: ${p.password}` : '🔑 пароль есть (задан раньше, не сохранён)') : '⚠️ пароля нет — на новой ссылке не войдёт',
     p.bonusReadyIn > 0 ? `пособие через ${fmtMs(p.bonusReadyIn)}` : 'пособие доступно',
   ];
   $('sel-info').textContent = parts.filter(Boolean).join(' · ');
