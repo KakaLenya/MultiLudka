@@ -2,7 +2,8 @@
 const crypto = require('node:crypto');
 const express = require('express');
 
-const MAX_AMOUNT = 1_000_000;
+const { MAX_BALANCE } = require('./players');
+const MAX_AMOUNT = MAX_BALANCE;   // сколько угодно — до потолка баланса (квадриллион)
 const MAX_MUTE_MIN = 24 * 60;
 const EFFECTS = new Set(['confetti', 'money', 'shake', 'flip', 'disco']);
 const LOOPBACK = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1']);
@@ -40,7 +41,7 @@ function createAdminRouter({
 
   // Положительное: начислить. Отрицательное: забрать, но не больше, чем есть свободного.
   function give(player, amount) {
-    const delta = amount < 0 ? -Math.min(player.balance, -amount) : amount;
+    const delta = amount < 0 ? -Math.min(player.balance, -amount) : Math.min(amount, MAX_BALANCE - player.balance);
     store.adjust(player, delta);
     return delta;
   }
@@ -77,7 +78,7 @@ function createAdminRouter({
   router.post('/grant', (req, res) => {
     const { target = 'player', playerId } = req.body;
     const amount = parseAmount(req.body.amount);
-    if (amount === null) return fail(res, `Сумма: целое, не 0, по модулю до ${MAX_AMOUNT}`);
+    if (amount === null) return fail(res, 'Сумма: целое, не 0, по модулю до квадриллиона');
 
     let players;
     if (target === 'online') players = [...onlineIds()].map(findPlayer);
@@ -102,7 +103,7 @@ function createAdminRouter({
     const p = findPlayer(req.body.playerId);
     if (!p) return fail(res, 'Игрок не найден', 404);
     const balance = req.body.balance;
-    if (!Number.isSafeInteger(balance) || balance < 0 || balance > 100 * MAX_AMOUNT) return fail(res, 'Баланс: целое от 0');
+    if (!Number.isSafeInteger(balance) || balance < 0 || balance > MAX_BALANCE) return fail(res, 'Баланс: целое от 0 до квадриллиона');
     store.adjust(p, balance - p.balance);
     ok(res, { balance: p.balance });
   });

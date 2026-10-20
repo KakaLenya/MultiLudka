@@ -4,7 +4,7 @@ const fs = require('node:fs');
 const os = require('node:os');
 const path = require('node:path');
 const {
-  createStore, cleanName, START_BALANCE, BONUS_AMOUNT, BONUS_COOLDOWN_MS,
+  createStore, cleanName, START_BALANCE, BONUS_AMOUNT, BONUS_COOLDOWN_MS, MAX_BALANCE,
 } = require('../server/players');
 
 function tmpFile() {
@@ -39,6 +39,17 @@ test('adjust: целые суммы, не уходит в минус', () => {
   assert.throws(() => store.adjust(player, -1));
   assert.throws(() => store.adjust(player, 0.5));
   assert.throws(() => store.adjust(player, NaN));
+  assert.equal(player.balance, 0);
+});
+
+test('adjust: баланс не выше квадриллиона, огромные выигрыши не ломают число', () => {
+  const store = createStore();
+  const { player } = store.register('Кеша');
+  store.adjust(player, MAX_BALANCE);
+  assert.equal(player.balance, MAX_BALANCE);
+  store.adjust(player, 1e18);   // выигрыш ×1000 с потолка — режется до потолка
+  assert.equal(player.balance, MAX_BALANCE);
+  store.adjust(player, -MAX_BALANCE);
   assert.equal(player.balance, 0);
 });
 

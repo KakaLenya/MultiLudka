@@ -5,6 +5,9 @@ const path = require('node:path');
 const { randomToken } = require('./rng');
 
 const START_BALANCE = 1000;
+// Потолок баланса: квадриллион. Дальше числа в JS теряют точность — выигрыш ×1000 с такого
+// баланса испортил бы players.json. Всё, что сверх потолка, просто не начисляется.
+const MAX_BALANCE = 1e15;
 const BONUS_AMOUNT = 200;
 const BONUS_THRESHOLD = 10;            // пособие, если капитал меньше этого
 const BONUS_COOLDOWN_MS = 24 * 60 * 60 * 1000;
@@ -163,10 +166,10 @@ function createStore({ file = null, now = Date.now, saveDelayMs = SAVE_DELAY_MS 
 
   // Единственный способ менять баланс. delta: целое, итог не может уйти в минус.
   function adjust(player, delta) {
-    if (!Number.isSafeInteger(delta)) throw new Error(`adjust: дробная сумма ${delta}`);
+    if (!Number.isInteger(delta)) throw new Error(`adjust: дробная сумма ${delta}`);
     if (player.balance + delta < 0) throw new Error(`adjust: баланс ${player.name} ушёл бы в минус`);
     if (delta === 0) return player.balance;
-    player.balance += delta;
+    player.balance = Math.min(MAX_BALANCE, player.balance + delta);
     changed(player);
     return player.balance;
   }
@@ -293,6 +296,7 @@ module.exports = {
   writeAtomic,
   passwordError,
   START_BALANCE,
+  MAX_BALANCE,
   BONUS_AMOUNT,
   BONUS_THRESHOLD,
   BONUS_COOLDOWN_MS,

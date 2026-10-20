@@ -457,13 +457,28 @@ function needSelected() {
   return p;
 }
 
+// Сумма с сокращениями: 10k / 10к = 10 000, 5кк / 5м / 5m = 5 000 000, 2млрд / 2b = 2 000 000 000.
+const MAX_CHIPS = 1e15;
+function parseChips(raw) {
+  const s = String(raw).trim().toLowerCase().replace(/\s+/g, '').replace(',', '.');
+  const m = /^(\d+(?:\.\d+)?)(k|к|кк|m|м|млн|b|млрд|т|тыс)?$/.exec(s);
+  if (!m) return null;
+  const mult = { k: 1e3, 'к': 1e3, 'т': 1e3, 'тыс': 1e3, 'кк': 1e6, m: 1e6, 'м': 1e6, 'млн': 1e6, b: 1e9, 'млрд': 1e9 }[m[2]] || 1;
+  const n = Math.floor(Number(m[1]) * mult);
+  return Number.isFinite(n) ? n : null;
+}
+function renderAmountHint() {
+  const n = parseChips($('amount').value);
+  $('amount-hint').textContent = n === null ? 'не понял сумму: например 1000, 5кк, 1.5м' : n > MAX_CHIPS ? 'больше квадриллиона нельзя' : `= ${n.toLocaleString('ru-RU')}`;
+}
+$('amount').addEventListener('input', renderAmountHint);
 function readAmount() {
-  const n = Math.floor(Number($('amount').value));
-  if (!Number.isFinite(n) || n <= 0) {
-    toast('Сумма должна быть больше 0', true);
+  const n = parseChips($('amount').value);
+  if (n === null || n <= 0) {
+    toast('Сумма: например 1000, 5кк, 1.5м, 2млрд', true);
     return null;
   }
-  return n;
+  return Math.min(n, MAX_CHIPS);
 }
 
 function grant(sign) {
@@ -484,14 +499,28 @@ function grant(sign) {
 $('give').addEventListener('click', () => grant(1));
 $('take').addEventListener('click', () => grant(-1));
 document.querySelectorAll('[data-amount]').forEach((b) => {
-  b.addEventListener('click', () => { $('amount').value = b.dataset.amount; });
+  b.addEventListener('click', () => { $('amount').value = b.dataset.amount; renderAmountHint(); });
+});
+
+$('take-all').addEventListener('click', () => {
+  const target = $('grant-target').value;
+  const who = target === 'online' ? 'у всех онлайн' : target === 'all' ? 'у ВСЕХ игроков' : null;
+  if (who && !confirm(`Забрать все фишки ${who}?`)) return;
+  const body = { amount: -MAX_CHIPS, target };
+  if (target === 'player') {
+    const p = needSelected();
+    if (!p) return;
+    if (!confirm(`Забрать все фишки у ${p.name}?`)) return;
+    body.playerId = p.id;
+  }
+  run('/grant', body, (r) => (r.results.length ? r.results.map((x) => `${x.name}: ${x.delta} → ${x.balance}`).join(', ') : 'Некому: никого нет'));
 });
 
 $('set-balance').addEventListener('click', () => {
   const p = needSelected();
-  const n = Math.floor(Number($('amount').value));
+  const n = parseChips($('amount').value);
   if (!p) return;
-  if (!Number.isFinite(n) || n < 0) return toast('Баланс должен быть от 0', true);
+  if (n === null || n < 0) return toast('Баланс: например 1000, 5кк, 1.5м', true);
   run('/set-balance', { playerId: p.id, balance: n }, (r) => `${p.name}: баланс ${r.balance}`);
 });
 
@@ -634,3 +663,5 @@ $('auth-form').addEventListener('submit', (ev) => {
 
 poll();
 setInterval(poll, POLL_MS);
+
+renderAmountHint();

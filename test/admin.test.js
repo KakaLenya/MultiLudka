@@ -171,6 +171,26 @@ test('API: начислить, забрать больше, чем есть, т�
   });
 });
 
+test('API: фишки без лимита — миллиарды, потолок квадриллион, «забрать всё»', async () => {
+  await withServer(async ({ base, a }) => {
+    let r = await (await post(`${base}/grant`, { target: 'player', playerId: a.id, amount: 5_000_000_000 })).json();
+    assert.equal(a.balance, 5_000_001_000);
+    assert.equal(r.results[0].delta, 5_000_000_000);
+
+    r = await (await post(`${base}/grant`, { target: 'player', playerId: a.id, amount: 1e15 })).json();
+    assert.equal(a.balance, 1e15, 'выше квадриллиона не растёт');
+    assert.equal(r.results[0].delta, 1e15 - 5_000_001_000);
+    assert.equal((await post(`${base}/grant`, { target: 'all', amount: 1e15 + 1 })).status, 400);
+
+    r = await (await post(`${base}/grant`, { target: 'player', playerId: a.id, amount: -1e15 })).json();
+    assert.equal(a.balance, 0, '«Забрать всё»');
+
+    assert.equal((await post(`${base}/set-balance`, { playerId: a.id, balance: 2e12 })).status, 200);
+    assert.equal(a.balance, 2e12);
+    assert.equal((await post(`${base}/set-balance`, { playerId: a.id, balance: 2e15 })).status, 400);
+  });
+});
+
 test('API: музыка только из папки, очистка чата', async () => {
   await withServer(async ({ base, sent, chatLog }) => {
     let r = await post(`${base}/music/play`, { id: 'Зацепила.mp3' });
