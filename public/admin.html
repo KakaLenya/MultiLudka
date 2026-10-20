@@ -2,8 +2,9 @@
 <html lang="ru">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <meta name="robots" content="noindex">
+  <meta name="theme-color" content="#07130d">
   <title>Админка зала</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -11,10 +12,17 @@
   <link rel="stylesheet" href="style.css">
   <link rel="stylesheet" href="admin.css">
 </head>
-<body>
-  <header class="topbar">
-    <div class="logo"><span class="logo-icon">🎰</span><span class="logo-text">Админка зала</span></div>
-    <a class="link" href="/" target="_blank">открыть зал ↗</a>
+<body class="adm">
+  <header class="topbar adm-top">
+    <div class="logo"><span class="logo-icon">🎰</span><span class="logo-text">Админка</span></div>
+    <nav class="adm-tabs" id="tabs" aria-label="Разделы" hidden>
+      <a href="#players" data-tab="players" title="Игроки"><span class="t-ico">👥</span><span class="t-name">Игроки</span><span class="t-badge" id="b-players"></span></a>
+      <a href="#games" data-tab="games" title="Игры и подкрутки"><span class="t-ico">🎲</span><span class="t-name">Игры</span><span class="t-badge hot" id="b-games"></span></a>
+      <a href="#music" data-tab="music" title="Музыка"><span class="t-ico">🎵</span><span class="t-name">Музыка</span><span class="t-badge hot" id="b-music"></span></a>
+      <a href="#hall" data-tab="hall" title="Зал: объявления и чат"><span class="t-ico">📣</span><span class="t-name">Зал</span></a>
+      <a href="#server" data-tab="server" title="Сервер"><span class="t-ico">⚙️</span><span class="t-name">Сервер</span></a>
+    </nav>
+    <a class="hall-link" href="/" target="_blank" rel="noopener">в зал ↗</a>
     <div class="conn" id="conn" data-state="connecting">загрузка…</div>
   </header>
 
@@ -30,292 +38,438 @@
       <p class="error" id="auth-error"></p>
     </section>
 
-    <div class="admin-grid" id="panel" hidden>
-      <!-- Игроки -->
-      <section class="card players-card">
-        <h2>Игроки <span class="count" id="online-count">0</span></h2>
-        <p class="muted small">Нажми на игрока, чтобы выбрать его для действий справа.</p>
-        <table class="ptable">
-          <thead><tr><th></th><th>Имя</th><th>Баланс</th><th>В играх</th><th>Итого</th></tr></thead>
-          <tbody id="players"></tbody>
-        </table>
-      </section>
+    <div id="panel" hidden>
 
-      <div class="admin-col">
-        <!-- Фишки -->
-        <section class="card">
-          <h2>💰 Фишки</h2>
-          <div class="row">
-            <input id="amount" type="text" value="1000" placeholder="1000, 5кк, 1.5м, 2млрд" title="Можно сокращать: 10k / 10к = 10 000, 5кк / 5м = 5 000 000, 2млрд / 2b = 2 000 000 000">
-            <button type="button" class="ghost" data-amount="100">100</button>
-            <button type="button" class="ghost" data-amount="1000">1k</button>
-            <button type="button" class="ghost" data-amount="15000">15k</button>
-            <button type="button" class="ghost" data-amount="100000">100k</button>
-            <button type="button" class="ghost" data-amount="1000000">1М</button>
-            <button type="button" class="ghost" data-amount="1000000000">1 млрд</button>
-          </div>
-          <p class="muted small" id="amount-hint">= 1 000</p>
-          <div class="row">
-            <select id="grant-target">
-              <option value="player">Выбранному игроку</option>
-              <option value="online">Всем онлайн</option>
-              <option value="all">Всем зарегистрированным</option>
-            </select>
-          </div>
-          <div class="row">
-            <button type="button" id="give">Дать</button>
-            <button type="button" class="danger" id="take">Забрать</button>
-            <button type="button" class="danger" id="take-all" title="Обнулить баланс (фишки в играх не трогаются)">Забрать всё</button>
-            <button type="button" class="ghost" id="set-balance" title="Только выбранному">Сделать баланс ровно</button>
-          </div>
-        </section>
+      <!-- ================= Игроки ================= -->
+      <section class="view" data-view="players">
+        <div class="pl-layout">
+          <div class="pl-col">
+            <div class="card pl-card">
+              <div class="sec-head">
+                <h2>Игроки</h2>
+                <span class="sec-meta" id="pl-meta"></span>
+              </div>
+              <label class="search">
+                <span class="search-ico" aria-hidden="true">⌕</span>
+                <input id="pl-search" type="search" placeholder="Найти по имени" autocomplete="off" enterkeyhint="search">
+                <kbd class="search-key">/</kbd>
+              </label>
+              <div class="fchips-row" id="pl-filters" role="group" aria-label="Фильтр">
+                <button type="button" class="fchip on" data-filter="all">Все</button>
+                <button type="button" class="fchip" data-filter="online">Онлайн</button>
+                <button type="button" class="fchip" data-filter="lucky">🍀 С везением</button>
+                <button type="button" class="fchip" data-filter="nopass">⚠️ Без пароля</button>
+                <button type="button" class="fchip" data-filter="muted">🤐 В муте</button>
+              </div>
+              <ul class="plist" id="players"></ul>
+            </div>
 
-        <!-- Выбранный игрок -->
-        <section class="card">
-          <h2>👤 <span id="sel-name">Игрок не выбран</span></h2>
-          <div id="sel-box" hidden>
-            <p class="muted small" id="sel-info"></p>
-            <div class="row">
-              <input id="rename" maxlength="20" placeholder="Новое имя">
-              <button type="button" class="ghost" id="rename-btn">Переименовать</button>
-            </div>
-            <div class="row">
-              <span class="label">Мут в чате:</span>
-              <button type="button" class="ghost" data-mute="5">5 мин</button>
-              <button type="button" class="ghost" data-mute="30">30 мин</button>
-              <button type="button" class="ghost" data-mute="1440">сутки</button>
-              <button type="button" class="ghost" data-mute="0">снять</button>
-            </div>
-            <div class="row">
-              <button type="button" class="ghost" id="reset-bonus">Сбросить таймер пособия</button>
-              <button type="button" class="ghost" id="kick-table">Выгнать из-за стола</button>
-              <button type="button" class="danger" id="delete-player">Удалить игрока</button>
-            </div>
-            <div class="row">
-              <span class="label">🔑 Пароль:</span>
-              <input id="sel-password" maxlength="64" placeholder="Новый пароль для входа">
-              <button type="button" class="ghost" id="sel-password-btn">Задать</button>
-            </div>
-            <div class="row">
-              <span class="label">🍀 Везение:</span>
-              <button type="button" class="ghost" data-luck="70">70%</button>
-              <button type="button" class="ghost" data-luck="90">90%</button>
-              <button type="button" class="ghost" data-luck="100">100%</button>
-              <button type="button" class="ghost" data-luck="0">выкл</button>
-            </div>
-            <p class="muted small">С этой вероятностью каждый исход подкручивается в его пользу: Верити добрый, апгрейд в зелёной зоне, в рулетке выпадает его число, краш не раньше, чем он успеет забрать, бомба рванёт у другого, в покере ему приходит лучшая рука. Пул не трогается: там решает кий. Игрок ничего не видит.</p>
-            <div class="row">
-              <span class="label">Карты в покере:</span>
-              <input id="rig-cards" maxlength="7" placeholder="As Ah" class="short">
-              <button type="button" class="ghost" id="rig-cards-btn">Подкрутить</button>
-            </div>
-            <p class="muted small">Две карты на следующую раздачу: ранг 2-9, T, J, Q, K, A и масть s ♠, h ♥, d ♦, c ♣. Например «As Ah» или «Kd Qd».</p>
-            <div class="row">
-              <span class="label">Эффект ему:</span>
-              <span class="fx-buttons" data-fx-target="player"></span>
+            <!-- Всем сразу -->
+            <div class="card mass">
+              <div class="sec-head">
+                <h2>💰 Всем сразу</h2>
+              </div>
+              <div class="seg" id="mass-target" role="radiogroup" aria-label="Кому">
+                <button type="button" class="on" data-target="online">Всем онлайн <span id="mass-online"></span></button>
+                <button type="button" data-target="all">Всем зарегистрированным <span id="mass-all"></span></button>
+              </div>
+              <div class="amount">
+                <input id="mass-amount" type="text" inputmode="text" value="1000" placeholder="1000, 5кк, 1.5м, 2млрд" title="10k / 10к = 10.000, 5кк / 5м = 5.000.000, 2млрд / 2b = 2.000.000.000">
+                <span class="amount-hint" id="mass-amount-hint"></span>
+              </div>
+              <div class="quick" data-for="mass-amount"></div>
+              <div class="actions">
+                <button type="button" id="mass-give">Дать</button>
+                <button type="button" class="ghost warn" id="mass-take">Забрать</button>
+                <button type="button" class="danger" id="mass-take-all">Забрать всё</button>
+              </div>
+              <p class="note">«Забрать всё» обнуляет баланс, фишки в играх не трогаются. Подарок увидят в чате.</p>
             </div>
           </div>
-        </section>
 
-        <!-- Приколы -->
-        <section class="card">
-          <h2>🎉 Приколы для всех</h2>
-          <textarea id="announce" maxlength="200" rows="2" placeholder="Текст объявления"></textarea>
-          <div class="row">
-            <button type="button" id="announce-banner">Баннером на весь экран</button>
-            <button type="button" class="ghost" id="announce-chat">В чат от зала</button>
+          <!-- Карточка игрока -->
+          <aside class="pl-detail" id="pl-detail">
+            <div class="card pc-card-empty" id="pc-card-empty">
+              <div class="empty-chip">🂠</div>
+              <p>Выбери игрока в списке — здесь появятся все действия с ним: фишки, удача, пароль, мут, подкрутки.</p>
+            </div>
+
+            <article class="card pc-card" id="pc-card" hidden>
+              <div class="pc-head">
+                <button type="button" class="ghost pc-close" id="pc-close" aria-label="Закрыть карточку">←</button>
+                <span class="avatar pc-avatar" id="pc-avatar"></span>
+                <div class="pc-title">
+                  <h2 id="pc-name"></h2>
+                  <div class="pc-sub" id="pc-sub"></div>
+                </div>
+              </div>
+              <div class="pc-stats">
+                <div><span>Баланс</span><b id="pc-balance"></b></div>
+                <div><span>В играх</span><b id="pc-reserved"></b></div>
+                <div class="total"><span>Всего</span><b id="pc-capital"></b></div>
+              </div>
+              <div class="pc-tags" id="pc-tags"></div>
+
+              <div class="group">
+                <h3>Фишки</h3>
+                <div class="amount">
+                  <input id="pc-amount" type="text" value="1000" placeholder="1000, 5кк, 1.5м, 2млрд" title="10k / 10к = 10.000, 5кк / 5м = 5.000.000, 2млрд / 2b = 2.000.000.000">
+                  <span class="amount-hint" id="pc-amount-hint"></span>
+                </div>
+                <div class="quick" data-for="pc-amount"></div>
+                <div class="actions">
+                  <button type="button" id="pc-give">Дать</button>
+                  <button type="button" class="ghost warn" id="pc-take">Забрать</button>
+                  <button type="button" class="ghost" id="pc-set">Баланс ровно</button>
+                  <button type="button" class="danger" id="pc-take-all">Забрать всё</button>
+                </div>
+              </div>
+
+              <div class="group">
+                <h3>🍀 Удача</h3>
+                <div class="seg" id="pc-luck">
+                  <button type="button" data-luck="0">выкл</button>
+                  <button type="button" data-luck="50">50%</button>
+                  <button type="button" data-luck="70">70%</button>
+                  <button type="button" data-luck="90">90%</button>
+                  <button type="button" data-luck="100">100%</button>
+                </div>
+                <p class="note">С этой вероятностью каждый исход подкручивается в его пользу: Верити добрый, апгрейд в зелёной зоне, в рулетке выпадает его число, краш не раньше, чем он успеет забрать, бомба рванёт у другого, в покере ему приходит лучшая рука. Пул не трогается: там решает кий. Игрок ничего не видит.</p>
+              </div>
+
+              <div class="group">
+                <h3>🔑 Вход</h3>
+                <div class="pass-line" id="pc-pass-line">
+                  <code id="pc-pass"></code>
+                  <button type="button" class="ghost mini" id="pc-pass-show">показать</button>
+                  <button type="button" class="ghost mini" id="pc-pass-copy">копировать вход</button>
+                </div>
+                <div class="inline">
+                  <input id="pc-password" maxlength="64" placeholder="Новый пароль" autocomplete="off">
+                  <button type="button" class="ghost square" id="pc-password-gen" title="Придумать пароль" aria-label="Придумать пароль">🎲</button>
+                  <button type="button" class="ghost" id="pc-password-btn">Задать</button>
+                </div>
+              </div>
+
+              <div class="group">
+                <h3>Имя и чат</h3>
+                <div class="inline">
+                  <input id="pc-rename" maxlength="20" placeholder="Новое имя" autocomplete="off">
+                  <button type="button" class="ghost" id="pc-rename-btn">Переименовать</button>
+                </div>
+                <div class="field-label">Мут в чате</div>
+                <div class="seg" id="pc-mute">
+                  <button type="button" data-mute="5">5 мин</button>
+                  <button type="button" data-mute="30">30 мин</button>
+                  <button type="button" data-mute="1440">сутки</button>
+                  <button type="button" data-mute="0">снять</button>
+                </div>
+              </div>
+
+              <div class="group">
+                <h3>Стол и пособие</h3>
+                <div class="actions">
+                  <button type="button" class="ghost" id="pc-reset-bonus">Сбросить таймер пособия</button>
+                  <button type="button" class="ghost" id="pc-kick">Выгнать из-за стола</button>
+                </div>
+              </div>
+
+              <div class="group">
+                <h3>Подкрутить ему</h3>
+                <div class="field-label">Карты в покере на следующую раздачу</div>
+                <div class="inline">
+                  <input id="pc-cards" maxlength="7" placeholder="As Ah" autocomplete="off" class="cards-input">
+                  <button type="button" class="ghost" id="pc-cards-btn">Подкрутить</button>
+                </div>
+                <p class="note">Ранг 2-9, T, J, Q, K, A и масть s ♠, h ♥, d ♦, c ♣. Например «As Ah» или «Kd Qd».</p>
+                <div class="field-label">Эффект только ему</div>
+                <div class="fx" data-fx-target="player"></div>
+              </div>
+
+              <div class="group danger-zone">
+                <h3>Опасно</h3>
+                <button type="button" class="danger" id="pc-delete">Удалить игрока</button>
+                <p class="note">Игрок пропадёт вместе с фишками, имя освободится.</p>
+              </div>
+            </article>
+          </aside>
+        </div>
+      </section>
+
+      <!-- ================= Игры и подкрутки ================= -->
+      <section class="view" data-view="games" hidden>
+        <div class="card rig-strip" id="rig-strip"></div>
+
+        <h2 class="sec-title">Живые раунды <span>общие для всех столы</span></h2>
+        <div class="games">
+          <article class="card game" id="g-crash">
+            <header><h2>📈 Краш</h2><span class="pill" id="c-pill"></span></header>
+            <div class="stats">
+              <div><span>Фаза</span><b id="c-phase">…</b></div>
+              <div><span>Сейчас</span><b id="c-mult">…</b></div>
+              <div><span>Точка краха</span><b class="secret" id="c-point">…</b></div>
+            </div>
+            <div class="inline">
+              <input id="rig-mult" type="number" min="1" max="100" step="0.01" placeholder="1.00 … 100" inputmode="decimal">
+              <button type="button" class="ghost" id="rig-crash">Подкрутить</button>
+            </div>
+            <button type="button" class="danger wide" id="crash-now">Крашнуть сейчас</button>
+            <div class="feed-title">Ставки</div>
+            <ul class="list feed" id="c-bets"></ul>
+          </article>
+
+          <article class="card game" id="g-roulette">
+            <header><h2>🎡 Рулетка</h2><span class="pill" id="r-pill"></span></header>
+            <div class="stats">
+              <div><span>Фаза</span><b id="r-phase">…</b></div>
+              <div><span>Номер</span><b class="secret" id="r-number">…</b></div>
+              <div><span>Ставок на</span><b id="r-total">…</b></div>
+            </div>
+            <div class="inline">
+              <input id="rig-number" type="number" min="0" max="36" step="1" placeholder="номер 0-36" inputmode="numeric">
+              <button type="button" class="ghost" id="rig-roulette">Подкрутить</button>
+            </div>
+            <div class="feed-title">Ставки</div>
+            <ul class="list feed" id="r-bets"></ul>
+          </article>
+
+          <article class="card game" id="g-wheel">
+            <header><h2>🎰 Колесо фортуны</h2><span class="pill" id="fw-pill"></span></header>
+            <div class="stats">
+              <div><span>Фаза</span><b id="fw-phase">…</b></div>
+              <div><span>Сектор</span><b class="secret" id="fw-mult">…</b></div>
+              <div><span>Ставок на</span><b id="fw-total">…</b></div>
+            </div>
+            <div class="seg" id="fw-seg">
+              <button type="button" data-fwrig="2">×2</button>
+              <button type="button" data-fwrig="3">×3</button>
+              <button type="button" data-fwrig="10">×10</button>
+              <button type="button" data-fwrig="60">×60</button>
+              <button type="button" data-fwrig="0">💀</button>
+            </div>
+            <div class="feed-title">Ставки</div>
+            <ul class="list feed" id="fw-bets"></ul>
+          </article>
+
+          <article class="card game" id="g-bomb">
+            <header><h2>💣 Бомба в банке</h2><span class="pill" id="bo-pill"></span></header>
+            <div class="stats">
+              <div><span>Фаза</span><b id="bo-phase">…</b></div>
+              <div><span>Банк</span><b id="bo-bank">…</b></div>
+              <div><span>Фитиль</span><b class="secret" id="bo-fuse">…</b></div>
+            </div>
+            <div class="inline">
+              <input id="rig-fuse" type="number" min="1" step="1" placeholder="рванёт при банке ≥" inputmode="numeric">
+              <button type="button" class="ghost" id="rig-bomb">Подкрутить</button>
+            </div>
+            <div class="feed-title">Игроки</div>
+            <ul class="list feed" id="bo-players"></ul>
+          </article>
+
+          <article class="card game" id="g-poker">
+            <header><h2>🃏 Покер</h2><span class="pill" id="p-pill"></span></header>
+            <div class="stats">
+              <div><span>Фаза</span><b id="p-phase">…</b></div>
+              <div><span>Банк</span><b id="p-pot">…</b></div>
+              <div><span>Стол</span><b class="cards-text" id="p-board">—</b></div>
+            </div>
+            <div class="inline">
+              <select id="p-rig-player" aria-label="Кому подкрутить карты"></select>
+              <input id="p-rig-cards" maxlength="7" placeholder="As Ah" autocomplete="off" class="cards-input">
+              <button type="button" class="ghost" id="p-rig-btn">Подкрутить</button>
+            </div>
+            <p class="note" id="p-rigged"></p>
+            <div class="feed-title">За столом</div>
+            <ul class="list feed" id="p-seats"></ul>
+          </article>
+
+          <article class="card game" id="g-duels" hidden>
+            <header><h2>⚔️ Дуэли и пул</h2><span class="pill fair">только смотреть</span></header>
+            <ul class="list feed" id="du-list"></ul>
+          </article>
+        </div>
+
+        <h2 class="sec-title">Подкрутка следующей игры <span>сработает у первого, кто сыграет</span></h2>
+        <div class="games">
+          <article class="card game" id="g-upgrader">
+            <header><h2>⬆️ Апгрейдер</h2><span class="pill" id="up-pill"></span></header>
+            <div class="seg" id="up-seg">
+              <button type="button" data-uprig="win">Выиграет</button>
+              <button type="button" data-uprig="lose">Проиграет</button>
+              <button type="button" data-uprig="">Честно</button>
+            </div>
+            <ul class="list feed" id="up-feed"></ul>
+          </article>
+
+          <article class="card game" id="g-verity">
+            <header><h2>😊 Верити</h2><span class="pill" id="vt-pill"></span></header>
+            <div class="seg" id="vt-seg">
+              <button type="button" data-vtrig="good">😊 Добрый</button>
+              <button type="button" data-vtrig="evil">😈 Злой</button>
+              <button type="button" data-vtrig="">Честно</button>
+            </div>
+            <ul class="list feed" id="vt-feed"></ul>
+          </article>
+
+          <article class="card game" id="g-mines">
+            <header><h2>💥 Мины</h2><span class="pill" id="mn-pill"></span></header>
+            <div class="seg" id="mn-seg">
+              <button type="button" data-mnrig="boom">Следующий клик — мина</button>
+              <button type="button" data-mnrig="">Честно</button>
+            </div>
+            <ul class="list feed" id="mn-list"></ul>
+          </article>
+
+          <article class="card game" id="g-plinko">
+            <header><h2>🔺 Плинко</h2><span class="pill" id="pk-pill"></span></header>
+            <div class="seg" id="pk-seg">
+              <button type="button" data-pkrig="edge">Шарик — в край</button>
+              <button type="button" data-pkrig="">Честно</button>
+            </div>
+            <p class="note" id="pk-info"></p>
+            <ul class="list feed" id="pk-feed"></ul>
+          </article>
+
+          <article class="card game slot" id="g-kraken">
+            <header><h2>🐙 Кракен</h2><span class="pill" id="kr-pill"></span></header>
+            <div class="seg" id="kr-seg">
+              <button type="button" data-krrig="fs">Фриспины</button>
+              <button type="button" data-krrig="hw">Сундук</button>
+              <button type="button" data-krrig="tentacle">Хватка</button>
+              <button type="button" data-krrig="lose">Проигрыш</button>
+              <button type="button" data-krrig="">Честно</button>
+            </div>
+            <ul class="list feed" id="kr-feed"></ul>
+          </article>
+
+          <article class="card game slot" id="g-saloon">
+            <header><h2>🤠 Салун мертвецов</h2><span class="pill" id="sl-pill"></span></header>
+            <div class="seg" id="sl-seg">
+              <button type="button" data-slrig="duel">Дуэль</button>
+              <button type="button" data-slrig="bullets">Шальная пуля</button>
+              <button type="button" data-slrig="lose">Проигрыш</button>
+              <button type="button" data-slrig="">Честно</button>
+            </div>
+            <ul class="list feed" id="sl-feed"></ul>
+          </article>
+
+          <article class="card game slot" id="g-yokai" hidden>
+            <header><h2>🦊 Ночной парад</h2><span class="pill" id="yk-pill"></span></header>
+            <div class="seg" id="yk-seg">
+              <button type="button" data-ykrig="bonus">Ночь демонов</button>
+              <button type="button" data-ykrig="fox">Лиса-кицунэ</button>
+              <button type="button" data-ykrig="lose">Проигрыш</button>
+              <button type="button" data-ykrig="">Честно</button>
+            </div>
+            <ul class="list feed" id="yk-feed"></ul>
+          </article>
+        </div>
+      </section>
+
+      <!-- ================= Музыка ================= -->
+      <section class="view" data-view="music" hidden>
+        <div class="music-layout">
+          <div class="card now">
+            <div class="now-label">Сейчас в зале</div>
+            <div class="now-title" id="m-now">Ничего не играет</div>
+            <div class="now-bar"><i id="m-bar"></i></div>
+            <div class="now-time"><span id="m-pos"></span><span id="m-dur"></span></div>
+            <div class="actions">
+              <button type="button" id="m-random">🎲 Случайная</button>
+              <button type="button" class="ghost" id="m-autoplay">🔀 Случайные подряд</button>
+              <button type="button" class="danger" id="m-stop">⏹ Стоп</button>
+            </div>
           </div>
-          <div class="row">
-            <span class="label">Эффект всем:</span>
-            <span class="fx-buttons" data-fx-target="all"></span>
+
+          <div class="card reqs">
+            <div class="sec-head"><h2>🙋 Заказы</h2><span class="sec-meta" id="m-req-meta"></span></div>
+            <div class="requests" id="m-requests"></div>
+            <p class="note empty-note" id="m-req-empty">Заказов нет. Когда игрок попросит песню, тут появится заявка и прозвучит сигнал.</p>
           </div>
-        </section>
-      </div>
 
-      <!-- Музыка -->
-      <section class="card">
-        <h2>🎵 Музыка</h2>
-        <p class="muted small" id="m-now">Ничего не играет</p>
-        <div class="requests" id="m-requests"></div>
-        <div class="row">
-          <button type="button" id="m-random">🎲 Случайная</button>
-          <button type="button" class="ghost" id="m-autoplay">🔀 Случайные подряд</button>
-          <button type="button" class="danger" id="m-stop">⏹ Стоп</button>
-        </div>
-        <div class="songs" id="m-list"></div>
-        <p class="muted small">Треки берутся из папки <code>music</code> в папке проекта (mp3, m4a, ogg, wav). Новые файлы появляются здесь сами. Играет у всех онлайн синхронно, каждый может выключить у себя.</p>
-      </section>
-
-      <!-- Краш -->
-      <section class="card">
-        <h2>📈 Краш</h2>
-        <div class="stat-row">
-          <div><span class="muted">Фаза</span> <b id="c-phase">…</b></div>
-          <div><span class="muted">Сейчас</span> <b id="c-mult">…</b></div>
-          <div><span class="muted">Точка краха</span> <b class="secret" id="c-point">…</b></div>
-        </div>
-        <p class="muted small" id="c-rigged"></p>
-        <div class="row">
-          <input id="rig-mult" type="number" min="1" max="100" step="0.01" placeholder="например 1.00 или 50" class="short">
-          <button type="button" class="ghost" id="rig-crash">Подкрутить краш</button>
-          <button type="button" class="danger" id="crash-now">Крашнуть сейчас</button>
-        </div>
-        <ul class="list" id="c-bets"></ul>
-      </section>
-
-      <!-- Рулетка -->
-      <section class="card">
-        <h2>🎡 Рулетка</h2>
-        <div class="stat-row">
-          <div><span class="muted">Фаза</span> <b id="r-phase">…</b></div>
-          <div><span class="muted">Номер</span> <b class="secret" id="r-number">…</b></div>
-          <div><span class="muted">Ставок на</span> <b id="r-total">…</b></div>
-        </div>
-        <p class="muted small" id="r-rigged"></p>
-        <div class="row">
-          <input id="rig-number" type="number" min="0" max="36" step="1" placeholder="номер 0-36" class="short">
-          <button type="button" class="ghost" id="rig-roulette">Подкрутить номер</button>
-        </div>
-        <ul class="list" id="r-bets"></ul>
-      </section>
-
-      <!-- Колесо фортуны -->
-      <section class="card">
-        <h2>🎰 Колесо фортуны</h2>
-        <div class="stat-row">
-          <div><span class="muted">Фаза</span> <b id="fw-phase">…</b></div>
-          <div><span class="muted">Сектор</span> <b class="secret" id="fw-mult">…</b></div>
-          <div><span class="muted">Ставок на</span> <b id="fw-total">…</b></div>
-        </div>
-        <p class="muted small" id="fw-rigged"></p>
-        <div class="row">
-          <button type="button" class="ghost" data-fwrig="2">×2</button>
-          <button type="button" class="ghost" data-fwrig="3">×3</button>
-          <button type="button" class="ghost" data-fwrig="10">×10</button>
-          <button type="button" class="ghost" data-fwrig="60">×60</button>
-          <button type="button" class="ghost" data-fwrig="0">💀 череп</button>
-        </div>
-        <ul class="list" id="fw-bets"></ul>
-      </section>
-
-      <!-- Апгрейдер -->
-      <section class="card">
-        <h2>⬆️ Апгрейдер</h2>
-        <p class="muted small" id="up-rigged">Следующий апгрейд: честно</p>
-        <div class="row">
-          <button type="button" class="ghost" data-uprig="win">Следующий выиграет</button>
-          <button type="button" class="ghost" data-uprig="lose">Следующий проиграет</button>
-          <button type="button" class="ghost" data-uprig="fair">Честно</button>
-        </div>
-        <ul class="list" id="up-feed"></ul>
-      </section>
-
-      <!-- Неделя и достижения -->
-      <section class="card">
-        <h2>🏆 Неделя и достижения</h2>
-        <p class="muted small" id="se-info">…</p>
-        <ul class="list" id="se-top"></ul>
-        <div class="row">
-          <button type="button" class="danger" id="se-end">Подвести итоги недели сейчас</button>
+          <div class="card tracks">
+            <div class="sec-head"><h2>🎵 Треки</h2><span class="sec-meta" id="m-count"></span></div>
+            <label class="search">
+              <span class="search-ico" aria-hidden="true">⌕</span>
+              <input id="m-search" type="search" placeholder="Найти трек" autocomplete="off">
+            </label>
+            <div class="songs" id="m-list"></div>
+            <p class="note">Треки берутся из папки <code>music</code> в папке проекта (mp3, m4a, ogg, wav). Новые файлы появляются здесь сами. Играет у всех онлайн синхронно, каждый может выключить у себя.</p>
+          </div>
         </div>
       </section>
 
-      <!-- Мины -->
-      <section class="card">
-        <h2>💣 Мины</h2>
-        <p class="muted small" id="mn-admin-info">…</p>
-        <div class="row">
-          <button type="button" class="ghost" id="mn-rig-boom">Следующий клик — мина</button>
-          <button type="button" class="ghost" id="mn-rig-off">Честно</button>
+      <!-- ================= Зал ================= -->
+      <section class="view" data-view="hall" hidden>
+        <div class="hall-layout">
+          <div class="hall-col">
+            <div class="card">
+              <div class="sec-head"><h2>📣 Объявление</h2></div>
+              <textarea id="announce" maxlength="200" rows="3" placeholder="Текст объявления"></textarea>
+              <div class="actions">
+                <button type="button" id="announce-banner">Баннером на весь экран</button>
+                <button type="button" class="ghost" id="announce-chat">В чат от зала</button>
+              </div>
+            </div>
+            <div class="card">
+              <div class="sec-head"><h2>🎉 Эффект всем</h2></div>
+              <div class="fx" data-fx-target="all"></div>
+            </div>
+            <div class="card">
+              <div class="sec-head"><h2>🏆 Неделя и достижения</h2></div>
+              <p class="note" id="se-info">…</p>
+              <ol class="top" id="se-top"></ol>
+              <button type="button" class="danger" id="se-end">Подвести итоги недели сейчас</button>
+            </div>
+          </div>
+          <div class="card chat-card">
+            <div class="sec-head">
+              <h2>💬 Чат</h2>
+              <button type="button" class="ghost mini" id="chat-clear">Очистить</button>
+            </div>
+            <ul class="chat-log" id="a-chat"></ul>
+          </div>
         </div>
-        <ul class="list" id="mn-admin-list"></ul>
       </section>
 
-      <!-- Кракен -->
-      <section class="card">
-        <h2>🐙 Кракен</h2>
-        <p class="muted small" id="kr-admin-info">…</p>
-        <div class="row">
-          <button type="button" class="ghost" data-krrig="fs">Следующий — фриспины</button>
-          <button type="button" class="ghost" data-krrig="hw">Следующий — сундук</button>
-          <button type="button" class="ghost" data-krrig="tentacle">Хватка Кракена</button>
-          <button type="button" class="ghost" data-krrig="lose">Проигрыш</button>
-          <button type="button" class="ghost" data-krrig="">Честно</button>
+      <!-- ================= Сервер ================= -->
+      <section class="view" data-view="server" hidden>
+        <div class="server-layout">
+          <div class="card">
+            <div class="sec-head"><h2>📊 Зал сейчас</h2></div>
+            <div class="kpis" id="srv-kpis"></div>
+          </div>
+          <div class="card">
+            <div class="sec-head"><h2>🔐 Доступ</h2></div>
+            <p class="note">С этого компьютера по адресу <code>http://127.0.0.1:3000/admin.html</code> админка открывается без токена. С телефона или другого компьютера нужен токен из файла <code>data/admin.token</code>; он запоминается в браузере.</p>
+            <p class="note" id="srv-token-state"></p>
+            <button type="button" class="ghost" id="srv-logout">Забыть токен на этом устройстве</button>
+          </div>
+          <div class="card danger-zone">
+            <div class="sec-head"><h2>⏻ Выключить сервер</h2></div>
+            <p class="note">Зал закроется аккуратно, как по Ctrl+C: фишки из игр вернутся игрокам. Снова запустить можно только на компьютере с сервером (<code>node server/index.js</code>).</p>
+            <button type="button" class="danger" id="srv-shutdown">Выключить сервер</button>
+          </div>
         </div>
-        <ul class="list" id="kr-admin-feed"></ul>
-      </section>
-
-      <!-- Салун -->
-      <section class="card">
-        <h2>🤠 Салун мертвецов</h2>
-        <p class="muted small" id="sl-admin-info">…</p>
-        <div class="row">
-          <button type="button" class="ghost" data-slrig="duel">Следующий — дуэль</button>
-          <button type="button" class="ghost" data-slrig="bullets">Шальная пуля</button>
-          <button type="button" class="ghost" data-slrig="lose">Проигрыш</button>
-          <button type="button" class="ghost" data-slrig="">Честно</button>
-        </div>
-        <ul class="list" id="sl-admin-feed"></ul>
-      </section>
-
-      <!-- Плинко -->
-      <section class="card">
-        <h2>🔺 Плинко</h2>
-        <p class="muted small" id="pk-admin-info">…</p>
-        <div class="row">
-          <button type="button" class="ghost" id="pk-rig-edge">Следующий шарик — в край</button>
-          <button type="button" class="ghost" id="pk-rig-off">Честно</button>
-        </div>
-        <ul class="list" id="pk-admin-feed"></ul>
-      </section>
-
-      <!-- Верити -->
-      <section class="card">
-        <h2>😊 Верити</h2>
-        <p class="muted small" id="vt-rigged">Следующий раз: честно</p>
-        <div class="row">
-          <button type="button" class="ghost" data-vtrig="good">😊 Будет добрым</button>
-          <button type="button" class="ghost" data-vtrig="evil">😈 Будет злым</button>
-          <button type="button" class="ghost" data-vtrig="fair">Честно</button>
-        </div>
-        <ul class="list" id="vt-feed"></ul>
-      </section>
-
-      <!-- Бомба -->
-      <section class="card">
-        <h2>💣 Бомба в банке</h2>
-        <div class="stat-row">
-          <div><span class="muted">Фаза</span> <b id="bo-phase">…</b></div>
-          <div><span class="muted">Банк</span> <b id="bo-bank">…</b></div>
-          <div><span class="muted">Фитиль</span> <b class="secret" id="bo-fuse">…</b></div>
-        </div>
-        <p class="muted small" id="bo-rigged"></p>
-        <div class="row">
-          <input id="rig-fuse" type="number" min="1" step="1" placeholder="рванёт при банке ≥" class="short">
-          <button type="button" class="ghost" id="rig-bomb">Подкрутить фитиль</button>
-        </div>
-        <ul class="list" id="bo-players"></ul>
-      </section>
-
-      <!-- Покер -->
-      <section class="card">
-        <h2>🎲 Покер</h2>
-        <div class="stat-row">
-          <div><span class="muted">Фаза</span> <b id="p-phase">…</b></div>
-          <div><span class="muted">Банк</span> <b id="p-pot">…</b></div>
-        </div>
-        <ul class="list" id="p-seats"></ul>
-        <p class="muted small" id="p-rigged"></p>
-      </section>
-
-      <!-- Чат -->
-      <section class="card">
-        <h2>💬 Чат <button type="button" class="ghost small-btn" id="chat-clear">Очистить чат</button></h2>
-        <ul class="chat-log" id="a-chat"></ul>
       </section>
     </div>
 
-    <p class="admin-toast" id="toast"></p>
+    <dialog class="ask" id="ask">
+      <div class="ask-body">
+        <h2 id="ask-title"></h2>
+        <p id="ask-text"></p>
+        <label class="ask-type" id="ask-type-box" hidden>
+          <span id="ask-type-label"></span>
+          <input id="ask-type" autocomplete="off">
+        </label>
+        <div class="actions">
+          <button type="button" class="ghost" id="ask-cancel">Отмена</button>
+          <button type="button" class="danger" id="ask-ok">Да</button>
+        </div>
+      </div>
+    </dialog>
+
+    <p class="admin-toast" id="toast" role="status" aria-live="polite"></p>
   </main>
 
   <script src="admin.js"></script>
