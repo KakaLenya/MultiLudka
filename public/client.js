@@ -452,7 +452,7 @@ document.addEventListener('keydown', (ev) => {
 const TAB_KEY = 'casino.tab';
 
 // Все вкладки зала; 'home' — главная с карточками игр (home.js). Новая игра: id сюда и карточку в home.js.
-const TABS = ['home', 'crash', 'roulette', 'wheel', 'kraken', 'saloon', 'upgrade', 'plinko', 'mines', 'verity', 'duel', 'bomb', 'pool', 'poker'];
+const TABS = ['home', 'crash', 'roulette', 'wheel', 'kraken', 'saloon', 'yokai', 'upgrade', 'plinko', 'mines', 'verity', 'duel', 'bomb', 'pool', 'poker'];
 function showTab(name) {
   if (!TABS.includes(name)) name = 'home';
   document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t.dataset.tab === name));
@@ -467,6 +467,7 @@ function showTab(name) {
   storage.set(TAB_KEY, name);
   if (window.krakenTabShown) window.krakenTabShown(name === 'kraken');
   if (window.saloonTabShown) window.saloonTabShown(name === 'saloon');
+  if (window.yokaiTabShown) window.yokaiTabShown(name === 'yokai');
 }
 function setGroupOpen(g, open) {
   g.classList.toggle('open', open);
@@ -4504,6 +4505,7 @@ const ACT_GAMES = {
   wheel: { icon: '🎰', name: 'Колесо' },
   kraken: { icon: '🐙', name: 'Кракен' },
   saloon: { icon: '🤠', name: 'Салун' },
+  yokai: { icon: '🏮', name: 'Парад' },
   bomb: { icon: '💣', name: 'Бомба' },
   upgrade: { icon: '⬆️', name: 'Апгрейд' },
   verity: { icon: '😊', name: 'Верити' },
@@ -5026,6 +5028,7 @@ const handlers = {
   error(msg) {
     if (window.krakenOnError) window.krakenOnError(msg);
     if (window.saloonOnError) window.saloonOnError(msg);
+    if (window.yokaiOnError) window.yokaiOnError(msg);
     if (upg.awaiting) {
       upg.awaiting = false;
       $('u-go').disabled = false;

@@ -16,6 +16,7 @@ const { createVerity } = require('./verity');
 const { createPlinko } = require('./plinko');
 const { createKraken } = require('./kraken');
 const { createSaloon } = require('./saloon');
+const { createYokai } = require('./yokai');
 const { createMines } = require('./mines');
 const { createAchievements, ACHIEVEMENTS } = require('./achievements');
 const { createLuck } = require('./luck');
@@ -312,6 +313,14 @@ const saloon = createSaloon({
 });
 store.addReserver(saloon.reserved);
 
+const yokai = createYokai({
+  store,
+  lucky: luck.roll,
+  onEvent: onActivity,
+  onFeed: (feed) => broadcast({ type: 'yokai_feed', feed }),
+});
+store.addReserver(yokai.reserved);
+
 // Текущий трек переживает перезапуск сервера: пишем его в data/music-now.json.
 const MUSIC_NOW_FILE = path.join(DATA_DIR, 'music-now.json');
 const music = createMusic({
@@ -489,6 +498,7 @@ const handlers = {
     send(ws, { type: 'plinko_feed', feed: plinko.feed() });
     send(ws, { type: 'kraken_feed', feed: kraken.feed() });
     send(ws, { type: 'saloon_feed', feed: saloon.feed() });
+    send(ws, { type: 'yokai_feed', feed: yokai.feed() });
     send(ws, { type: 'mines_feed', feed: mines.feed() });
     send(ws, { type: 'mines_state', ...mines.view(player) });
     send(ws, { type: 'activity_history', entries: activity });
@@ -655,6 +665,16 @@ const handlers = {
     saloon.done(ws.player, msg.id);
   },
 
+  yokai_spin(ws, msg) {
+    const result = yokai.spin(ws.player, msg.bet, msg.mode || 'spin');
+    if (result.error) return send(ws, { type: 'error', message: result.error, game: 'yokai' });
+    send(ws, { type: 'yokai_result', ...result.result });
+  },
+
+  yokai_done(ws, msg) {
+    yokai.done(ws.player, msg.id);
+  },
+
   // Статистика кадров слотов с машин игроков — чтобы искать лаги по цифрам (data/logs/perf.log).
   slot_perf(ws, msg) {
     const now = Date.now();
@@ -806,6 +826,7 @@ function shutdown() {
     plinko.settleAll();
     kraken.settleAll();
     saloon.settleAll();
+    yokai.settleAll();
     mines.settleAll();
     store.flush();
     achievements.flush();
@@ -831,6 +852,7 @@ app.use('/admin/api', createAdminRouter({
   mines,
   kraken,
   saloon,
+  yokai,
   achievements,
   luck,
   pool,

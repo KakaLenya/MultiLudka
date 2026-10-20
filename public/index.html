@@ -9,6 +9,7 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@500;600;700;800&family=Rubik:wght@700;900&family=Rubik+Wet+Paint&family=Ruslan+Display&family=Cormorant+SC:wght@500;700&family=Oswald:wght@400;500;600;700&display=swap">
   <link rel="stylesheet" href="kraken/kraken.css">
   <link rel="stylesheet" href="saloon/saloon.css">
+  <link rel="stylesheet" href="yokai/yokai.css">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -84,6 +85,7 @@
             <button type="button" class="tab-group-name" aria-expanded="false">Слоты</button>
             <button type="button" class="tab" data-tab="kraken">🐙 Кракен</button>
             <button type="button" class="tab" data-tab="saloon">🤠 Салун</button>
+            <button type="button" class="tab" data-tab="yokai">🏮 Парад</button>
           </div>
         </nav>
 
@@ -299,6 +301,92 @@
                 <div class="kr-rule"><div id="sl-pay-wanted"></div><p><b>Розыск.</b> 3, 4 или 5 плакатов — <b>Дуэль на закате</b> с 3, 4 или 5 шляпами (и сами платят ×2, ×5, ×20 ставки). Перед каждым вращением ты и шериф стреляете: твоё попадание оставляет липкий вайлд до конца дуэли, повторное попадание в ту же клетку — ×2, потом ×3; попадание шерифа сбивает шляпу. Нет шляп — дуэль окончена. Множители вайлдов на одном пути перемножаются.</p></div>
               </div>
               <p class="muted small">243 пути: символ платит, если стоит на соседних барабанах слева направо в любом ряду; выплата умножается на число путей. Отдача около 97%, максимальный выигрыш — ×10 000 ставки. Покупка: дуэль на закате ×115, на рассвете ×500 ставки.</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="card kraken yokai" id="yokai" hidden>
+          <div class="kr-stage yk-stage">
+            <canvas class="kr-bg" id="yk-bg"></canvas>
+            <div class="yk-top">
+              <div class="yk-plaque"><span>Хозяин парада</span><b id="yk-maxwin">…</b></div>
+              <div class="yk-logo">
+                <div class="yk-logo-title">Ночной парад</div>
+                <div class="yk-logo-sub">ста демонов</div>
+                <div class="yk-night" id="yk-night" hidden>
+                  <div><span>Вращений</span><b id="yk-night-left">0</b></div>
+                  <div><span>Лис</span><b id="yk-night-foxes">0</b></div>
+                  <div><span>Хвосты</span><b id="yk-night-tails">—</b></div>
+                </div>
+              </div>
+              <div class="yk-plaque"><span>Пути</span><b>1024</b></div>
+            </div>
+            <div class="kr-reels-box">
+              <canvas id="yk-reels" aria-label="Барабаны"></canvas>
+            </div>
+            <div class="kr-msg yk-msg" id="yk-msg">Фонари горят — пробел тоже крутит</div>
+          </div>
+          <div class="kr-bar yk-bar">
+            <div class="kr-bar-left">
+              <button type="button" class="kr-buy yk-buy" id="yk-buy"><span>Купить</span><span>ночь</span></button>
+              <div class="kr-stats">
+                <div class="kr-stat"><span>Баланс</span><b id="yk-balance">0</b></div>
+                <div class="kr-stat"><span>Выигрыш</span><b id="yk-win">0</b></div>
+              </div>
+            </div>
+            <button type="button" class="kr-spin yk-spin" id="yk-spin" title="Крутить (пробел)" aria-label="Крутить"><span>⟳</span></button>
+            <div class="kr-bar-right">
+              <div class="kr-bet">
+                <button type="button" id="yk-bet-down" aria-label="Меньше">−</button>
+                <div class="kr-stat"><span>Ставка</span><b id="yk-bet">100</b></div>
+                <button type="button" id="yk-bet-up" aria-label="Больше">+</button>
+                <button type="button" class="kr-max" id="yk-bet-max">макс</button>
+              </div>
+              <div class="kr-side">
+                <div class="kr-auto-wrap">
+                  <button type="button" class="kr-small" id="yk-auto">Авто</button>
+                  <div class="kr-auto-menu" id="yk-auto-menu" hidden>
+                    <button type="button" data-auto="10">10</button>
+                    <button type="button" data-auto="25">25</button>
+                    <button type="button" data-auto="50">50</button>
+                    <button type="button" data-auto="100">100</button>
+                    <button type="button" data-auto="1000000">∞</button>
+                    <label><input type="checkbox" id="yk-auto-stop" checked> стоп на ночи</label>
+                  </div>
+                </div>
+                <button type="button" class="kr-small" id="yk-turbo" title="Быстрые вращения">Турбо</button>
+                <button type="button" class="kr-small" id="yk-info" title="Правила и выплаты">Правила</button>
+                <button type="button" class="kr-small" id="yk-sound" title="Музыка парада">🎵</button>
+              </div>
+            </div>
+          </div>
+          <h2 class="u-feed-title">Лента парада</h2>
+          <ul class="list u-feed" id="yk-feed"></ul>
+
+          <div class="kr-modal yokai-modal" id="yk-buy-modal" hidden>
+            <div class="kr-dialog">
+              <button type="button" class="kr-close" data-close aria-label="Закрыть">✕</button>
+              <h3>Купить ночь</h3>
+              <div class="kr-buys">
+                <div class="kr-buy-card fs">
+                  <div class="kr-buy-title">Ночь ста демонов</div>
+                  <p>Трое ворот тории сразу: 8 бесплатных вращений. Лисы шагают влево и на каждом шаге отращивают хвост — множитель растёт. Ещё три тории — +5 вращений.</p>
+                  <button type="button" class="action" data-buy="buy-bonus">Купить за <b id="yk-buy-price">0</b></button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="kr-modal yokai-modal" id="yk-pay-modal" hidden>
+            <div class="kr-dialog wide">
+              <button type="button" class="kr-close" data-close aria-label="Закрыть">✕</button>
+              <h3>Правила и выплаты <small>при ставке <b id="yk-pay-bet">0</b>, за один путь</small></h3>
+              <div class="kr-pays" id="yk-pays"></div>
+              <div class="kr-rules">
+                <div class="kr-rule"><div id="yk-pay-fox"></div><p><b>Кицунэ — дикая.</b> Бывает на барабанах 2–5 и приходит с 1, 2, 3, 5 или 9 хвостами — это её множитель. <b>Парад:</b> после вращения каждая лиса делает шаг на барабан левее, и пока на поле есть лиса, следующее вращение бесплатное. С первого барабана лиса уходит. Множители лис на одном барабане складываются, на пути — перемножаются.</p></div>
+                <div class="kr-rule"><div id="yk-pay-torii"></div><p><b>Тории.</b> 3, 4 или 5 ворот — <b>Ночь ста демонов</b>: 8, 12 или 20 бесплатных вращений (и сами платят ×2, ×5, ×20 ставки). Ночью лисы шагают по барабану за вращение и на каждом шаге отращивают ещё хвост. Ещё три тории — +5 вращений. Когда вращения кончатся, парад доигрывается, пока не уйдёт последняя лиса.</p></div>
+              </div>
+              <p class="muted small">1024 пути: символ платит, если стоит на соседних барабанах слева направо в любом ряду; выплата умножается на число путей. Отдача около 96%, максимальный выигрыш — ×5000 ставки. Покупка ночи — ×100 ставки.</p>
             </div>
           </div>
         </section>
@@ -909,11 +997,14 @@
   <script src="slots-rig.js"></script>
   <script src="kraken/rig.js"></script>
   <script src="saloon/rig.js"></script>
+  <script src="yokai/rig.js"></script>
   <script src="kraken/audio.js"></script>
   <script src="kraken/slot.js"></script>
   <script src="saloon/art.js"></script>
   <script src="saloon/audio.js"></script>
   <script src="saloon/slot.js"></script>
+  <script src="yokai/audio.js"></script>
+  <script src="yokai/slot.js"></script>
   <script src="home.js"></script>
 </body>
 </html>

@@ -21,3 +21,7 @@
   (расстроенное салунное пианино, банджо, губная гармошка, свист, чистая электрогитара, акустическая гитара со стальными
   струнами, открытая труба): музыка слота «Салун мертвецов».
   Лицензия [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/), источник тот же: https://github.com/gleitz/midi-js-soundfonts
+
+- `shamisen/`, `koto/`, `shakuhachi/` — тоже **Musyng Kite Soundfont** (сямисэн, кото, флейта сякухати):
+  музыка слота «Ночной парад ста демонов».
+  Лицензия [CC BY-SA 3.0](https://creativecommons.org/licenses/by-sa/3.0/), источник тот же: https://github.com/gleitz/midi-js-soundfonts
