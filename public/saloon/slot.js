@@ -212,8 +212,16 @@
   }
 
   // ---------- Рисование барабанов ----------
+  // Картинки клеток для SlotRig.drawCached: своя у каждой клетки поля и у каждого места ленты.
+  const cellSlots = new Map();
+  function slotOf(key) {
+    let s = cellSlots.get(key);
+    if (!s) cellSlots.set(key, (s = {}));
+    return s;
+  }
+
   // win — символ в выигрыше (играет свою анимацию), ph — фаза клетки, чтобы соседи двигались не в такт.
-  function drawSymbol(ctx, s, x, y, { blur = false, scale = 1, alpha = 1, rot = 0, win = 0, ph = 0 } = {}) {
+  function drawSymbol(ctx, s, x, y, { blur = false, scale = 1, alpha = 1, rot = 0, win = 0, ph = 0, slot = null } = {}) {
     const size = CELL * 0.94 * scale;
     const rig = G.rig[s];
     if (blur || !rig) {
@@ -228,7 +236,10 @@
     ctx.save();
     ctx.translate(x, y);
     if (rot) ctx.rotate(rot);
-    window.SlotRig.draw(ctx, rig, 0, 0, size, performance.now() / 1000, win, ph, alpha);
+    if (scale !== 1) ctx.scale(scale, scale);
+    const t = performance.now() / 1000;
+    if (slot) window.SlotRig.drawCached(ctx, slot, rig, 0, 0, CELL * 0.94, t, win, ph, alpha, win ? 30 : 15);
+    else window.SlotRig.draw(ctx, rig, 0, 0, CELL * 0.94, t, win, ph, alpha);
     ctx.restore();
   }
 
@@ -268,7 +279,7 @@
     ctx.fillStyle = g;
     ctx.fillRect(x - CELL / 2, y - CELL / 2, CELL, CELL);
     ctx.restore();
-    drawSymbol(ctx, 'colt', x, y, { win: 1, ph: c * 1.7 });
+    drawSymbol(ctx, 'colt', x, y, { win: 1, ph: c * 1.7, slot: slotOf(c) });
     if (G.hole) ctx.drawImage(G.hole, x - CELL * 0.48, y - CELL * 0.5, CELL * 0.5, CELL * 0.5);
     const m = G.sticky.get(c);
     if (m > 1) drawMultBadge(ctx, x, y, m, st);
@@ -419,9 +430,13 @@
         const first = Math.floor(off);
         const frac = off - first;
         for (let k = -1; k <= ROWS; k++) {
-          const s = reel.strip[first + (ROWS - 1 - k)];
+          const idx = first + (ROWS - 1 - k);
+          const s = reel.strip[idx];
           if (!s) continue;
-          drawSymbol(ctx, s, cx(r), FR + (k + frac) * CELL + CELL / 2, { blur, ph: k * 1.3 + r });
+          // Итоговые клетки ленты рисуются в картинки своих клеток поля — после остановки движение не прыгает.
+          const c = cellOf(r, ROWS - 1 - idx);
+          const fin = idx < ROWS;
+          drawSymbol(ctx, s, cx(r), FR + (k + frac) * CELL + CELL / 2, { blur, ph: fin ? c * 1.7 : idx * 1.3 + r, slot: slotOf(fin ? c : `s${r}:${idx}`) });
         }
         if (reel.anticipating) {
           const a = 0.55 + 0.35 * Math.sin(t / 90);
@@ -460,7 +475,7 @@
           ctx.fillRect(FR + r * CELL, FR + y * CELL, CELL, CELL);
         }
         const dim = G.ways && hl === undefined ? 0.45 : 1;
-        drawSymbol(ctx, s, cx(r), cy(y), { scale, alpha: dim, win: hl !== undefined ? 1 : 0, ph: c * 1.7 });
+        drawSymbol(ctx, s, cx(r), cy(y), { scale, alpha: dim, win: hl !== undefined ? 1 : 0, ph: c * 1.7, slot: slotOf(c) });
         if (G.holes.has(c) && G.hole) ctx.drawImage(G.hole, cx(r) - CELL * 0.48, cy(y) - CELL * 0.5, CELL * 0.5, CELL * 0.5);
       }
     }
@@ -942,9 +957,18 @@
     }
   }
 
+  let bgDt = 0;
+  let bgAt = 0;
   function renderScene(now, dt) {
     if (el('saloon').hidden) return;
-    drawBackground(now, dt);
+    window.SlotRig.frameTick(dt * 1000);   // медленные кадры включают экономный режим символов
+    // В экономном режиме фон перерисовывается 15 раз в секунду: холст держит картинку сам.
+    bgDt += dt;
+    if (!window.SlotRig.perf.lite || now - bgAt > 66) {
+      drawBackground(now, Math.min(0.1, bgDt));
+      bgDt = 0;
+      bgAt = now;
+    }
     const dpr = fitCanvas(reelsCv, W, H);
     const ctx = rctx;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);

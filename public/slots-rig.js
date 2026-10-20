@@ -19,12 +19,43 @@
         const cv = document.createElement('canvas');
         cv.width = px;
         cv.height = px;
-        cv.getContext('2d').drawImage(img, 0, 0, px, px);
-        resolve(cv);
+        const c = cv.getContext('2d');
+        c.drawImage(img, 0, 0, px, px);
+        resolve(trim(cv, c, px));
       };
       img.onerror = () => resolve(null);
       img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svgText)}`;
     });
+  }
+
+  // Деталь обрезается до своих границ: глаз или гвоздь не тащит за собой пустой квадрат во всю клетку —
+  // на слабой видеокарте каждый лишний прозрачный пиксель стоит времени.
+  function trim(cv, c, px) {
+    const d = c.getImageData(0, 0, px, px).data;
+    let x0 = px;
+    let y0 = px;
+    let x1 = -1;
+    let y1 = -1;
+    for (let y = 0; y < px; y++) {
+      for (let x = 0; x < px; x++) {
+        if (d[(y * px + x) * 4 + 3] < 3) continue;
+        if (x < x0) x0 = x;
+        if (x > x1) x1 = x;
+        if (y < y0) y0 = y;
+        if (y > y1) y1 = y;
+      }
+    }
+    if (x1 < 0) return null;
+    x0 = Math.max(0, x0 - 1);
+    y0 = Math.max(0, y0 - 1);
+    const w = Math.min(px, x1 + 2) - x0;
+    const h = Math.min(px, y1 + 2) - y0;
+    const out = document.createElement('canvas');
+    out.width = w;
+    out.height = h;
+    out.getContext('2d').drawImage(cv, x0, y0, w, h, 0, 0, w, h);
+    const k = 200 / px;
+    return { cv: out, x: x0 * k, y: y0 * k, w: w * k, h: h * k };
   }
 
   async function build(def, px) {
@@ -59,7 +90,7 @@
       if (m.sx !== 1 || m.sy !== 1) ctx.scale(m.sx, m.sy);
       ctx.translate(-px, -py);
       if (p.blend) ctx.globalCompositeOperation = p.blend;
-      if (p.img) ctx.drawImage(p.img, 0, 0, 200, 200);
+      if (p.img) ctx.drawImage(p.img.cv, p.img.x, p.img.y, p.img.w, p.img.h);
       else p.draw(ctx, t, w, k);
       ctx.restore();
     }
@@ -72,6 +103,58 @@
     ctx.restore();
   }
 
+  // Символ на поле: рисуется в свою картинку с частотой fps, а в каждом кадре только переносится.
+  // Спокойные движения медленные — 15 кадров в секунду им хватает, выигрыш обновляется чаще.
+  // Клетки обновляются вразнобой (по фазе k), так что нагрузка ровная, без рывков.
+  // slot — объект клетки, в котором хранится её картинка. Размер картинки — с запасом по краям:
+  // щупальца и свечение выходят за клетку.
+  // Кэш нужен только слабым машинам: с видеокартой прямое рисование быстрее, а картинки клеток мешают.
+  // Поэтому слот сообщает время каждого кадра (frameTick), и если кадры дольше ~24 мс полторы секунды
+  // подряд, включается экономный режим. Принудительно: localStorage 'casino.slots.lite' = '1' или '0'.
+  const PAD = 0.12;
+  const perf = { ema: 16, slow: 0, lite: false, forced: false };
+  try {
+    const v = root.localStorage.getItem('casino.slots.lite');
+    if (v === '1' || v === '0') Object.assign(perf, { lite: v === '1', forced: true });
+  } catch (e) { /* хранилище недоступно — решим по замеру */ }
+  function frameTick(dt) {
+    if (perf.lite || perf.forced || !(dt > 0) || dt > 250) return;
+    perf.ema += (dt - perf.ema) * 0.05;
+    perf.slow = perf.ema > 24 ? perf.slow + dt : 0;
+    if (perf.slow > 1500) perf.lite = true;
+  }
+  function drawCached(ctx, slot, rig, x, y, size, t, w = 0, k = 0, alpha = 1, fps = 15) {
+    if (!perf.lite) {
+      draw(ctx, rig, x, y, size, t, w, k, alpha);
+      return;
+    }
+    fps = Math.min(fps, w ? 24 : 10);
+    const dpr = Math.min(2, root.devicePixelRatio || 1);
+    const full = size * (1 + 2 * PAD);
+    const px = Math.round(full * dpr);
+    let cv = slot.cv;
+    if (!cv || cv.width !== px) {
+      cv = slot.cv = document.createElement('canvas');
+      cv.width = px;
+      cv.height = px;
+      slot.frame = null;
+    }
+    const frame = Math.floor(t * fps + ((k * 0.618) % 1));
+    if (slot.rig !== rig || slot.w !== w || slot.frame !== frame) {
+      const c = cv.getContext('2d');
+      c.setTransform(1, 0, 0, 1, 0, 0);
+      c.clearRect(0, 0, px, px);
+      draw(c, rig, px / 2, px / 2, px / (1 + 2 * PAD), t, w, k, 1);
+      slot.rig = rig;
+      slot.w = w;
+      slot.frame = frame;
+    }
+    const prev = ctx.globalAlpha;
+    ctx.globalAlpha = prev * alpha;
+    ctx.drawImage(cv, x - full / 2, y - full / 2, full, full);
+    ctx.globalAlpha = prev;
+  }
+
   // Помощники для движений.
   const wave = (t, f, ph = 0) => Math.sin(t * f * Math.PI * 2 + ph);
   // Короткий «рывок» раз в период: 0 почти всегда, 1 на мгновение (моргание, щелчок).
@@ -82,31 +165,43 @@
   };
   const ease = (x) => x * x * (3 - 2 * x);
 
+  // Круглое пятно света нужного цвета рисуется один раз и дальше только штампуется:
+  // новый градиент в каждом кадре на каждой клетке — главный пожиратель времени.
+  const sprites = new Map();
+  function sprite(color) {
+    let cv = sprites.get(color);
+    if (!cv) {
+      cv = document.createElement('canvas');
+      cv.width = 64;
+      cv.height = 64;
+      const c = cv.getContext('2d');
+      const g = c.createRadialGradient(32, 32, 0, 32, 32, 32);
+      g.addColorStop(0, `rgba(${color}, 1)`);
+      g.addColorStop(1, `rgba(${color}, 0)`);
+      c.fillStyle = g;
+      c.fillRect(0, 0, 64, 64);
+      sprites.set(color, cv);
+    }
+    return cv;
+  }
+  function stamp(ctx, x, y, r, color, a) {
+    if (a <= 0 || r <= 0) return;
+    const prev = ctx.globalAlpha;
+    ctx.globalAlpha = prev * Math.min(1, a);
+    ctx.drawImage(sprite(color), x - r, y - r, r * 2, r * 2);
+    ctx.globalAlpha = prev;
+  }
+
   // Дымок: несколько полупрозрачных клубов, поднимающихся из точки.
   function smoke(ctx, t, x, y, { n = 5, rise = 70, drift = 18, size = 9, color = '200, 190, 180', a = 0.35, speed = 0.35 } = {}) {
     for (let i = 0; i < n; i++) {
       const u = (t * speed + i / n) % 1;
-      const yy = y - u * rise;
-      const xx = x + Math.sin(u * 5 + i) * drift * u;
-      const r = size * (0.6 + u * 1.6);
-      const g = ctx.createRadialGradient(xx, yy, 0, xx, yy, r);
-      g.addColorStop(0, `rgba(${color}, ${a * (1 - u)})`);
-      g.addColorStop(1, `rgba(${color}, 0)`);
-      ctx.fillStyle = g;
-      ctx.beginPath();
-      ctx.arc(xx, yy, r, 0, Math.PI * 2);
-      ctx.fill();
+      stamp(ctx, x + Math.sin(u * 5 + i) * drift * u, y - u * rise, size * (0.6 + u * 1.6), color, a * (1 - u));
     }
   }
   // Свечение в точке (глаза, приманка, угли).
   function glowAt(ctx, x, y, r, color, a) {
-    const g = ctx.createRadialGradient(x, y, 0, x, y, r);
-    g.addColorStop(0, `rgba(${color}, ${a})`);
-    g.addColorStop(1, `rgba(${color}, 0)`);
-    ctx.fillStyle = g;
-    ctx.beginPath();
-    ctx.arc(x, y, r, 0, Math.PI * 2);
-    ctx.fill();
+    stamp(ctx, x, y, r, color.replace(/\s+/g, ' '), a);
   }
   // Пузырьки, поднимающиеся вверх.
   function bubbles(ctx, t, x, y, { n = 4, rise = 80, spread = 30, a = 0.5 } = {}) {
@@ -160,7 +255,7 @@
   // opts: { colors: [тёмный, средний, светлый], sucker, ink, suckerSide: 1 | -1, line }
   function tentacle(ctx, pts, w0, w1, opts = {}) {
     const { colors = ['#2a0612', '#6e1426', '#a8434f'], sucker = '#b9a08f', ink = '#05080a', suckerSide = 1, line = 3 } = opts;
-    const N = 40;
+    const N = 22;
     const spine = [];
     for (let i = 0; i <= N; i++) spine.push(catmull(pts, i / N));
     const L = [];
@@ -212,7 +307,7 @@
     edge(suckerSide > 0 ? L : R, 0.55, 'rgba(255, 220, 220, .18)', 2);
     // Присоски.
     const side = suckerSide > 0 ? R : L;
-    for (let i = 3; i < N - 3; i += 3) {
+    for (let i = 3; i < N - 2; i += 2) {
       const p = side[i];
       const q = spine[i];
       const x = q[0] + (p[0] - q[0]) * 0.6;
@@ -232,5 +327,5 @@
     }
   }
 
-  root.SlotRig = { build, draw, wave, blip, ease, smoke, glowAt, bubbles, sweep, tentacle, catmull };
+  root.SlotRig = { build, draw, drawCached, frameTick, perf, wave, blip, ease, smoke, glowAt, bubbles, sweep, tentacle, catmull };
 })(window);
