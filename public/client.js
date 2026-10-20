@@ -451,17 +451,33 @@ document.addEventListener('keydown', (ev) => {
 
 const TAB_KEY = 'casino.tab';
 
+// Все вкладки зала; 'home' — главная с карточками игр (home.js). Новая игра: id сюда и карточку в home.js.
+const TABS = ['home', 'crash', 'roulette', 'wheel', 'kraken', 'saloon', 'upgrade', 'plinko', 'mines', 'verity', 'duel', 'bomb', 'pool', 'poker'];
 function showTab(name) {
+  if (!TABS.includes(name)) name = 'home';
   document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t.dataset.tab === name));
-  for (const id of ['crash', 'roulette', 'wheel', 'kraken', 'saloon', 'upgrade', 'plinko', 'mines', 'verity', 'duel', 'bomb', 'pool', 'poker']) $(id).hidden = name !== id;
+  for (const id of TABS) $(id).hidden = name !== id;
+  $('tabs-nav').hidden = name === 'home';   // на главной вкладки не нужны: там карточки
+  // В игре раскрыта только её категория; остальные свёрнуты до названия.
+  document.querySelectorAll('.tab-group').forEach((g) => setGroupOpen(g, !!g.querySelector(`.tab[data-tab="${name}"]`)));
+  if (window.homeShown) window.homeShown(name === 'home');
+  window.scrollTo({ top: 0 });
   // канвас апгрейдера создаётся ниже по файлу: рисуем на следующем кадре
   if (name === 'upgrade') requestAnimationFrame(() => drawUpgrader());
   storage.set(TAB_KEY, name);
   if (window.krakenTabShown) window.krakenTabShown(name === 'kraken');
   if (window.saloonTabShown) window.saloonTabShown(name === 'saloon');
 }
+function setGroupOpen(g, open) {
+  g.classList.toggle('open', open);
+  g.querySelector('.tab-group-name').setAttribute('aria-expanded', String(open));
+}
 document.querySelectorAll('.tab').forEach((t) => t.addEventListener('click', () => showTab(t.dataset.tab)));
-showTab(['roulette', 'wheel', 'kraken', 'saloon', 'upgrade', 'plinko', 'mines', 'verity', 'duel', 'bomb', 'pool', 'poker'].includes(storage.get(TAB_KEY)) ? storage.get(TAB_KEY) : 'crash');
+document.querySelectorAll('.tab-group-name').forEach((b) => b.addEventListener('click', () => {
+  const g = b.closest('.tab-group');
+  setGroupOpen(g, !g.classList.contains('open'));
+}));
+showTab('home');   // зал всегда открывается с главной
 
 // ---------- Звуки (WebAudio, без файлов) ----------
 

@@ -58,20 +58,33 @@
           </div>
           <button type="button" id="bonus-btn">Забрать</button>
         </div>
-        <nav class="tabs">
-          <button type="button" class="tab active" data-tab="crash">📈 Краш</button>
-          <button type="button" class="tab" data-tab="roulette">🎡 Рулетка</button>
-          <button type="button" class="tab" data-tab="wheel">🎰 Колесо</button>
-          <button type="button" class="tab" data-tab="kraken">🐙 Кракен</button>
-          <button type="button" class="tab" data-tab="saloon">🤠 Салун</button>
-          <button type="button" class="tab" data-tab="upgrade">⬆️ Апгрейд</button>
-          <button type="button" class="tab" data-tab="plinko">🔺 Плинко</button>
-          <button type="button" class="tab" data-tab="mines">💎 Мины</button>
-          <button type="button" class="tab" data-tab="verity">😊 Верити</button>
-          <button type="button" class="tab" data-tab="duel">⚔️ Дуэль <span class="dot" id="duel-dot" hidden></span></button>
-          <button type="button" class="tab" data-tab="bomb">💣 Бомба <span class="dot" id="bomb-dot" hidden></span></button>
-          <button type="button" class="tab" data-tab="pool">🎱 Пул <span class="dot" id="pool-dot" hidden></span></button>
-          <button type="button" class="tab" data-tab="poker">🃏 Покер <span class="dot" id="poker-dot" hidden></span></button>
+        <!-- Главная: разделы и карточки строит home.js -->
+        <section class="home" id="home" hidden aria-label="Все игры зала"></section>
+
+        <nav class="tabs" id="tabs-nav">
+          <button type="button" class="tab tab-home" data-tab="home">🏠 Главная</button>
+          <div class="tab-group casino">
+            <button type="button" class="tab-group-name" aria-expanded="false">Казино</button>
+            <button type="button" class="tab" data-tab="crash">📈 Краш</button>
+            <button type="button" class="tab" data-tab="roulette">🎡 Рулетка</button>
+            <button type="button" class="tab" data-tab="wheel">🎰 Колесо</button>
+            <button type="button" class="tab" data-tab="upgrade">⬆️ Апгрейд</button>
+            <button type="button" class="tab" data-tab="plinko">🔺 Плинко</button>
+            <button type="button" class="tab" data-tab="mines">💎 Мины</button>
+            <button type="button" class="tab" data-tab="verity">😊 Верити</button>
+          </div>
+          <div class="tab-group versus">
+            <button type="button" class="tab-group-name" aria-expanded="false">Соревнования</button>
+            <button type="button" class="tab" data-tab="duel">⚔️ Дуэль <span class="dot" id="duel-dot" hidden></span></button>
+            <button type="button" class="tab" data-tab="bomb">💣 Бомба <span class="dot" id="bomb-dot" hidden></span></button>
+            <button type="button" class="tab" data-tab="pool">🎱 Пул <span class="dot" id="pool-dot" hidden></span></button>
+            <button type="button" class="tab" data-tab="poker">🃏 Покер <span class="dot" id="poker-dot" hidden></span></button>
+          </div>
+          <div class="tab-group slots">
+            <button type="button" class="tab-group-name" aria-expanded="false">Слоты</button>
+            <button type="button" class="tab" data-tab="kraken">🐙 Кракен</button>
+            <button type="button" class="tab" data-tab="saloon">🤠 Салун</button>
+          </div>
         </nav>
 
         <section class="card roulette" id="roulette" hidden>
@@ -901,5 +914,6 @@
   <script src="saloon/art.js"></script>
   <script src="saloon/audio.js"></script>
   <script src="saloon/slot.js"></script>
+  <script src="home.js"></script>
 </body>
 </html>
