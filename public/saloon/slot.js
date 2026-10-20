@@ -30,7 +30,8 @@
     horseshoe: '#ffd54a', whiskey: '#ff9f43', hat: '#e0b07a', boot: '#ff7a59',
     vulture: '#ff8fb1', skull: '#59ffe0', barman: '#c38bff', sheriff: '#fff07a',
   };
-  const TITLE_FONT = '"Ruslan Display", Rubik, serif';
+  const TITLE_FONT = '"Ruslan Display", Georgia, serif';
+  const NUM_FONT = 'Oswald, "Arial Narrow", sans-serif';
 
   // ---------- Геометрия ----------
   const CELL = 126;
@@ -60,6 +61,8 @@
     img: {},
     blur: {},
     hole: null,
+    rig: {},                 // символ -> модель из деталей (saloon/rig.js)
+    hatUrl: '',
     bet: Number(storage.get(BET_KEY)) || 100,
     bet0: 100,
     busy: false,
@@ -110,50 +113,30 @@
   }
 
   // ---------- Картинки ----------
+  // Символы нарисованы вручную и собраны из деталей (saloon/rig.js): в кадре живут —
+  // крутится барабан Кольта, тлеют глазницы, дымит сигара. На скорости — неподвижный кадр с размытием.
   async function loadArt() {
     const dpr = Math.min(2, window.devicePixelRatio || 1);
     const px = Math.round(CELL * dpr);
-    await Promise.all([document.fonts.load('900 20px Rubik'), document.fonts.load('20px "Ruslan Display"')]).catch(() => {});
-    const jobs = Object.entries(ART.SYMBOL_SVG).map(async ([k, s]) => {
-      const cv = await ART.render(s, px);
-      if (!cv) return;
-      if (k === 'colt') bannerText(cv, 'WILD', '#4a1c00', 0.855, 'rgba(255,240,190,.8)');
-      if (k === 'wanted') bannerText(cv, 'РОЗЫСК', '#3a1405', 0.2, 'rgba(255,240,200,.6)', 26);
-      G.img[k] = cv;
-      G.blur[k] = motionBlur(cv);
+    const A = window.SlotArt;
+    const SR = window.SlotRig;
+    await Promise.all([document.fonts.load(`700 20px ${NUM_FONT}`), document.fonts.load('20px "Ruslan Display"')]).catch(() => {});
+    const jobs = Object.entries(window.SaloonRig.SYMBOLS).map(async ([k, def]) => {
+      const rig = await SR.build(def, px);
+      G.rig[k] = rig;
+      G.img[k] = rig.still;
+      G.blur[k] = A.motionBlur(rig.still);
     });
     jobs.push(ART.render(ART.EXTRA_SVG.bulletHole, px).then((cv) => { G.hole = cv; }));
+    jobs.push(A.loadImage('textures/wood-old.jpg').then((img) => { G.texReel = img; }));
+    jobs.push(A.loadImage('textures/wood-dark.jpg').then((img) => { G.texWood = img; }));
+    jobs.push(A.loadImage('textures/metal-rust.jpg').then((img) => { G.texIron = img; }));
     await Promise.all(jobs);
+    G.hatUrl = G.img.hat ? G.img.hat.toDataURL() : '';
     G.ready = true;
+    if (G.duel) renderDuelInfo();
   }
 
-  function bannerText(cv, text, color, y, stroke, size = 24) {
-    const c = cv.getContext('2d');
-    const s = cv.width / 200;
-    c.save();
-    c.font = `${Math.round(size * s)}px ${TITLE_FONT}`;
-    c.textAlign = 'center';
-    c.textBaseline = 'middle';
-    c.lineWidth = 3 * s;
-    c.strokeStyle = stroke;
-    c.strokeText(text, cv.width / 2, cv.height * y);
-    c.fillStyle = color;
-    c.fillText(text, cv.width / 2, cv.height * y);
-    c.restore();
-  }
-
-  function motionBlur(src) {
-    const cv = document.createElement('canvas');
-    cv.width = src.width;
-    cv.height = src.height;
-    const c = cv.getContext('2d');
-    const step = src.height * 0.05;
-    for (let i = -3; i <= 3; i++) {
-      c.globalAlpha = 0.22 - Math.abs(i) * 0.04;
-      c.drawImage(src, 0, i * step);
-    }
-    return cv;
-  }
 
   // ---------- Разметка ----------
   const el = (id) => document.getElementById(id);
@@ -229,15 +212,23 @@
   }
 
   // ---------- Рисование барабанов ----------
-  function drawSymbol(ctx, s, x, y, { blur = false, scale = 1, alpha = 1, rot = 0 } = {}) {
-    const img = blur ? G.blur[s] : G.img[s];
-    if (!img) return;
+  // win — символ в выигрыше (играет свою анимацию), ph — фаза клетки, чтобы соседи двигались не в такт.
+  function drawSymbol(ctx, s, x, y, { blur = false, scale = 1, alpha = 1, rot = 0, win = 0, ph = 0 } = {}) {
     const size = CELL * 0.94 * scale;
+    const rig = G.rig[s];
+    if (blur || !rig) {
+      const img = G.blur[s];
+      if (!img) return;
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.drawImage(img, x - size / 2, y - size / 2, size, size);
+      ctx.restore();
+      return;
+    }
     ctx.save();
-    ctx.globalAlpha = alpha;
     ctx.translate(x, y);
     if (rot) ctx.rotate(rot);
-    ctx.drawImage(img, -size / 2, -size / 2, size, size);
+    window.SlotRig.draw(ctx, rig, 0, 0, size, performance.now() / 1000, win, ph, alpha);
     ctx.restore();
   }
 
@@ -258,7 +249,7 @@
     ctx.lineWidth = 3;
     ctx.strokeStyle = INK;
     ctx.stroke();
-    ctx.font = '900 17px Rubik, sans-serif';
+    ctx.font = `700 17px ${NUM_FONT}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.fillStyle = '#fff';
@@ -277,7 +268,7 @@
     ctx.fillStyle = g;
     ctx.fillRect(x - CELL / 2, y - CELL / 2, CELL, CELL);
     ctx.restore();
-    drawSymbol(ctx, 'colt', x, y, { scale: 1 + 0.04 * Math.sin(t / 250 + c) });
+    drawSymbol(ctx, 'colt', x, y, { win: 1, ph: c * 1.7 });
     if (G.hole) ctx.drawImage(G.hole, x - CELL * 0.48, y - CELL * 0.5, CELL * 0.5, CELL * 0.5);
     const m = G.sticky.get(c);
     if (m > 1) drawMultBadge(ctx, x, y, m, st);
@@ -288,19 +279,15 @@
       const x = FR + r * CELL;
       const g = ctx.createLinearGradient(x, FR, x, FR + ROWS * CELL);
       const duel = G.mode === 'duel';
-      g.addColorStop(0, duel ? '#3a0f14' : '#4a2a16');
-      g.addColorStop(1, duel ? '#12040a' : '#1e0f07');
+      g.addColorStop(0, duel ? 'rgba(40, 6, 8, .84)' : 'rgba(24, 12, 6, .8)');
+      g.addColorStop(1, duel ? 'rgba(8, 1, 2, .95)' : 'rgba(6, 3, 2, .94)');
+      if (G.texReel) {
+        G.patReel ||= ctx.createPattern(G.texReel, 'repeat');
+        ctx.fillStyle = G.patReel;
+        ctx.fillRect(x, FR, CELL, ROWS * CELL);
+      }
       ctx.fillStyle = g;
       ctx.fillRect(x, FR, CELL, ROWS * CELL);
-      // Доски задника.
-      ctx.strokeStyle = 'rgba(0, 0, 0, .25)';
-      ctx.lineWidth = 1;
-      for (let k = 1; k < 4; k++) {
-        ctx.beginPath();
-        ctx.moveTo(x, FR + (k * ROWS * CELL) / 4 + Math.sin(r + k) * 3);
-        ctx.lineTo(x + CELL, FR + (k * ROWS * CELL) / 4 + Math.cos(r + k) * 3);
-        ctx.stroke();
-      }
       if (G.expanded.has(r)) {
         const wg = ctx.createLinearGradient(x, 0, x + CELL, 0);
         wg.addColorStop(0, 'rgba(255, 120, 30, 0)');
@@ -314,7 +301,7 @@
       const x = FR + r * CELL;
       ctx.fillStyle = 'rgba(0, 0, 0, .5)';
       ctx.fillRect(x - 2, FR, 4, ROWS * CELL);
-      ctx.fillStyle = 'rgba(242, 193, 78, .28)';
+      ctx.fillStyle = 'rgba(190, 150, 100, .16)';
       ctx.fillRect(x - 0.5, FR, 1, ROWS * CELL);
     }
   }
@@ -341,16 +328,23 @@
     ctx.lineWidth = 26;
     roundRect(ctx, x0, y0, w, h, 12);
     ctx.stroke();
+    if (G.texWood) {
+      G.patWood ||= ctx.createPattern(G.texWood, 'repeat');
+      ctx.strokeStyle = G.patWood;
+      ctx.lineWidth = 19;
+      roundRect(ctx, x0, y0, w, h, 12);
+      ctx.stroke();
+    }
     const g = ctx.createLinearGradient(0, y0, 0, y0 + h);
-    g.addColorStop(0, '#c98b4e');
-    g.addColorStop(0.5, '#7a4520');
-    g.addColorStop(1, '#a8682f');
+    g.addColorStop(0, 'rgba(120, 60, 24, .35)');
+    g.addColorStop(0.5, 'rgba(20, 8, 2, .45)');
+    g.addColorStop(1, 'rgba(90, 40, 14, .35)');
     ctx.strokeStyle = g;
     ctx.lineWidth = 19;
     roundRect(ctx, x0, y0, w, h, 12);
     ctx.stroke();
     // Волокна досок.
-    ctx.strokeStyle = 'rgba(60, 25, 5, .45)';
+    ctx.strokeStyle = 'rgba(10, 4, 1, .4)';
     ctx.lineWidth = 1.2;
     for (const off of [-5, 0, 5]) {
       roundRect(ctx, x0 + off, y0 + off, w - 2 * off, h - 2 * off, 12);
@@ -372,17 +366,24 @@
       ctx.lineTo(-12, 42);
       ctx.closePath();
       const ig = ctx.createLinearGradient(-12, -12, 42, 42);
-      ig.addColorStop(0, '#8a96a3');
-      ig.addColorStop(1, '#2e3640');
+      ig.addColorStop(0, '#5a5550');
+      ig.addColorStop(1, '#16120e');
       ctx.fillStyle = ig;
       ctx.fill();
+      if (G.texIron) {
+        G.patIron ||= ctx.createPattern(G.texIron, 'repeat');
+        ctx.globalAlpha = 0.75;
+        ctx.fillStyle = G.patIron;
+        ctx.fill();
+        ctx.globalAlpha = 1;
+      }
       ctx.strokeStyle = INK;
       ctx.lineWidth = 2.5;
       ctx.stroke();
       for (const [rx, ry] of [[-4, -4], [26, -4], [-4, 26]]) {
         ctx.beginPath();
         ctx.arc(rx, ry, 3, 0, Math.PI * 2);
-        ctx.fillStyle = '#e8edf2';
+        ctx.fillStyle = '#8a8378';
         ctx.fill();
       }
       ctx.restore();
@@ -420,7 +421,7 @@
         for (let k = -1; k <= ROWS; k++) {
           const s = reel.strip[first + (ROWS - 1 - k)];
           if (!s) continue;
-          drawSymbol(ctx, s, cx(r), FR + (k + frac) * CELL + CELL / 2, { blur });
+          drawSymbol(ctx, s, cx(r), FR + (k + frac) * CELL + CELL / 2, { blur, ph: k * 1.3 + r });
         }
         if (reel.anticipating) {
           const a = 0.55 + 0.35 * Math.sin(t / 90);
@@ -449,19 +450,17 @@
         const s = G.grid[r][y];
         const hl = G.hl.get(c);
         let scale = 1;
-        let rot = 0;
         if (hl !== undefined) {
-          const k = (G.clock - hl) / 1000;
-          scale = 1 + 0.09 * Math.abs(Math.sin(k * Math.PI * 1.6));
-          if (s === 'colt') rot = Math.sin(k * 9) * 0.05;
+          // Выигравший символ чуть выходит вперёд и играет свою анимацию.
+          scale = 1 + 0.07 * ease.back(clamp((G.clock - hl) / 260, 0, 1));
           const g = ctx.createRadialGradient(cx(r), cy(y), 10, cx(r), cy(y), CELL * 0.6);
-          g.addColorStop(0, 'rgba(255, 210, 120, .45)');
+          g.addColorStop(0, 'rgba(255, 170, 90, .3)');
           g.addColorStop(1, 'rgba(255, 210, 120, 0)');
           ctx.fillStyle = g;
           ctx.fillRect(FR + r * CELL, FR + y * CELL, CELL, CELL);
         }
         const dim = G.ways && hl === undefined ? 0.45 : 1;
-        drawSymbol(ctx, s, cx(r), cy(y), { scale, rot, alpha: dim });
+        drawSymbol(ctx, s, cx(r), cy(y), { scale, alpha: dim, win: hl !== undefined ? 1 : 0, ph: c * 1.7 });
         if (G.holes.has(c) && G.hole) ctx.drawImage(G.hole, cx(r) - CELL * 0.48, cy(y) - CELL * 0.5, CELL * 0.5, CELL * 0.5);
       }
     }
@@ -533,7 +532,7 @@
         const y = cy(rowOf(last)) - CELL * 0.42;
         const text = `${NAMES[w.symbol]} · ${w.ways} ${w.ways === 1 ? 'путь' : w.ways < 5 ? 'пути' : 'путей'} · +${fmt(w.pay * G.bet0)}`;
         ctx.save();
-        ctx.font = '900 16px Rubik, sans-serif';
+        ctx.font = `700 16px ${NUM_FONT}`;
         ctx.textAlign = 'center';
         ctx.textBaseline = 'middle';
         const tw = ctx.measureText(text).width + 18;
@@ -827,7 +826,7 @@
       ctx.fillStyle = sc.color || '#ffd45c';
       ctx.fillText(sc.text, 0, 0);
       if (sc.sub) {
-        ctx.font = '900 20px Rubik, sans-serif';
+        ctx.font = `700 20px ${NUM_FONT}`;
         ctx.lineWidth = 6;
         ctx.strokeText(sc.sub, 0, 46);
         ctx.fillStyle = '#fff';
@@ -870,7 +869,7 @@
     ctx.fillStyle = g;
     ctx.fillText(b.title, 0, b.sub ? -16 : 0);
     if (b.sub) {
-      ctx.font = '900 22px Rubik, sans-serif';
+      ctx.font = `700 22px ${NUM_FONT}`;
       ctx.lineWidth = 6;
       ctx.strokeText(b.sub, 0, 32);
       ctx.fillStyle = '#fff';
@@ -917,12 +916,12 @@
     g.addColorStop(1, '#e0500a');
     ctx.fillStyle = g;
     ctx.fillText(tier[1], 0, -46);
-    ctx.font = '900 60px Rubik, sans-serif';
+    ctx.font = `700 60px ${NUM_FONT}`;
     ctx.lineWidth = 12;
     ctx.strokeText(fmt(shown), 0, 26);
     ctx.fillStyle = '#fff';
     ctx.fillText(fmt(shown), 0, 26);
-    ctx.font = '700 15px Rubik, sans-serif';
+    ctx.font = `400 15px ${NUM_FONT}`;
     ctx.fillStyle = 'rgba(255, 255, 255, .7)';
     if (k >= 0.8) ctx.fillText('нажми, чтобы продолжить', 0, 80);
     ctx.restore();
@@ -966,7 +965,7 @@
       drawBigWin(ctx, now);
     } else {
       ctx.fillStyle = '#ffd9a6';
-      ctx.font = '700 18px Rubik, sans-serif';
+      ctx.font = `400 18px ${NUM_FONT}`;
       ctx.textAlign = 'center';
       ctx.fillText('Двери салуна скрипят…', W / 2, H / 2);
     }
@@ -974,46 +973,48 @@
   }
 
   // ---------- Фон: закат в пустыне ----------
-  const BG = { weeds: [], birds: Array.from({ length: 3 }, (_, i) => ({ ph: i * 2.1, r: 30 + i * 18, x: 0.2 + i * 0.3 })), motes: [] };
-  function drawBackground(now, dt) {
-    const box = bgCv.getBoundingClientRect();
-    const w = Math.max(1, Math.round(box.width));
-    const h = Math.max(1, Math.round(box.height));
-    const dpr = fitCanvas(bgCv, w, h);
-    const ctx = bctx;
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    const duel = G.mode === 'duel';
+  // Небо цвета запёкшейся крови, низкое солнце в полосах облаков, столовые горы, кладбище с покосившимися
+  // крестами, мёртвое дерево с петлёй и стервятники — всё рисуется кодом.
+  const CROSSES = [[0.03, 0.95, 1, -0.12], [0.11, 0.93, 0.7, 0.08], [0.2, 0.96, 0.85, -0.05], [0.82, 0.94, 0.75, 0.1], [0.9, 0.96, 1, -0.07], [0.97, 0.93, 0.6, 0.15]];
+  function drawDusk(ctx, w, h, now, duel) {
     const sky = ctx.createLinearGradient(0, 0, 0, h);
-    sky.addColorStop(0, duel ? '#12030a' : '#2a1240');
-    sky.addColorStop(0.45, duel ? '#7a0f1f' : '#b8401a');
-    sky.addColorStop(0.75, duel ? '#e0401f' : '#ff9a3c');
-    sky.addColorStop(1, duel ? '#4a0d0a' : '#7a3a14');
+    sky.addColorStop(0, duel ? '#0a0204' : '#0e0612');
+    sky.addColorStop(0.45, duel ? '#3a0610' : '#3a1214');
+    sky.addColorStop(0.72, duel ? '#8a1a10' : '#8a3a18');
+    sky.addColorStop(1, duel ? '#200406' : '#24100a');
     ctx.fillStyle = sky;
     ctx.fillRect(0, 0, w, h);
-    // Звёзды в вышине.
-    for (let i = 0; i < 30; i++) {
+    for (let i = 0; i < 40; i++) {
       const x = (i * 97.3) % w;
-      const y = (i * 41.7) % (h * 0.3);
-      ctx.fillStyle = `rgba(255, 240, 220, ${0.25 + 0.25 * Math.sin(now / 700 + i)})`;
-      ctx.fillRect(x, y, 1.5, 1.5);
+      const y = (i * 41.7) % (h * 0.35);
+      ctx.fillStyle = `rgba(255, 235, 215, ${0.15 + 0.2 * Math.sin(now / 900 + i * 1.3)})`;
+      ctx.fillRect(x, y, 1.4, 1.4);
     }
-    // Солнце у горизонта.
+    // Низкое солнце в полосах облаков.
     const sx = w * 0.5;
-    const sy = h * 0.72;
-    const sr = Math.min(w, h) * 0.2;
-    const sg = ctx.createRadialGradient(sx, sy, sr * 0.2, sx, sy, sr * 2.4);
-    sg.addColorStop(0, 'rgba(255, 230, 150, .95)');
-    sg.addColorStop(0.3, 'rgba(255, 160, 70, .55)');
-    sg.addColorStop(1, 'rgba(255, 100, 40, 0)');
+    const sy = h * 0.74;
+    const sr = Math.min(w, h) * 0.17;
+    const sg = ctx.createRadialGradient(sx, sy, sr * 0.3, sx, sy, sr * 3);
+    sg.addColorStop(0, duel ? 'rgba(255, 90, 40, .55)' : 'rgba(255, 170, 90, .5)');
+    sg.addColorStop(0.35, duel ? 'rgba(160, 20, 10, .3)' : 'rgba(200, 80, 30, .25)');
+    sg.addColorStop(1, 'rgba(120, 30, 10, 0)');
     ctx.fillStyle = sg;
     ctx.fillRect(0, 0, w, h);
     ctx.beginPath();
     ctx.arc(sx, sy, sr, 0, Math.PI * 2);
-    ctx.fillStyle = duel ? '#ff5a2a' : '#ffd27a';
+    const sun = ctx.createLinearGradient(0, sy - sr, 0, sy + sr);
+    sun.addColorStop(0, duel ? '#ff6a3a' : '#ffc070');
+    sun.addColorStop(1, duel ? '#8a1408' : '#d0501a');
+    ctx.fillStyle = sun;
     ctx.fill();
-    // Полосы облаков на солнце.
-    ctx.fillStyle = duel ? 'rgba(90, 10, 20, .6)' : 'rgba(184, 64, 26, .55)';
-    for (let i = 0; i < 4; i++) ctx.fillRect(0, sy - sr * 0.5 + i * sr * 0.32, w, sr * 0.08 + i * 2);
+    for (let i = 0; i < 5; i++) {
+      const y = sy - sr * 0.6 + i * sr * 0.3;
+      const off = Math.sin(now / 9000 + i) * 30;
+      ctx.fillStyle = duel ? 'rgba(40, 4, 8, .7)' : 'rgba(58, 18, 20, .65)';
+      ctx.beginPath();
+      ctx.ellipse(sx + off + (i % 2 ? -60 : 50), y, w * 0.32, sr * 0.05 + i * 1.5, 0, 0, Math.PI * 2);
+      ctx.fill();
+    }
     // Столовые горы в два слоя.
     const mesa = (base, color, seed, height) => {
       ctx.fillStyle = color;
@@ -1023,25 +1024,68 @@
       for (let i = 0; i <= steps; i++) {
         const x = (i / steps) * w;
         const top = base - (Math.sin(i * 1.7 + seed) > 0.2 ? height : height * 0.35) - Math.sin(i * 3.1 + seed) * 8;
-        ctx.lineTo(x - w / steps * 0.3, base);
-        ctx.lineTo(x - w / steps * 0.2, top);
-        ctx.lineTo(x + w / steps * 0.2, top);
-        ctx.lineTo(x + w / steps * 0.3, base);
+        ctx.lineTo(x - (w / steps) * 0.3, base);
+        ctx.lineTo(x - (w / steps) * 0.2, top);
+        ctx.lineTo(x + (w / steps) * 0.2, top);
+        ctx.lineTo(x + (w / steps) * 0.3, base);
       }
       ctx.lineTo(w, h);
       ctx.closePath();
       ctx.fill();
     };
-    mesa(h * 0.78, duel ? '#3a0814' : '#6b2a2a', 1, h * 0.12);
-    mesa(h * 0.88, duel ? '#200409' : '#3d1610', 4, h * 0.08);
-    ctx.fillStyle = duel ? '#140306' : '#24100a';
-    ctx.fillRect(0, h * 0.9, w, h * 0.1);
+    mesa(h * 0.8, duel ? '#24040a' : '#2e1210', 1, h * 0.12);
+    mesa(h * 0.9, duel ? '#120204' : '#180806', 4, h * 0.07);
+    ctx.fillStyle = duel ? '#0a0102' : '#0e0504';
+    ctx.fillRect(0, h * 0.92, w, h * 0.08);
+    // Мёртвое дерево с петлёй.
+    ctx.save();
+    ctx.translate(w * 0.93, h * 0.94);
+    ctx.scale(Math.min(1.3, h / 500), Math.min(1.3, h / 500));
+    ctx.strokeStyle = '#080302';
+    ctx.lineCap = 'round';
+    const branch = (x0, y0, x1, y1, lw) => {
+      ctx.lineWidth = lw;
+      ctx.beginPath();
+      ctx.moveTo(x0, y0);
+      ctx.quadraticCurveTo((x0 + x1) / 2 + 8, (y0 + y1) / 2, x1, y1);
+      ctx.stroke();
+    };
+    branch(0, 0, -6, -150, 12);
+    branch(-6, -110, -70, -160, 6);
+    branch(-40, -140, -54, -184, 3);
+    branch(-4, -140, 30, -196, 5);
+    branch(-6, -150, -20, -210, 4);
+    const sway = Math.sin(now / 1700) * 0.08;
+    ctx.save();
+    ctx.translate(-58, -152);
+    ctx.rotate(sway);
+    ctx.lineWidth = 1.6;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(0, 46);
+    ctx.stroke();
+    ctx.beginPath();
+    ctx.ellipse(0, 54, 6, 9, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.restore();
+    ctx.restore();
+    // Кладбище: покосившиеся кресты.
+    for (const [fx, fy, s, rot] of CROSSES) {
+      ctx.save();
+      ctx.translate(w * fx, h * fy);
+      ctx.rotate(rot);
+      ctx.scale(s, s);
+      ctx.fillStyle = '#070202';
+      ctx.fillRect(-4, -54, 8, 58);
+      ctx.fillRect(-18, -42, 36, 7);
+      ctx.restore();
+    }
     // Кактусы-сагуаро.
     const cactus = (x, y, s) => {
       ctx.save();
       ctx.translate(x, y);
       ctx.scale(s, s);
-      ctx.fillStyle = duel ? '#0d0204' : '#1c0a06';
+      ctx.fillStyle = duel ? '#070102' : '#0c0403';
       ctx.fillRect(-8, -110, 16, 110);
       ctx.beginPath();
       ctx.arc(0, -110, 8, Math.PI, 0);
@@ -1058,16 +1102,16 @@
       ctx.fill();
       ctx.restore();
     };
-    cactus(w * 0.06, h * 0.96, 1.1);
-    cactus(w * 0.93, h * 0.95, 0.9);
-    cactus(w * 0.18, h * 0.92, 0.55);
+    cactus(w * 0.07, h * 0.97, 1.1);
+    cactus(w * 0.27, h * 0.93, 0.5);
+    cactus(w * 0.76, h * 0.94, 0.6);
     // Стервятники кружат.
-    ctx.strokeStyle = 'rgba(20, 6, 4, .75)';
+    ctx.strokeStyle = 'rgba(8, 2, 2, .85)';
     ctx.lineWidth = 2.5;
     for (const b of BG.birds) {
       const a = now / 2600 + b.ph;
       const x = w * b.x + Math.cos(a) * b.r * 2;
-      const y = h * 0.18 + Math.sin(a) * b.r * 0.6;
+      const y = h * 0.2 + Math.sin(a) * b.r * 0.6;
       const flap = Math.sin(now / 160 + b.ph) * 4;
       ctx.beginPath();
       ctx.moveTo(x - 12, y - flap);
@@ -1075,8 +1119,25 @@
       ctx.quadraticCurveTo(x + 6, y - 6, x + 12, y - flap);
       ctx.stroke();
     }
+    // Вечерняя дымка у земли.
+    const haze = ctx.createLinearGradient(0, h * 0.7, 0, h);
+    haze.addColorStop(0, 'rgba(120, 40, 20, 0)');
+    haze.addColorStop(1, duel ? 'rgba(40, 0, 0, .5)' : 'rgba(30, 8, 4, .5)');
+    ctx.fillStyle = haze;
+    ctx.fillRect(0, h * 0.7, w, h * 0.3);
+  }
+  const BG = { weeds: [], birds: Array.from({ length: 3 }, (_, i) => ({ ph: i * 2.1, r: 30 + i * 18, x: 0.2 + i * 0.3 })), motes: [] };
+  function drawBackground(now, dt) {
+    const box = bgCv.getBoundingClientRect();
+    const w = Math.max(1, Math.round(box.width));
+    const h = Math.max(1, Math.round(box.height));
+    const dpr = fitCanvas(bgCv, w, h);
+    const ctx = bctx;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+    const duel = G.mode === 'duel';
+    drawDusk(ctx, w, h, now, duel);
     // Перекати-поле.
-    if (BG.weeds.length < 2 && Math.random() < dt * 0.25) BG.weeds.push({ x: -40, v: 50 + Math.random() * 60, r: 10 + Math.random() * 12, ph: Math.random() * 6 });
+    if (BG.weeds.length < 1 && Math.random() < dt * 0.15) BG.weeds.push({ x: -40, v: 50 + Math.random() * 60, r: 10 + Math.random() * 12, ph: Math.random() * 6 });
     BG.weeds = BG.weeds.filter((t) => t.x < w + 60);
     for (const t of BG.weeds) {
       t.x += t.v * dt;
@@ -1085,7 +1146,7 @@
       ctx.save();
       ctx.translate(t.x, y);
       ctx.rotate(t.ph);
-      ctx.strokeStyle = 'rgba(150, 90, 40, .8)';
+      ctx.strokeStyle = 'rgba(10, 4, 2, .85)';
       ctx.lineWidth = 1.6;
       for (let i = 0; i < 7; i++) {
         ctx.beginPath();
@@ -1131,7 +1192,7 @@
     const hats = el('sl-hats');
     hats.replaceChildren(...Array.from({ length: G.duel.max }, (_, i) => {
       const img = document.createElement('img');
-      img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(ART.SYMBOL_SVG.hat)}`;
+      img.src = G.hatUrl;
       img.alt = '';
       if (i >= G.duel.lives) img.className = 'lost';
       return img;
@@ -1496,7 +1557,8 @@
 
   function symImg(s) {
     const img = document.createElement('img');
-    img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(ART.SYMBOL_SVG[s])}`;
+    if (G.img[s]) img.src = G.img[s].toDataURL();
+    img.className = 'painted';
     img.alt = NAMES[s];
     return img;
   }

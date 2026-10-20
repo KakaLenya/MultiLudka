@@ -6,27 +6,26 @@
 .sl-plaque {
   display: flex; flex-direction: column; align-items: center; min-width: 120px; max-width: 180px;
   padding: 5px 12px 7px; border-radius: 10px;
-  background: linear-gradient(180deg, #c98b4e, #7a4520 60%, #5a3014);
-  border: 3px solid #2a1206;
-  box-shadow: 0 6px 14px rgba(0, 0, 0, .5), inset 0 2px 0 rgba(255, 220, 170, .35);
-  font-family: Rubik, var(--font); text-shadow: 0 2px 0 rgba(0, 0, 0, .55);
+  background: linear-gradient(180deg, rgba(30, 14, 6, .55), rgba(8, 3, 1, .8)), url(../textures/wood-dark.jpg) center / 200px;
+  border: 1px solid rgba(150, 100, 60, .6);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, .65), inset 0 1px 0 rgba(255, 210, 160, .12);
+  font-family: Oswald, var(--font); text-shadow: 0 2px 3px rgba(0, 0, 0, .8);
   position: relative;
 }
 .sl-plaque::before, .sl-plaque::after {
-  content: ''; position: absolute; top: 6px; width: 6px; height: 6px; border-radius: 50%; background: #d9d2c4; box-shadow: 0 0 0 1.5px #2a1206;
+  content: ''; position: absolute; top: 6px; width: 5px; height: 5px; border-radius: 50%; background: #6e675c; box-shadow: 0 0 0 1px #120804;
 }
 .sl-plaque::before { left: 6px; }
 .sl-plaque::after { right: 6px; }
-.sl-plaque span { font-size: 10px; font-weight: 900; letter-spacing: .1em; text-transform: uppercase; color: #ffe3b0; }
-.sl-plaque b { font-size: 20px; font-weight: 900; color: #fff; font-variant-numeric: tabular-nums; line-height: 1.15; }
+.sl-plaque span { font-size: 10px; font-weight: 500; letter-spacing: .2em; text-transform: uppercase; color: #c79a6a; }
+.sl-plaque b { font-size: 21px; font-weight: 600; color: #efe0c8; font-variant-numeric: tabular-nums; line-height: 1.15; }
 
 .sl-logo { text-align: center; line-height: 1; display: flex; flex-direction: column; align-items: center; }
 .sl-logo-title, .sl-logo-sub {
   font-family: "Ruslan Display", Rubik, serif;
-  background: linear-gradient(180deg, #fff3c4 0%, #ffbf4a 45%, #c2410c 100%);
+  background: linear-gradient(180deg, #efe0c8 0%, #c98a4a 50%, #6e2a0c 100%);
   -webkit-background-clip: text; background-clip: text; color: transparent;
-  -webkit-text-stroke: 2px #2a0805;
-  filter: drop-shadow(0 4px 0 #2a0805) drop-shadow(0 0 18px rgba(255, 120, 40, .4));
+  filter: drop-shadow(0 3px 2px rgba(0, 0, 0, .95)) drop-shadow(0 0 20px rgba(200, 60, 20, .35));
 }
 .sl-logo-title { font-size: 52px; letter-spacing: .04em; }
 .sl-logo-sub { font-size: 26px; letter-spacing: .12em; margin-top: 4px; }
@@ -34,35 +33,38 @@
 
 .sl-duel {
   display: flex; align-items: center; gap: 12px; margin-top: 8px; padding: 4px 12px; border-radius: 999px;
-  border: 2px solid #ff6a3d; background: linear-gradient(180deg, rgba(90, 20, 10, .92), rgba(30, 6, 4, .92));
-  box-shadow: 0 0 18px rgba(255, 90, 40, .4); font-family: Rubik, var(--font);
+  border: 1px solid rgba(200, 70, 30, .7); background: linear-gradient(180deg, rgba(36, 8, 4, .94), rgba(10, 2, 1, .96));
+  box-shadow: 0 0 22px rgba(200, 60, 20, .3); font-family: Oswald, var(--font);
 }
 .sl-duel > div:not(.sl-hats) { display: flex; flex-direction: column; align-items: center; }
-.sl-duel span { font-size: 10px; font-weight: 900; letter-spacing: .1em; text-transform: uppercase; color: #ffc9a8; }
-.sl-duel b { font-size: 17px; font-weight: 900; color: #fff; line-height: 1.1; }
+.sl-duel span { font-size: 10px; font-weight: 500; letter-spacing: .16em; text-transform: uppercase; color: #c99070; }
+.sl-duel b { font-size: 17px; font-weight: 600; color: #efe0c8; line-height: 1.1; }
 .sl-hats { display: flex; gap: 2px; }
-.sl-hats img { width: 30px; height: 30px; display: block; transition: filter .3s, opacity .3s, transform .3s; }
+.sl-hats img { width: 30px; height: 30px; display: block; border-radius: 50%; transition: filter .3s, opacity .3s, transform .3s; }
 .sl-hats img.lost { filter: grayscale(1) brightness(.5); opacity: .45; transform: rotate(-20deg) translateY(4px); }
 
 #sl-reels { width: 100%; max-width: 690px; aspect-ratio: 686 / 434; display: block; cursor: pointer; }
-.sl-msg { color: #fff3dc; text-shadow: 0 2px 0 #2a0805, 0 0 12px rgba(255, 140, 60, .55); }
+.sl-msg { color: #e8d8bc; text-shadow: 0 2px 6px #000, 0 0 14px rgba(200, 80, 30, .35); }
 
-.sl-bar { border-top-color: rgba(201, 139, 78, .7); background: linear-gradient(180deg, #3a1d0c, #170a04); }
-.sl-bar .kr-stat span { color: #d9a878; }
-.sl-bar .kr-bet > button { background: linear-gradient(180deg, #a8682f, #5a3014); }
+.sl-bar { border-top-color: rgba(150, 100, 60, .5); background: linear-gradient(180deg, rgba(20, 8, 3, .82), rgba(6, 2, 1, .94)), url(../textures/leather.jpg) center / 280px; }
+.sl-bar .kr-stat span { color: #a8805c; }
+.sl-bar .kr-stat b { color: #efe0c8; }
+.sl-bar .kr-bet > button { background: radial-gradient(circle at 40% 35%, #4a3020, #140804); color: #e8cfa8; border-color: rgba(150, 100, 60, .55); }
 .sl-spin {
-  background: radial-gradient(circle at 35% 30%, #ffd49a, #e0601f 45%, #7a2408);
-  border-color: #2a0805; box-shadow: 0 0 0 3px #ffb36b, 0 8px 22px rgba(255, 110, 40, .45), inset 0 -4px 0 rgba(0, 0, 0, .25);
+  background: radial-gradient(circle at 38% 32%, #3a2e26, #120a06 60%, #050201);
+  border-color: #6e4a2a; color: #e8c9a0;
+  box-shadow: 0 0 0 2px #050201, 0 0 26px rgba(220, 80, 20, .4), inset 0 0 18px rgba(220, 80, 20, .2);
 }
-.sl-buy { background: radial-gradient(circle at 35% 30%, #ffe3b0, #c98b4e 45%, #5a3014); color: #2a1206; border-color: #2a1206; }
-.saloon .kr-small { color: #ffe3c4; }
+.sl-buy { background: radial-gradient(circle at 35% 30%, #c9a07a, #6e4a2a 50%, #2a1408); color: #140804; border-color: #140804; }
+.saloon .kr-small { color: #e0cba8; border-color: rgba(150, 100, 60, .4); }
+.saloon .kr-small.on { background: linear-gradient(180deg, #8a3a14, #4a1a06); border-color: #c9703a; color: #f3e0c8; }
 
-.saloon-modal .kr-dialog { border-color: #c98b4e; background: linear-gradient(180deg, #4a2414, #170a04); }
-.saloon-modal .kr-dialog h3 { font-family: "Ruslan Display", Rubik, serif; color: #ffbf4a; }
-.saloon-modal .kr-buy-card.fs { background: linear-gradient(180deg, #8a2a10, #2a0805); border-color: #ff8a4a; }
-.saloon-modal .kr-buy-card.hw { background: linear-gradient(180deg, #a8682f, #3a1d0c); border-color: #ffd49a; }
-.saloon-modal .kr-buy-card.fs .action { background: linear-gradient(180deg, #ffb36b, #e0601f 60%, #7a2408); }
-.saloon-modal .kr-buy-card.hw .action { background: linear-gradient(180deg, #ffe3b0, #c98b4e 60%, #5a3014); color: #2a1206; }
+.saloon-modal .kr-dialog { border-color: rgba(150, 100, 60, .7); background: linear-gradient(180deg, rgba(30, 12, 5, .96), rgba(8, 3, 1, .98)), url(../textures/wood-dark.jpg) center / 300px; }
+.saloon-modal .kr-dialog h3 { font-family: "Ruslan Display", Georgia, serif; color: #d9a06a; }
+.saloon-modal .kr-buy-card.fs { background: linear-gradient(180deg, rgba(90, 20, 6, .9), rgba(20, 4, 1, .95)); border-color: rgba(220, 90, 40, .6); }
+.saloon-modal .kr-buy-card.hw { background: linear-gradient(180deg, rgba(90, 60, 30, .9), rgba(24, 14, 6, .95)); border-color: rgba(220, 180, 120, .5); }
+.saloon-modal .kr-buy-card.fs .action { background: linear-gradient(180deg, #b8501f, #6e2408 60%, #3a1004); color: #f3e0c8; }
+.saloon-modal .kr-buy-card.hw .action { background: linear-gradient(180deg, #c9a07a, #6e4a2a 60%, #2a1408); color: #f3e0c8; }
 .saloon-modal .kr-pay { background: rgba(0, 0, 0, .3); }
 
 @media (max-width: 700px) {

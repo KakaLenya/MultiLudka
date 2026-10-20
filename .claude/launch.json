@@ -6,6 +6,17 @@
       "runtimeExecutable": "node",
       "runtimeArgs": ["server/index.js"],
       "port": 3000
+    },
+    {
+      "name": "casino-test",
+      "runtimeExecutable": "node",
+      "runtimeArgs": ["server/index.js"],
+      "port": 3001,
+      "env": {
+        "PORT": "3001",
+        "DATA_DIR": "C:/Users/pritu/AppData/Local/Temp/claude/D--Files-Claude-MultiLidka/d5ff23c5-5bbb-4b3e-a902-67526dfde634/scratchpad/testdata",
+        "MUSIC_DIR": "C:/Users/pritu/AppData/Local/Temp/claude/D--Files-Claude-MultiLidka/d5ff23c5-5bbb-4b3e-a902-67526dfde634/scratchpad/testdata/music"
+      }
     }
   ]
 }

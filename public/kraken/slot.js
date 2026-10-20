@@ -5,7 +5,6 @@
 (function () {
   'use strict';
 
-  const ART = window.KrakenArt;
   const AUDIO = () => window.KrakenAudio || null;
 
   // ---------- Как на сервере (server/kraken-math.js) ----------
@@ -69,7 +68,8 @@
     ready: false,
     img: {},             // символ -> картинка
     blur: {},            // символ -> размытая по вертикали (на скорости)
-    pearlImg: {},
+    rig: {},             // символ -> модель из деталей (kraken/rig.js)
+    pearlRig: {},
     bet: Number(storage.get(BET_KEY)) || 100,
     busy: false,
     awaiting: false,
@@ -120,60 +120,32 @@
   }
 
   // ---------- Картинки ----------
+  // Символы нарисованы вручную и собраны из деталей (kraken/rig.js): в кадре они живут —
+  // моргают, шевелят щупальцами, крутят стрелками. На скорости барабана — неподвижный кадр с размытием.
+  const TITLE_FONT = '"Cormorant SC", Georgia, serif';
+  const NUM_FONT = 'Oswald, "Arial Narrow", sans-serif';
   async function loadArt() {
     const dpr = Math.min(2, window.devicePixelRatio || 1);
     const px = Math.round(CELL * dpr);
-    await document.fonts.load('900 20px Rubik').catch(() => {});
-    const jobs = Object.entries(ART.SYMBOL_SVG).map(async ([k, svg]) => {
-      const cv = await ART.render(svg, px);
-      if (!cv) return;
-      if (k === 'wild') bannerText(cv, 'WILD', '#4a1c00', 0.86);
-      if (k === 'map') bannerText(cv, 'БОНУС', '#fff4d6', 0.86);
-      G.img[k] = cv;
-      G.blur[k] = motionBlur(cv);
+    const A = window.SlotArt;
+    const KR = window.KrakenRig;
+    const SR = window.SlotRig;
+    await Promise.all([document.fonts.load(`700 20px ${TITLE_FONT}`), document.fonts.load(`700 20px ${NUM_FONT}`)]).catch(() => {});
+    const jobs = Object.entries(KR.SYMBOLS).map(async ([k, def]) => {
+      const rig = await SR.build(def, px);
+      G.rig[k] = rig;
+      G.img[k] = rig.still;
+      G.blur[k] = A.motionBlur(rig.still);
     });
-    for (const [k, svg] of Object.entries(ART.PEARL_SVG)) {
-      jobs.push(ART.render(svg, px).then((cv) => {
-        if (!cv) return;
-        G.pearlImg[k] = cv;
-        if (k === 'white') {
-          G.img.pearl = cv;
-          G.blur.pearl = motionBlur(cv);
-        }
-      }));
-    }
+    for (const tone of KR.TONES) jobs.push(SR.build(KR.pearl(tone), px).then((rig) => { G.pearlRig[tone] = rig; }));
+    jobs.push(A.loadImage('textures/stone-sea.jpg').then((img) => { G.texStone = img; }));
+    jobs.push(A.loadImage('textures/metal-rust.jpg').then((img) => { G.texMetal = img; }));
     await Promise.all(jobs);
+    G.img.pearl = G.pearlRig.white.still;
+    G.blur.pearl = A.motionBlur(G.img.pearl);
     G.ready = true;
   }
 
-  // Подпись на ленте символа (WILD / БОНУС) — шрифтом страницы, в SVG-картинке шрифтов нет.
-  function bannerText(cv, text, color, y) {
-    const c = cv.getContext('2d');
-    const s = cv.width / 200;
-    c.save();
-    c.font = `900 ${Math.round(22 * s)}px Rubik, sans-serif`;
-    c.textAlign = 'center';
-    c.textBaseline = 'middle';
-    c.lineWidth = 3 * s;
-    c.strokeStyle = color === '#4a1c00' ? 'rgba(255,240,190,.8)' : '#4a0b08';
-    c.strokeText(text, cv.width / 2, cv.height * y);
-    c.fillStyle = color;
-    c.fillText(text, cv.width / 2, cv.height * y);
-    c.restore();
-  }
-
-  function motionBlur(src) {
-    const cv = document.createElement('canvas');
-    cv.width = src.width;
-    cv.height = src.height;
-    const c = cv.getContext('2d');
-    const step = src.height * 0.05;
-    for (let i = -3; i <= 3; i++) {
-      c.globalAlpha = 0.22 - Math.abs(i) * 0.04;
-      c.drawImage(src, 0, i * step);
-    }
-    return cv;
-  }
 
   // ---------- Разметка ----------
   const el = (id) => document.getElementById(id);
@@ -279,8 +251,8 @@
     const text = typeof v === 'string' ? v.toUpperCase() : short(v * G.bet);
     ctx.save();
     ctx.globalAlpha *= alpha;
-    const fs = typeof v === 'string' ? size * 0.2 : size * (text.length > 4 ? 0.2 : 0.25);
-    ctx.font = `900 ${fs}px Rubik, sans-serif`;
+    const fs = typeof v === 'string' ? size * 0.18 : size * (text.length > 4 ? 0.18 : 0.22);
+    ctx.font = `700 ${fs}px ${NUM_FONT}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     ctx.lineJoin = 'round';
@@ -296,19 +268,25 @@
     ctx.restore();
   }
 
-  function drawSymbol(ctx, s, v, x, y, { blur = false, scale = 1, alpha = 1, rot = 0 } = {}) {
-    let img;
-    if (s === 'pearl') img = blur ? G.blur.pearl : G.pearlImg[pearlTone(v)] || G.img.pearl;
-    else img = blur ? G.blur[s] : G.img[s];
-    if (!img) return;
+  // win — символ в выигрыше (играет свою анимацию), ph — фаза клетки, чтобы соседи двигались не в такт.
+  function drawSymbol(ctx, s, v, x, y, { blur = false, scale = 1, alpha = 1, rot = 0, win = 0, ph = 0 } = {}) {
     const size = CELL * 0.94 * scale;
+    const rig = s === 'pearl' ? G.pearlRig[pearlTone(v)] || G.pearlRig.white : G.rig[s];
+    if (blur || !rig) {
+      const img = s === 'pearl' ? G.blur.pearl : G.blur[s];
+      if (!img) return;
+      ctx.save();
+      ctx.globalAlpha = alpha;
+      ctx.drawImage(img, x - size / 2, y - size / 2, size, size);
+      ctx.restore();
+      return;
+    }
     ctx.save();
-    ctx.globalAlpha = alpha;
     ctx.translate(x, y);
     if (rot) ctx.rotate(rot);
-    ctx.drawImage(img, -size / 2, -size / 2, size, size);
+    window.SlotRig.draw(ctx, rig, 0, 0, size, performance.now() / 1000, win, ph, alpha);
     ctx.restore();
-    if (s === 'pearl' && v !== null && v !== undefined && v !== 'kraken' && !blur) drawPearlValue(ctx, x, y + CELL * 0.02 * scale, v, CELL * scale, alpha);
+    if (s === 'pearl' && v !== null && v !== undefined && v !== 'kraken') drawPearlValue(ctx, x, y + CELL * 0.26 * scale, v, CELL * scale, alpha);
   }
 
   function drawReelsBackground(ctx, t) {
@@ -318,8 +296,13 @@
       const g = ctx.createLinearGradient(x, FR, x, FR + ROWS * CELL);
       const hw = G.mode === 'hw';
       const fsm = G.mode === 'fs';
-      g.addColorStop(0, hw ? '#1a1030' : fsm ? '#2a0b26' : '#0f3550');
-      g.addColorStop(1, hw ? '#08040f' : fsm ? '#10030f' : '#061a2c');
+      g.addColorStop(0, hw ? 'rgba(26, 16, 48, .82)' : fsm ? 'rgba(42, 8, 24, .82)' : 'rgba(6, 30, 40, .8)');
+      g.addColorStop(1, hw ? 'rgba(4, 2, 10, .94)' : fsm ? 'rgba(10, 2, 8, .94)' : 'rgba(2, 8, 12, .94)');
+      if (G.texStone) {
+        G.patStone ||= ctx.createPattern(G.texStone, 'repeat');
+        ctx.fillStyle = G.patStone;
+        ctx.fillRect(x, FR, CELL, ROWS * CELL);
+      }
       ctx.fillStyle = g;
       ctx.fillRect(x, FR, CELL, ROWS * CELL);
       if (G.wild.has(r)) {
@@ -349,7 +332,7 @@
       const x = FR + r * CELL;
       ctx.fillStyle = 'rgba(0, 0, 0, .45)';
       ctx.fillRect(x - 2, FR, 4, ROWS * CELL);
-      ctx.fillStyle = 'rgba(242, 193, 78, .35)';
+      ctx.fillStyle = 'rgba(201, 161, 74, .22)';
       ctx.fillRect(x - 0.5, FR, 1, ROWS * CELL);
     }
   }
@@ -366,17 +349,29 @@
     ctx.lineWidth = 22;
     roundRect(ctx, x0, y0, w, h, 18);
     ctx.stroke();
+    if (G.texMetal) {
+      G.patMetal ||= ctx.createPattern(G.texMetal, 'repeat');
+      ctx.strokeStyle = G.patMetal;
+      ctx.lineWidth = 15;
+      roundRect(ctx, x0, y0, w, h, 18);
+      ctx.stroke();
+    }
+    // Потемневшая латунь поверх ржавчины.
     const g = ctx.createLinearGradient(0, y0, 0, y0 + h);
-    g.addColorStop(0, '#fff1b0');
-    g.addColorStop(0.25, '#e8a92c');
-    g.addColorStop(0.6, '#a8640f');
-    g.addColorStop(1, '#f2c14e');
+    g.addColorStop(0, 'rgba(214, 178, 96, .55)');
+    g.addColorStop(0.3, 'rgba(138, 106, 46, .5)');
+    g.addColorStop(0.7, 'rgba(70, 52, 20, .55)');
+    g.addColorStop(1, 'rgba(160, 128, 60, .5)');
     ctx.strokeStyle = g;
     ctx.lineWidth = 15;
     roundRect(ctx, x0, y0, w, h, 18);
     ctx.stroke();
-    // «Канат»: косые насечки по раме.
-    ctx.strokeStyle = 'rgba(90, 50, 5, .55)';
+    ctx.strokeStyle = 'rgba(255, 236, 190, .18)';
+    ctx.lineWidth = 1.5;
+    roundRect(ctx, x0 - 6, y0 - 6, w + 12, h + 12, 22);
+    ctx.stroke();
+    // Насечки по раме.
+    ctx.strokeStyle = 'rgba(20, 12, 4, .55)';
     ctx.lineWidth = 2;
     ctx.setLineDash([3, 7]);
     ctx.lineDashOffset = 0;
@@ -390,9 +385,9 @@
     for (const [x, y] of rivets) {
       ctx.beginPath();
       ctx.arc(x, y, 3.2, 0, Math.PI * 2);
-      ctx.fillStyle = '#fff6d0';
+      ctx.fillStyle = '#b89a5a';
       ctx.fill();
-      ctx.strokeStyle = '#6b3d06';
+      ctx.strokeStyle = '#2a1a06';
       ctx.lineWidth = 1;
       ctx.stroke();
     }
@@ -416,7 +411,7 @@
   }
 
   // Щупальце по опорным точкам (от основания к кончику): сужается, присоски с одной стороны.
-  function tentacle(ctx, pts, w0, w1, t, seed, color = ['#e8475f', '#7a0f33']) {
+  function tentacle(ctx, pts, w0, w1, t, seed, color = ['#7a1a2c', '#2a0612']) {
     const N = 36;
     const spine = [];
     for (let i = 0; i <= N; i++) spine.push(catmull(pts, i / N));
@@ -445,7 +440,7 @@
     const g = ctx.createLinearGradient(pts[0][0], pts[0][1], tip[0], tip[1]);
     g.addColorStop(0, color[1]);
     g.addColorStop(0.6, color[0]);
-    g.addColorStop(1, '#ff8aa0');
+    g.addColorStop(1, '#a8434f');
     ctx.fillStyle = g;
     ctx.fill();
     ctx.lineWidth = 3;
@@ -461,7 +456,7 @@
       if (i === 2) ctx.moveTo(x, y);
       else ctx.lineTo(x, y);
     }
-    ctx.strokeStyle = 'rgba(255, 200, 215, .45)';
+    ctx.strokeStyle = 'rgba(255, 200, 200, .22)';
     ctx.lineWidth = 2.5;
     ctx.stroke();
     // Присоски.
@@ -473,7 +468,7 @@
       const r = ((w0 + (w1 - w0) * (i / N)) / 2) * 0.32;
       ctx.beginPath();
       ctx.arc(x, y, Math.max(1.2, r), 0, Math.PI * 2);
-      ctx.fillStyle = '#ffc2b8';
+      ctx.fillStyle = '#b89a8e';
       ctx.fill();
       ctx.lineWidth = 1;
       ctx.strokeStyle = 'rgba(13, 27, 42, .6)';
@@ -514,7 +509,7 @@
           const item = reel.strip[idx];
           if (!item) continue;
           const y = FR + (k + frac) * CELL + CELL / 2;
-          drawSymbol(ctx, item.s, item.v, cx(r), y, { blur });
+          drawSymbol(ctx, item.s, item.v, cx(r), y, { blur, ph: idx * 1.3 + r });
         }
         if (reel.anticipating) {
           const a = 0.55 + 0.35 * Math.sin(t / 90);
@@ -542,20 +537,17 @@
         const s = G.grid[r][y];
         const hl = G.hl.get(c);
         let scale = 1;
-        let rot = 0;
         if (hl !== undefined) {
-          const k = (G.clock - hl) / 1000;
-          scale = 1 + 0.09 * Math.abs(Math.sin(k * Math.PI * 1.6));
-          if (s === 'wild') rot = Math.sin(k * 9) * 0.06;
-          // Ореол под выигравшим символом.
+          // Выигравший символ чуть выходит вперёд и играет свою анимацию.
+          scale = 1 + 0.07 * ease.back(clamp((G.clock - hl) / 260, 0, 1));
           const g = ctx.createRadialGradient(cx(r), cy(y), 10, cx(r), cy(y), CELL * 0.6);
-          g.addColorStop(0, 'rgba(255, 220, 120, .45)');
-          g.addColorStop(1, 'rgba(255, 220, 120, 0)');
+          g.addColorStop(0, 'rgba(255, 210, 120, .32)');
+          g.addColorStop(1, 'rgba(255, 210, 120, 0)');
           ctx.fillStyle = g;
           ctx.fillRect(FR + r * CELL, FR + y * CELL, CELL, CELL);
         }
         const dim = G.lines && hl === undefined && !G.lines.noDim ? 0.45 : 1;
-        drawSymbol(ctx, s, G.pearls[c] ?? null, cx(r), cy(y), { scale, rot, alpha: dim });
+        drawSymbol(ctx, s, G.pearls[c] ?? null, cx(r), cy(y), { scale, alpha: dim, win: hl !== undefined ? 1 : 0, ph: c * 1.7 });
         const lab = G.collectLabel.get(c);
         if (lab) drawCollectLabel(ctx, cx(r), cy(y), lab);
       }
@@ -568,7 +560,7 @@
     ctx.save();
     ctx.translate(x, y + CELL * 0.33);
     ctx.scale(0.6 + 0.4 * ease.back(k), 0.6 + 0.4 * ease.back(k));
-    ctx.font = `900 ${CELL * 0.2}px Rubik, sans-serif`;
+    ctx.font = `700 ${CELL * 0.2}px ${NUM_FONT}`;
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
     const w = ctx.measureText(lab.text).width + 18;
@@ -608,8 +600,8 @@
     ctx.fillStyle = g;
     ctx.fillRect(x - CELL / 2, yy - CELL / 2, CELL, CELL);
     const kind = G.hw.kinds.get(c);
-    drawSymbol(ctx, 'pearl', kind === 'kraken' ? 'kraken' : v, x, yy + drop, { alpha: k > 0 ? 1 : 0 });
-    if (kind === 'kraken') drawPearlValue(ctx, x, yy + drop + CELL * 0.02, v, CELL);
+    drawSymbol(ctx, 'pearl', kind === 'kraken' ? 'kraken' : v, x, yy + drop, { alpha: k > 0 ? 1 : 0, ph: c * 1.7, win: k < 1 ? 1 : 0 });
+    if (kind === 'kraken') drawPearlValue(ctx, x, yy + drop + CELL * 0.26, v, CELL);
   }
 
   function drawLines(ctx) {
@@ -664,7 +656,7 @@
         const y = cy(rows[r]) - CELL * 0.42;
         const text = `+${fmt(w.pay * G.bet)}`;
         ctx.save();
-        ctx.font = `900 18px Rubik, sans-serif`;
+        ctx.font = `700 18px ${NUM_FONT}`;
         ctx.textAlign = 'center';
         const tw = ctx.measureText(text).width + 18;
         roundRect(ctx, x - tw / 2, y - 14, tw, 26, 13);
@@ -830,7 +822,7 @@
     ctx.scale(s, s);
     ctx.textAlign = 'center';
     ctx.textBaseline = 'middle';
-    ctx.font = `${b.kind === 'small' ? 44 : 56}px "Rubik Wet Paint", Rubik, sans-serif`;
+    ctx.font = `700 ${b.kind === 'small' ? 44 : 56}px ${TITLE_FONT}`;
     ctx.lineJoin = 'round';
     ctx.lineWidth = 10;
     ctx.strokeStyle = '#2a0610';
@@ -843,7 +835,7 @@
     ctx.fillStyle = g;
     ctx.fillText(title, 0, b.sub ? -16 : 0);
     if (b.sub) {
-      ctx.font = '900 24px Rubik, sans-serif';
+      ctx.font = `600 24px ${NUM_FONT}`;
       ctx.lineWidth = 6;
       ctx.strokeText(b.sub, 0, 34);
       ctx.fillStyle = '#fff';
@@ -881,7 +873,7 @@
     ctx.textBaseline = 'middle';
     ctx.lineJoin = 'round';
     const tier = BIG_WINS.find(([x]) => shown / G.bet >= x) || BIG_WINS[BIG_WINS.length - 1];
-    ctx.font = '50px "Rubik Wet Paint", Rubik, sans-serif';
+    ctx.font = `700 48px ${TITLE_FONT}`;
     ctx.lineWidth = 10;
     ctx.strokeStyle = '#2a0610';
     const tierText = tier[1].replace(/ /g, ' ');
@@ -892,12 +884,12 @@
     g.addColorStop(1, '#e0700a');
     ctx.fillStyle = g;
     ctx.fillText(tierText, 0, -50);
-    ctx.font = '900 64px Rubik, sans-serif';
+    ctx.font = `700 66px ${NUM_FONT}`;
     ctx.lineWidth = 12;
     ctx.strokeText(fmt(shown), 0, 30);
     ctx.fillStyle = '#fff';
     ctx.fillText(fmt(shown), 0, 30);
-    ctx.font = '700 16px Rubik, sans-serif';
+    ctx.font = `400 16px ${NUM_FONT}`;
     ctx.fillStyle = 'rgba(255, 255, 255, .7)';
     if (k >= 0.8) ctx.fillText('нажми, чтобы продолжить', 0, 90);
     ctx.restore();
@@ -942,7 +934,7 @@
         drawBigWin(ctx, now);
       } else {
         ctx.fillStyle = '#9fd6ff';
-        ctx.font = '700 18px Rubik, sans-serif';
+        ctx.font = `400 18px ${NUM_FONT}`;
         ctx.textAlign = 'center';
         ctx.fillText('Кракен всплывает…', W / 2, H / 2);
       }
@@ -951,6 +943,109 @@
   }
 
   // ---------- Фон: подводная сцена ----------
+  // Дальние скалы, затонувший галеон, силуэты щупалец и водоросли — всё рисуется кодом.
+  const ROCKS = [];
+  function rockLayer(seed, n, hMin, hMax) {
+    let x = seed;
+    const rnd = () => ((x = (x * 9301 + 49297) % 233280) / 233280);
+    const pts = [];
+    for (let i = 0; i <= n; i++) pts.push([i / n, hMin + rnd() * (hMax - hMin), rnd()]);
+    return pts;
+  }
+  ROCKS.push(rockLayer(7, 22, 0.12, 0.3), rockLayer(31, 14, 0.05, 0.2));
+  function drawRocks(ctx, w, h, pts, color, spire) {
+    ctx.beginPath();
+    ctx.moveTo(0, h);
+    for (const [fx, fh, r] of pts) {
+      const x = fx * w;
+      const y = h - fh * h;
+      if (spire && r > 0.8) {
+        // Скальный шпиль.
+        ctx.lineTo(x - 14, y);
+        ctx.lineTo(x - 4, y - h * 0.18 * r);
+        ctx.lineTo(x + 6, y - h * 0.14 * r);
+        ctx.lineTo(x + 16, y);
+      } else ctx.lineTo(x, y);
+    }
+    ctx.lineTo(w, h);
+    ctx.closePath();
+    ctx.fillStyle = color;
+    ctx.fill();
+  }
+  function drawWreck(ctx, x, y, s, now) {
+    ctx.save();
+    ctx.translate(x, y);
+    ctx.scale(s, s);
+    ctx.rotate(-0.14);
+    ctx.fillStyle = '#020c10';
+    ctx.beginPath();
+    ctx.moveTo(-150, 0);
+    ctx.quadraticCurveTo(-130, 54, 0, 56);
+    ctx.quadraticCurveTo(110, 52, 160, -14);
+    ctx.lineTo(120, -6);
+    ctx.lineTo(90, -22);
+    ctx.lineTo(40, -8);
+    ctx.lineTo(-150, 0);
+    ctx.fill();
+    // Сломанные мачты и рваные паруса.
+    ctx.fillRect(-64, -150, 8, 150);
+    ctx.save();
+    ctx.translate(30, 0);
+    ctx.rotate(0.5);
+    ctx.fillRect(0, -110, 7, 110);
+    ctx.restore();
+    ctx.beginPath();
+    ctx.moveTo(-56, -140);
+    ctx.quadraticCurveTo(-10 + 4 * Math.sin(now / 1400), -120, 6, -128);
+    ctx.lineTo(-10, -100);
+    ctx.lineTo(4, -84);
+    ctx.lineTo(-56, -70);
+    ctx.fill();
+    // Призрачные огни в иллюминаторах.
+    for (let i = 0; i < 5; i++) {
+      const a = 0.25 + 0.25 * Math.sin(now / 900 + i * 1.7);
+      const gx = -110 + i * 46;
+      const gl = ctx.createRadialGradient(gx, 22, 0, gx, 22, 14);
+      gl.addColorStop(0, `rgba(110, 255, 170, ${a})`);
+      gl.addColorStop(1, 'rgba(110, 255, 170, 0)');
+      ctx.fillStyle = gl;
+      ctx.fillRect(gx - 14, 8, 28, 28);
+    }
+    ctx.restore();
+  }
+  function drawDeepTentacle(ctx, x0, h, len, side, now, ph) {
+    const pts = [];
+    for (let i = 0; i <= 5; i++) {
+      const f = i / 5;
+      const sway = Math.sin(now / 2600 + ph + f * 2.4) * 40 * f;
+      pts.push([x0 + side * (f * len * 0.35 + sway) - side * f * f * 60, h + 20 - f * len]);
+    }
+    window.SlotRig.tentacle(ctx, pts, 46, 6, { colors: ['#05090c', '#0a1418', '#12242a'], sucker: 'rgba(40, 70, 76, .5)', ink: '#010406', suckerSide: side, line: 2 });
+  }
+  function drawAbyss(ctx, w, h, now, fsm, hw) {
+    drawRocks(ctx, w, h, ROCKS[0], fsm ? 'rgba(20, 4, 10, .8)' : hw ? 'rgba(12, 8, 26, .8)' : 'rgba(4, 22, 28, .85)', true);
+    drawWreck(ctx, w * 0.8, h * 0.84, Math.min(1.2, w / 900), now);
+    drawDeepTentacle(ctx, w * 0.04, h, h * 0.75, 1, now, 0);
+    drawDeepTentacle(ctx, w * 0.96, h, h * 0.65, -1, now, 2.1);
+    drawRocks(ctx, w, h, ROCKS[1], '#010507', false);
+    // Водоросли по краям.
+    for (const [x0, n, dir] of [[14, 5, 1], [w - 14, 5, -1]]) {
+      for (let i = 0; i < n; i++) {
+        const x = x0 + dir * i * 15;
+        const hh = h * (0.16 + (i % 3) * 0.06);
+        ctx.beginPath();
+        ctx.moveTo(x, h);
+        for (let k = 1; k <= 8; k++) {
+          const f = k / 8;
+          ctx.lineTo(x + Math.sin(now / 1100 + i + f * 3) * 14 * f, h - hh * f);
+        }
+        ctx.strokeStyle = fsm ? 'rgba(60, 12, 30, .8)' : 'rgba(10, 46, 34, .85)';
+        ctx.lineWidth = 7 - i * 0.6;
+        ctx.lineCap = 'round';
+        ctx.stroke();
+      }
+    }
+  }
   const BG = { bubbles: [], fish: [], eyeAt: 0, size: [0, 0], motes: [] };
   function drawBackground(now, dt) {
     const box = bgCv.getBoundingClientRect();
@@ -961,19 +1056,21 @@
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
     const fsm = G.mode === 'fs';
     const hw = G.mode === 'hw';
+    // Толща воды: сверху мутный свет, вниз — чернота. Фриспины — кровь в воде, сундук — фиолетовая тьма.
     const g = ctx.createLinearGradient(0, 0, 0, h);
-    g.addColorStop(0, fsm ? '#3a0d2e' : hw ? '#1d1240' : '#0f5f86');
-    g.addColorStop(0.45, fsm ? '#1a0516' : hw ? '#0c0820' : '#083354');
-    g.addColorStop(1, '#020b16');
+    g.addColorStop(0, fsm ? '#2a0814' : hw ? '#160c30' : '#0a2a30');
+    g.addColorStop(0.5, fsm ? '#12030a' : hw ? '#090518' : '#041418');
+    g.addColorStop(1, '#010507');
     ctx.fillStyle = g;
     ctx.fillRect(0, 0, w, h);
+    drawAbyss(ctx, w, h, now, fsm, hw);
     // Лучи света сверху.
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
     for (let i = 0; i < 6; i++) {
       const x = w * (0.1 + i * 0.17) + Math.sin(now / 4000 + i) * 40;
       const rg = ctx.createLinearGradient(x, 0, x + 80, h * 0.8);
-      const a = fsm ? 0.03 : 0.07;
+      const a = fsm ? 0.02 : 0.045;
       rg.addColorStop(0, `rgba(170, 230, 255, ${a + 0.03 * Math.sin(now / 1300 + i * 2)})`);
       rg.addColorStop(1, 'rgba(170, 230, 255, 0)');
       ctx.fillStyle = rg;
@@ -985,26 +1082,6 @@
       ctx.closePath();
       ctx.fill();
     }
-    ctx.restore();
-    // Силуэт затонувшего корабля.
-    ctx.save();
-    ctx.globalAlpha = 0.18;
-    ctx.fillStyle = '#01070f';
-    ctx.translate(w * 0.78, h * 0.86);
-    ctx.rotate(-0.12);
-    ctx.beginPath();
-    ctx.moveTo(-140, 0);
-    ctx.quadraticCurveTo(-120, 50, 0, 52);
-    ctx.quadraticCurveTo(110, 50, 150, -10);
-    ctx.lineTo(-140, 0);
-    ctx.fill();
-    ctx.fillRect(-60, -150, 8, 150);
-    ctx.fillRect(30, -120, 7, 120);
-    ctx.beginPath();
-    ctx.moveTo(-52, -140);
-    ctx.lineTo(10, -120);
-    ctx.lineTo(-52, -70);
-    ctx.fill();
     ctx.restore();
     // Глаз Кракена во тьме: иногда открывается.
     if (now > BG.eyeAt + 14000) BG.eyeAt = now;
@@ -1031,23 +1108,6 @@
       ctx.ellipse(ex, ey, 4, 15 * open, 0, 0, Math.PI * 2);
       ctx.fill();
       ctx.restore();
-    }
-    // Водоросли по краям.
-    for (const [x0, n, dir] of [[10, 5, 1], [w - 10, 5, -1]]) {
-      for (let i = 0; i < n; i++) {
-        const x = x0 + dir * i * 16;
-        const hh = h * (0.18 + (i % 3) * 0.06);
-        ctx.beginPath();
-        ctx.moveTo(x, h);
-        for (let k = 1; k <= 8; k++) {
-          const f = k / 8;
-          ctx.lineTo(x + Math.sin(now / 900 + i + f * 3) * 14 * f, h - hh * f);
-        }
-        ctx.strokeStyle = fsm ? 'rgba(90, 20, 50, .7)' : 'rgba(20, 110, 70, .7)';
-        ctx.lineWidth = 7 - i * 0.6;
-        ctx.lineCap = 'round';
-        ctx.stroke();
-      }
     }
     // Рыбки-силуэты.
     if (BG.fish.length < 4 && Math.random() < dt * 0.3) {
@@ -1520,10 +1580,11 @@
     if (e.target === el('kr-pay-modal') || e.target.closest('[data-close]')) el('kr-pay-modal').hidden = true;
   });
 
-  function symImg(s, tone) {
+  function symImg(s) {
     const img = document.createElement('img');
-    const svg = s === 'pearl' ? ART.PEARL_SVG[tone || 'gold'] : ART.SYMBOL_SVG[s];
-    img.src = `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
+    const still = s === 'pearl' ? G.pearlRig.gold && G.pearlRig.gold.still : G.img[s];
+    if (still) img.src = still.toDataURL();
+    img.className = 'painted';
     img.alt = NAMES[s];
     return img;
   }
