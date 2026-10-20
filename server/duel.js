@@ -4,6 +4,7 @@
 const { randomInt, randomFloat } = require('./rng');
 const { crashPointCents } = require('./crash');
 const { MULTIPLIERS: PLINKO, durationMs: plinkoMs } = require('./plinko');
+const { WHEEL, SEGMENTS } = require('./wheel');
 
 const INVITE_MS = 60_000;
 const MAX_STAKE = 1_000_000_000;
@@ -13,6 +14,7 @@ const HISTORY_SIZE = 15;
 const GAMES = {
   crash: 'Краш',
   roulette: 'Рулетка',
+  wheel: 'Колесо',
   upgrade: 'Апгрейд',
   verity: 'Верити',
   plinko: 'Плинко',
@@ -24,6 +26,7 @@ const PLINKO_RISK = 'high';
 const CRASH_GROWTH = 0.18;          // множитель в дуэли растёт быстрее, чем в общем краше
 const CRASH_CAP_CENTS = 5000;       // ракеты в дуэли — до ×50
 const ROULETTE_SPIN_MS = 7000;
+const WHEEL_SPIN_MS = 7000;
 const UPGRADE_SPIN_MS = 4500;
 const UPGRADE_CHANCE = 30;
 const VERITY_ROUND_MS = 2400;
@@ -42,6 +45,7 @@ function winnerOf(game, data) {
   switch (game) {
     case 'crash': return data.crash[0] > data.crash[1] ? 0 : 1;
     case 'roulette': return data.numbers[0] > data.numbers[1] ? 0 : 1;
+    case 'wheel': return WHEEL[data.segments[0]] > WHEEL[data.segments[1]] ? 0 : 1;
     case 'upgrade': return upgradeScore(data.landings[0], data.start, data.chance) > upgradeScore(data.landings[1], data.start, data.chance) ? 0 : 1;
     case 'verity': return data.rounds.at(-1)[0] ? 0 : 1;
     case 'plinko': return data.multipliers[0] > data.multipliers[1] ? 0 : 1;
@@ -54,6 +58,7 @@ function swapped(game, data) {
   switch (game) {
     case 'crash': return { crash: [data.crash[1], data.crash[0]] };
     case 'roulette': return { numbers: [data.numbers[1], data.numbers[0]] };
+    case 'wheel': return { segments: [data.segments[1], data.segments[0]] };
     case 'upgrade': return { ...data, landings: [data.landings[1], data.landings[0]] };
     case 'verity': return { rounds: data.rounds.map(([a, b]) => [b, a]) };
     case 'plinko': return { ...data, paths: [data.paths[1], data.paths[0]], multipliers: [data.multipliers[1], data.multipliers[0]] };
@@ -66,6 +71,7 @@ function durationOf(game, data) {
   switch (game) {
     case 'crash': return Math.ceil((Math.log(Math.max(...data.crash) / 100) / CRASH_GROWTH) * 1000) + REVEAL_PAD_MS;
     case 'roulette': return ROULETTE_SPIN_MS + REVEAL_PAD_MS;
+    case 'wheel': return WHEEL_SPIN_MS + REVEAL_PAD_MS;
     case 'upgrade': return UPGRADE_SPIN_MS + REVEAL_PAD_MS;
     case 'verity': return data.rounds.length * VERITY_ROUND_MS + REVEAL_PAD_MS;
     case 'plinko': return plinkoMs(data.rows) + 400 + REVEAL_PAD_MS;
@@ -113,6 +119,16 @@ function createDuel({
           b = randInt(37);
         } while (a === b);
         return { numbers: [a, b] };
+      }
+      case 'wheel': {
+        // У каждого своё колесо; у кого сектор дороже — тот и выиграл. Одинаковые множители — крутим заново.
+        let a;
+        let b;
+        do {
+          a = randInt(SEGMENTS);
+          b = randInt(SEGMENTS);
+        } while (WHEEL[a] === WHEEL[b]);
+        return { segments: [a, b] };
       }
       case 'upgrade': {
         const start = random() * 100;

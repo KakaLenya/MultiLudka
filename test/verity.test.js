@@ -78,3 +78,42 @@ test('админ: следующее решение добрым или злым
   assert.equal(v.play(a, 100).result.good, false, 'монетка в тесте злая');
   assert.ok(v.rig('maybe').error);
 });
+
+test('серия: выигрыш ставится целиком — ×2, ×4, ×8, злой Верити обрывает', () => {
+  const coins = [true, true, true, false];
+  const { v, a, clock, flush, events } = setup(() => coins.shift());
+  assert.match(v.play(a, 0, { continueSeries: true }).error, /Серии нет/);
+  v.play(a, 100);
+  flush();
+  assert.deepEqual(v.seriesOf(a), { base: 100, streak: 1, next: 200 });
+  clock.t += SPIN_MS;
+  let r = v.play(a, 1, { continueSeries: true }).result;   // сумму берём из серии, а не от клиента
+  assert.equal(r.amount, 200);
+  assert.equal(r.streak, 2);
+  assert.equal(v.seriesOf(a), null, 'пока Верити думает, серию не продолжить');
+  flush();
+  assert.equal(a.balance, 1300);                              // 1000 − 100 + 200 − 200 + 400
+  clock.t += SPIN_MS;
+  v.play(a, 0, { continueSeries: true });
+  flush();
+  assert.deepEqual(v.seriesOf(a), { base: 100, streak: 3, next: 800 });
+  assert.equal(events.at(-1).note, 'серия ×8');
+  assert.equal(events.at(-1).meta.streak, 3);
+  clock.t += SPIN_MS;
+  r = v.play(a, 0, { continueSeries: true }).result;
+  assert.equal(r.amount, 800);
+  flush();
+  assert.equal(a.balance, 900, 'злой съел всю серию: минус первая ставка');
+  assert.equal(v.seriesOf(a), null);
+  assert.match(events.at(-1).note, /оборвал серию на ×8/);
+});
+
+test('обычная ставка сбрасывает серию', () => {
+  const { v, a, clock, flush } = setup(() => true);
+  v.play(a, 100);
+  flush();
+  clock.t += SPIN_MS;
+  v.play(a, 50);
+  flush();
+  assert.deepEqual(v.seriesOf(a), { base: 50, streak: 1, next: 100 });
+});

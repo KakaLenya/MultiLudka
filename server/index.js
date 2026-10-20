@@ -9,6 +9,7 @@ const { createCrashGame } = require('./crash');
 const { createHoldem } = require('./holdem');
 const { createAdminRouter } = require('./admin');
 const { createRoulette } = require('./roulette');
+const { createWheel } = require('./wheel');
 const { createBomb } = require('./bomb');
 const { createUpgrader } = require('./upgrader');
 const { createVerity } = require('./verity');
@@ -245,6 +246,14 @@ const roulette = createRoulette({
 });
 store.addReserver(roulette.reserved);
 
+const wheel = createWheel({
+  store,
+  lucky: luck.roll,
+  onEvent: onActivity,
+  onState: (s) => broadcast({ type: 'wheel_state', ...s }),
+});
+store.addReserver(wheel.reserved);
+
 const bomb = createBomb({
   store,
   lucky: luck.roll,
@@ -455,6 +464,7 @@ const handlers = {
     send(ws, leaderboardMsg());
     send(ws, { type: 'crash_state', ...crash.state() });
     send(ws, { type: 'roulette_state', ...roulette.state() });
+    send(ws, { type: 'wheel_state', ...wheel.state() });
     send(ws, { type: 'bomb_state', ...bomb.state() });
     send(ws, { type: 'upgrade_feed', feed: upgrader.feed() });
     send(ws, { type: 'verity_feed', feed: verity.feed() });
@@ -515,6 +525,14 @@ const handlers = {
 
   roulette_clear(ws) {
     reply(ws, roulette.clear(ws.player));
+  },
+
+  wheel_bet(ws, msg) {
+    reply(ws, wheel.bet(ws.player, msg.mult, msg.amount));
+  },
+
+  wheel_clear(ws) {
+    reply(ws, wheel.clear(ws.player));
   },
 
   bomb_join(ws) {
@@ -604,7 +622,7 @@ const handlers = {
   },
 
   verity_play(ws, msg) {
-    const result = verity.play(ws.player, msg.amount);
+    const result = verity.play(ws.player, msg.amount, { continueSeries: msg.series === true });
     if (result.error) return send(ws, { type: 'error', message: result.error });
     send(ws, { type: 'verity_result', ...result.result });
   },
@@ -713,6 +731,8 @@ function shutdown() {
     crash.refundActive();
     roulette.stop();
     roulette.refundActive();
+    wheel.stop();
+    wheel.refundActive();
     bomb.stop();
     bomb.refundAll();
     pool.stop();
@@ -741,6 +761,7 @@ app.use('/admin/api', createAdminRouter({
   crash,
   table,
   roulette,
+  wheel,
   bomb,
   upgrader,
   verity,
@@ -788,6 +809,7 @@ setInterval(() => {
 }, 30_000);
 table.start();
 roulette.start();
+wheel.start();
 bomb.start();
 pool.start();
 duel.start();

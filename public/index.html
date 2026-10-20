@@ -59,6 +59,7 @@
         <nav class="tabs">
           <button type="button" class="tab active" data-tab="crash">📈 Краш</button>
           <button type="button" class="tab" data-tab="roulette">🎡 Рулетка</button>
+          <button type="button" class="tab" data-tab="wheel">🎰 Колесо</button>
           <button type="button" class="tab" data-tab="upgrade">⬆️ Апгрейд</button>
           <button type="button" class="tab" data-tab="plinko">🔺 Плинко</button>
           <button type="button" class="tab" data-tab="mines">💎 Мины</button>
@@ -91,6 +92,37 @@
           <table class="bets">
             <thead><tr><th>Игрок</th><th>Ставки</th><th>Итог</th></tr></thead>
             <tbody id="r-bets"></tbody>
+          </table>
+        </section>
+
+        <section class="card fortune" id="wheel" hidden>
+          <div class="history" id="fw-history" aria-label="Последние вращения"></div>
+          <div class="fw-top">
+            <div class="fw-box">
+              <canvas id="fw-canvas"></canvas>
+              <div class="fw-hub" id="fw-hub">…</div>
+            </div>
+            <div class="fw-side">
+              <div class="r-phase" id="fw-phase">…</div>
+              <div class="r-result" id="fw-result"></div>
+              <label class="field">
+                <span>Ставка</span>
+                <input id="fw-amount" type="number" min="1" step="1" value="100" inputmode="numeric">
+              </label>
+              <div class="quick">
+                <button type="button" class="ghost" data-fq="half">½</button>
+                <button type="button" class="ghost" data-fq="double">×2</button>
+                <button type="button" class="ghost" data-fq="max">макс</button>
+              </div>
+              <div class="fw-cards" id="fw-bet-cards"></div>
+              <div class="r-mytotal" id="fw-mytotal"></div>
+              <button type="button" class="ghost" id="fw-clear">Снять мои ставки</button>
+            </div>
+          </div>
+          <p class="muted small-hint">Одно колесо на весь зал. Ставь на цвет — можно сразу на несколько: выпал твой цвет, ставка умножается. 💀 череп не платит никому.</p>
+          <table class="bets">
+            <thead><tr><th>Игрок</th><th>Ставки</th><th>Итог</th></tr></thead>
+            <tbody id="fw-players"></tbody>
           </table>
         </section>
 
@@ -235,6 +267,14 @@
             </div>
             <button type="button" class="action" id="vt-go">😊 Проверь меня, Верити</button>
             <div class="vt-odds">50 на 50: добрый удвоит ставку, злой — съест</div>
+            <div class="vt-series" id="vt-series" hidden>
+              <div class="vt-series-title">🔥 Серия! Поставь весь выигрыш ещё раз — злой Верити съест всё накопленное</div>
+              <div class="vt-ladder" id="vt-ladder"></div>
+              <div class="vt-series-buttons">
+                <button type="button" class="action vt-series-go" id="vt-series-go">🔥 Удвоить</button>
+                <button type="button" class="ghost" id="vt-series-take">Забрать</button>
+              </div>
+            </div>
             <div class="u-result" id="vt-result"></div>
           </div>
           <h2 class="u-feed-title">Кого проверил Верити</h2>
@@ -255,6 +295,7 @@
                 <div class="dv-games" id="dv-games">
                   <button type="button" data-dg="crash"><b>📈 Краш</b><small>чья ракета улетит выше</small></button>
                   <button type="button" data-dg="roulette"><b>🎡 Рулетка</b><small>у кого выпадет число больше</small></button>
+                  <button type="button" data-dg="wheel"><b>🎰 Колесо</b><small>чей сектор дороже</small></button>
                   <button type="button" data-dg="upgrade"><b>⬆️ Апгрейд</b><small>чья стрелка ближе к центру зелёной зоны</small></button>
                   <button type="button" data-dg="verity"><b>😊 Верити</b><small>кого Верити признает добрым</small></button>
                   <button type="button" data-dg="plinko"><b>🔺 Плинко</b><small>у чьего шарика множитель больше</small></button>
@@ -653,6 +694,7 @@
 
   <script src="pool-physics.js"></script>
   <script src="roulette-physics.js"></script>
+  <script src="fortune-physics.js"></script>
   <script src="lounge.js"></script>
   <script src="client.js"></script>
 </body>

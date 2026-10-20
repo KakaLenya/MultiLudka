@@ -307,6 +307,19 @@ function renderRoulette() {
     : [li('Ставок нет', 'muted')]));
 }
 
+const fwLabel = (m) => (m === 0 ? '💀' : `×${m}`);
+function renderWheelAdmin() {
+  const w = admin.data.wheel;
+  if (!w) return;
+  $('fw-phase').textContent = { betting: 'ставки', spinning: 'крутится', result: 'результат' }[w.phase] || w.phase;
+  $('fw-mult').textContent = w.mult === null ? '—' : fwLabel(w.mult);
+  $('fw-total').textContent = w.players.reduce((s, p) => s + p.total, 0);
+  $('fw-rigged').textContent = w.rigged === null ? 'Следующее вращение: честно' : `Следующее вращение подкручено на ${fwLabel(w.rigged)}`;
+  $('fw-bets').replaceChildren(...(w.players.length
+    ? w.players.map((p) => li(`${p.name}: ${Object.entries(p.stakes).map(([m, a]) => `×${m} ${a}`).join(', ')}${p.won !== null ? ` → ${p.won ? `+${p.won - p.total}` : `−${p.total}`}` : ''}`))
+    : [li('Ставок нет', 'muted')]));
+}
+
 function renderUpgraderAdmin() {
   const u = admin.data.upgrader;
   $('up-rigged').textContent = u.rigged === 'win' ? 'Следующий апгрейд (любого игрока): выиграет'
@@ -424,6 +437,7 @@ function render() {
   renderRequests();
   renderCrash();
   renderRoulette();
+  renderWheelAdmin();
   renderUpgraderAdmin();
   renderVerityAdmin();
   renderPlinkoAdmin();
@@ -647,6 +661,11 @@ $('rig-roulette').addEventListener('click', () => {
   const number = Number($('rig-number').value);
   run('/roulette/rig', { number }, (r) => `Выпадет ${number} ${r.round === 'current' ? 'в этом' : 'в следующем'} вращении`);
 });
+
+document.querySelectorAll('[data-fwrig]').forEach((b) => b.addEventListener('click', () => {
+  const mult = Number(b.dataset.fwrig);
+  run('/wheel/rig', { mult }, (r) => `Выпадет ${fwLabel(mult)} ${r.round === 'current' ? 'в этом' : 'в следующем'} вращении`);
+}));
 
 $('crash-now').addEventListener('click', () => {
   run('/crash/now', {}, (r) => `Крашнули на ${r.at.toFixed(2)}×`);

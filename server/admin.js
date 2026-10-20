@@ -25,7 +25,7 @@ function tokenMatches(given, expected) {
 }
 
 function createAdminRouter({
-  adminToken, store, crash, table, roulette, bomb, upgrader, verity, plinko = null, mines = null, achievements, luck, pool, duel = null, music, songRequests, chat, mutes, cleanText,
+  adminToken, store, crash, table, roulette, wheel = null, bomb, upgrader, verity, plinko = null, mines = null, achievements, luck, pool, duel = null, music, songRequests, chat, mutes, cleanText,
   onlineIds, sendToPlayer, broadcast, refreshLists, disconnectPlayer = () => {}, shutdown = () => {},
 }) {
   const router = express.Router();
@@ -69,7 +69,7 @@ function createAdminRouter({
         createdAt: p.createdAt,
       }))
       .sort((a, b) => b.online - a.online || b.capital - a.capital);
-    res.json({ players, crash: crash.adminState(), roulette: roulette.adminState(), bomb: bomb.adminState(), upgrader: upgrader.adminState(), verity: verity.adminState(), plinko: plinko ? plinko.adminState() : null, mines: mines ? mines.adminState() : null, season: achievements.adminState(), pool: pool.adminState(), duel: duel ? duel.adminState() : null, poker: table.adminView(), chat: chat.log(),
+    res.json({ players, crash: crash.adminState(), roulette: roulette.adminState(), wheel: wheel ? wheel.adminState() : null, bomb: bomb.adminState(), upgrader: upgrader.adminState(), verity: verity.adminState(), plinko: plinko ? plinko.adminState() : null, mines: mines ? mines.adminState() : null, season: achievements.adminState(), pool: pool.adminState(), duel: duel ? duel.adminState() : null, poker: table.adminView(), chat: chat.log(),
       music: { current: music.state(), playlist: music.playlist(), autoplay: music.autoplay() },
       requests: songRequests.list() });
   });
@@ -145,6 +145,8 @@ function createAdminRouter({
     achievements.forget(p.id);
     luck.forget(p.id);
     if (mines) mines.forget(p.id);
+    if (wheel) wheel.forget(p.id);
+    if (verity.forget) verity.forget(p.id);
     const result = store.remove(p);
     if (result.error) return fail(res, result.error);
     disconnectPlayer(p);
@@ -310,6 +312,13 @@ function createAdminRouter({
   // { fuse } — при каком банке рванёт (текущий раунд, если идёт, иначе следующий).
   router.post('/bomb/rig', (req, res) => {
     const result = bomb.rig(req.body.fuse);
+    if (result.error) return fail(res, result.error);
+    ok(res, result);
+  });
+
+  // { mult: 0 | 2 | 3 | 10 | 60 } — сектор следующего вращения колеса фортуны (0 — череп).
+  router.post('/wheel/rig', (req, res) => {
+    const result = wheel.rig(req.body.mult);
     if (result.error) return fail(res, result.error);
     ok(res, result);
   });

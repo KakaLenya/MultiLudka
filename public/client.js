@@ -137,7 +137,7 @@ function listItem(name, isSelf) {
 
 // Спрашиваем, только если игрок сам ввёл сумму в поле (не кнопками ½, ×2, «макс», не фишками)
 // и она больше половины баланса. В каждой игре — один раз до перезагрузки страницы.
-const BET_INPUTS = ['bet-amount', 'u-amount', 'vt-amount', 'b-amount', 'pl-stake', 'buyin', 'raise-amount', 'dv-stake', 'pk-amount', 'mn-amount'];
+const BET_INPUTS = ['bet-amount', 'u-amount', 'vt-amount', 'b-amount', 'pl-stake', 'buyin', 'raise-amount', 'dv-stake', 'pk-amount', 'mn-amount', 'fw-amount'];
 const confirmedGames = new Set();
 let betConfirm = null;   // { resolve } — окно открыто
 
@@ -446,13 +446,13 @@ const TAB_KEY = 'casino.tab';
 
 function showTab(name) {
   document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t.dataset.tab === name));
-  for (const id of ['crash', 'roulette', 'upgrade', 'plinko', 'mines', 'verity', 'duel', 'bomb', 'pool', 'poker']) $(id).hidden = name !== id;
+  for (const id of ['crash', 'roulette', 'wheel', 'upgrade', 'plinko', 'mines', 'verity', 'duel', 'bomb', 'pool', 'poker']) $(id).hidden = name !== id;
   // канвас апгрейдера создаётся ниже по файлу: рисуем на следующем кадре
   if (name === 'upgrade') requestAnimationFrame(() => drawUpgrader());
   storage.set(TAB_KEY, name);
 }
 document.querySelectorAll('.tab').forEach((t) => t.addEventListener('click', () => showTab(t.dataset.tab)));
-showTab(['roulette', 'upgrade', 'plinko', 'mines', 'verity', 'duel', 'bomb', 'pool', 'poker'].includes(storage.get(TAB_KEY)) ? storage.get(TAB_KEY) : 'crash');
+showTab(['roulette', 'wheel', 'upgrade', 'plinko', 'mines', 'verity', 'duel', 'bomb', 'pool', 'poker'].includes(storage.get(TAB_KEY)) ? storage.get(TAB_KEY) : 'crash');
 
 // ---------- Звуки (WebAudio, без файлов) ----------
 
@@ -1279,6 +1279,386 @@ function rouletteFrame(now) {
   requestAnimationFrame(rouletteFrame);
 }
 requestAnimationFrame(rouletteFrame);
+
+// ---------- Колесо фортуны (общее на весь зал) ----------
+
+const FP = window.FortunePhysics;
+const FW_MULTS = [2, 3, 10, 60];
+const FW_COUNT = Object.fromEntries([0, ...FW_MULTS].map((m) => [m, FP.WHEEL.filter((x) => x === m).length]));
+const FW_COLORS = {
+  2: ['#0a5cff', '#3fb4ff'],
+  3: ['#00b347', '#5dff95'],
+  10: ['#c2129f', '#ff5ce0'],
+  60: ['#ff8a00', '#ffe14d'],
+  0: ['#2a0008', '#a3102a'],
+};
+const fwLabel = (m) => (m === 0 ? '💀' : `×${m}`);
+const FW_FLAP_MAX = 0.55;    // на сколько радиан отгибается язычок
+
+const fw = {
+  view: null,
+  recvAt: 0,
+  rotation: -2.5 * FP.STEP,   // пока не знаем, где колесо стояло, — на секторе ×2
+  dir: 1,
+  flap: 0,
+  flapV: 0,
+  spin: null,                 // { roundId, sim }
+  lastTickAt: 0,
+  lastFrameAt: 0,
+  lastResultRound: 0,
+  cards: {},
+};
+
+// Колесо (вращающаяся часть) рисуется один раз с запасом по разрешению.
+const FW_LAYER = 720;
+const fwDisk = (() => {
+  const cv = document.createElement('canvas');
+  cv.width = FW_LAYER;
+  cv.height = FW_LAYER;
+  const ctx = cv.getContext('2d');
+  const c = FW_LAYER / 2;
+  const R = c - 2;
+  const inner = R * 0.3;
+  ctx.translate(c, c);
+  FP.WHEEL.forEach((m, i) => {
+    const a0 = -Math.PI / 2 + i * FP.STEP;
+    const a1 = a0 + FP.STEP;
+    const g = ctx.createRadialGradient(0, 0, inner, 0, 0, R);
+    g.addColorStop(0, FW_COLORS[m][0]);
+    g.addColorStop(0.55, FW_COLORS[m][1]);
+    g.addColorStop(0.92, FW_COLORS[m][1]);
+    g.addColorStop(1, FW_COLORS[m][0]);
+    ctx.beginPath();
+    ctx.arc(0, 0, R, a0, a1);
+    ctx.arc(0, 0, inner, a1, a0, true);
+    ctx.closePath();
+    ctx.fillStyle = g;
+    ctx.fill();
+    // Перегородка между секторами.
+    ctx.beginPath();
+    ctx.moveTo(Math.cos(a0) * inner, Math.sin(a0) * inner);
+    ctx.lineTo(Math.cos(a0) * R, Math.sin(a0) * R);
+    ctx.strokeStyle = 'rgba(255, 233, 170, .55)';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+    // Подпись по радиусу.
+    ctx.save();
+    ctx.rotate(a0 + FP.STEP / 2);
+    ctx.translate(R * 0.8, 0);
+    ctx.rotate(Math.PI / 2);
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    if (m === 0) {
+      ctx.font = '26px "Segoe UI Emoji", "Apple Color Emoji", sans-serif';
+      ctx.fillText('💀', 0, 0);
+    } else {
+      ctx.font = `800 ${m === 60 ? 26 : 24}px Unbounded, Manrope, system-ui, sans-serif`;
+      ctx.rotate(-Math.PI / 2);   // цифры читаются вдоль радиуса, от центра наружу
+      ctx.lineWidth = 5;
+      ctx.lineJoin = 'round';
+      ctx.strokeStyle = m === 60 ? 'rgba(255, 250, 220, .7)' : 'rgba(0, 0, 0, .45)';
+      ctx.strokeText(String(m), 0, 0);
+      ctx.fillStyle = m === 60 ? '#4a2400' : '#fff';
+      ctx.fillText(String(m), 0, 0);
+    }
+    ctx.restore();
+    // Штырёк на ободе.
+    const pr = R * 0.955;
+    ctx.beginPath();
+    ctx.arc(Math.cos(a0) * pr, Math.sin(a0) * pr, 5.5, 0, 2 * Math.PI);
+    const pg = ctx.createRadialGradient(Math.cos(a0) * pr - 1.5, Math.sin(a0) * pr - 1.5, 0.5, Math.cos(a0) * pr, Math.sin(a0) * pr, 5.5);
+    pg.addColorStop(0, '#fff6d6');
+    pg.addColorStop(1, '#b8862a');
+    ctx.fillStyle = pg;
+    ctx.fill();
+  });
+  // Блик: колесо как будто покрыто лаком.
+  const gloss = ctx.createRadialGradient(-R * 0.35, -R * 0.45, 0, -R * 0.2, -R * 0.25, R * 1.1);
+  gloss.addColorStop(0, 'rgba(255, 255, 255, .28)');
+  gloss.addColorStop(0.5, 'rgba(255, 255, 255, .06)');
+  gloss.addColorStop(1, 'rgba(255, 255, 255, 0)');
+  ctx.beginPath();
+  ctx.arc(0, 0, R, 0, 2 * Math.PI);
+  ctx.fillStyle = gloss;
+  ctx.fill();
+  // Золотые кольца и центральная ступица.
+  for (const [r, w] of [[R, 4], [inner, 4]]) {
+    ctx.beginPath();
+    ctx.arc(0, 0, r, 0, 2 * Math.PI);
+    ctx.strokeStyle = '#e8bb55';
+    ctx.lineWidth = w;
+    ctx.stroke();
+  }
+  const hub = ctx.createRadialGradient(-inner * 0.3, -inner * 0.35, 4, 0, 0, inner);
+  hub.addColorStop(0, '#2b4a38');
+  hub.addColorStop(1, '#0a1c12');
+  ctx.beginPath();
+  ctx.arc(0, 0, inner - 2, 0, 2 * Math.PI);
+  ctx.fillStyle = hub;
+  ctx.fill();
+  return cv;
+})();
+
+// Колесо целиком: обод с лампочками, диск, язычок, подсветка выпавшего сектора.
+// opts: { lights: 'idle' | 'spin' | 'win', highlight: true, time }
+function fwDraw(canvas, size, rotation, flap, opts = {}) {
+  const dpr = window.devicePixelRatio || 1;
+  const px = Math.round(size * dpr);
+  if (canvas.width !== px) {
+    canvas.width = px;
+    canvas.height = px;
+  }
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, size, size);
+  const cx = size / 2;
+  const cy = size / 2 + size * 0.025;
+  const R = size * 0.415;
+  const rim = size * 0.055;
+  const t = opts.time || 0;
+
+  // Обод.
+  const wood = ctx.createRadialGradient(cx, cy, R, cx, cy, R + rim);
+  wood.addColorStop(0, '#2a1608');
+  wood.addColorStop(0.5, '#6b3b18');
+  wood.addColorStop(1, '#2a1608');
+  ctx.beginPath();
+  ctx.arc(cx, cy, R + rim, 0, 2 * Math.PI);
+  ctx.fillStyle = wood;
+  ctx.fill();
+  // Лампочки: бегут, пока крутится, мигают при выигрыше, тихо дышат в ожидании.
+  const BULBS = 30;
+  for (let i = 0; i < BULBS; i++) {
+    const a = (i / BULBS) * 2 * Math.PI;
+    let on;
+    if (opts.lights === 'spin') on = (i + Math.floor(t * 14)) % 3 === 0 ? 1 : 0.18;
+    else if (opts.lights === 'win') on = Math.floor(t * 6) % 2 === i % 2 ? 1 : 0.2;
+    else on = 0.45 + 0.35 * Math.sin(t * 2 + i * 0.7);
+    const bx = cx + Math.cos(a) * (R + rim / 2);
+    const by = cy + Math.sin(a) * (R + rim / 2);
+    const br = Math.max(2, rim * 0.2);
+    ctx.beginPath();
+    ctx.arc(bx, by, br, 0, 2 * Math.PI);
+    ctx.fillStyle = `rgba(255, 226, 140, ${on})`;
+    ctx.shadowColor = 'rgba(255, 210, 90, .9)';
+    ctx.shadowBlur = on > 0.6 ? br * 3 : 0;
+    ctx.fill();
+  }
+  ctx.shadowBlur = 0;
+
+  // Диск.
+  ctx.save();
+  ctx.translate(cx, cy);
+  ctx.rotate(rotation);
+  ctx.drawImage(fwDisk, -R, -R, 2 * R, 2 * R);
+  ctx.restore();
+
+  // Выпавший сектор под язычком светится.
+  if (opts.highlight) {
+    const seg = FP.segmentAt(rotation);
+    const a0 = -Math.PI / 2 + rotation + seg * FP.STEP;
+    ctx.save();
+    ctx.beginPath();
+    ctx.moveTo(cx, cy);
+    ctx.arc(cx, cy, R, a0, a0 + FP.STEP);
+    ctx.closePath();
+    ctx.globalAlpha = 0.35 + 0.25 * Math.sin(t * 8);
+    ctx.fillStyle = '#fff';
+    ctx.fill();
+    ctx.restore();
+  }
+
+  // Язычок: качается на оси над колесом, кончик между штырьками.
+  const pivotY = cy - R - rim * 0.55;
+  const len = rim * 0.55 + R * 0.12;
+  ctx.save();
+  ctx.translate(cx, pivotY);
+  ctx.rotate(-flap * FW_FLAP_MAX);
+  ctx.beginPath();
+  ctx.moveTo(-size * 0.03, 0);
+  ctx.lineTo(size * 0.03, 0);
+  ctx.lineTo(0, len);
+  ctx.closePath();
+  const pg = ctx.createLinearGradient(-size * 0.03, 0, size * 0.03, 0);
+  pg.addColorStop(0, '#9c1d17');
+  pg.addColorStop(0.5, '#ff5a4f');
+  pg.addColorStop(1, '#9c1d17');
+  ctx.fillStyle = pg;
+  ctx.shadowColor = 'rgba(0, 0, 0, .5)';
+  ctx.shadowBlur = 6;
+  ctx.shadowOffsetY = 2;
+  ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.shadowOffsetY = 0;
+  ctx.strokeStyle = '#ffd27a';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
+  ctx.beginPath();
+  ctx.arc(0, 0, size * 0.022, 0, 2 * Math.PI);
+  ctx.fillStyle = '#e8bb55';
+  ctx.fill();
+  ctx.restore();
+}
+
+// Язычок — пружинка: тянется к тому, куда его отгибает штырёк, и дрожит, когда отпустило.
+function fwFlapStep(state, rotation, dt) {
+  const moved = rotation - state.prevRot;
+  if (Math.abs(moved) > 1e-6) state.dir = Math.sign(moved);
+  state.prevRot = rotation;
+  const target = FP.flapTarget(rotation, state.dir);
+  const acc = (target - state.flap) * 900 - state.flapV * 22;
+  state.flapV += acc * dt;
+  state.flap += state.flapV * dt;
+  state.flap = Math.max(-1.2, Math.min(1.2, state.flap));
+}
+
+// Ставки: четыре цвета.
+$('fw-bet-cards').replaceChildren(...FW_MULTS.map((m) => {
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = `fw-card m${m}`;
+  const mult = Object.assign(document.createElement('b'), { className: 'fw-card-mult', textContent: `×${m}` });
+  const chance = Object.assign(document.createElement('small'), { textContent: `${FW_COUNT[m]} из ${FP.N} секторов` });
+  const pot = Object.assign(document.createElement('span'), { className: 'fw-card-pot' });
+  const mine = Object.assign(document.createElement('span'), { className: 'fw-card-mine' });
+  b.append(mult, chance, pot, mine);
+  b.addEventListener('click', () => fwBet(m));
+  fw.cards[m] = { b, pot, mine };
+  return b;
+}));
+
+function fwAmount() {
+  return Math.max(0, Math.floor(Number($('fw-amount').value) || 0));
+}
+document.querySelectorAll('[data-fq]').forEach((b) => b.addEventListener('click', () => {
+  const v = Math.max(1, fwAmount() || 1);
+  const next = { half: Math.floor(v / 2), double: v * 2, max: state.balance }[b.dataset.fq];
+  $('fw-amount').value = Math.max(1, Math.min(next, Math.max(1, state.balance)));
+}));
+
+async function fwBet(mult) {
+  const amount = fwAmount();
+  if (amount < 1) return toast('Ставка — от 1 фишки', true);
+  if (!await confirmBet({ key: 'wheel', game: '🎰 Колесо фортуны', amount, input: $('fw-amount'), note: `Ставка на ×${mult}` })) return;
+  send({ type: 'wheel_bet', mult, amount });
+}
+$('fw-clear').addEventListener('click', () => send({ type: 'wheel_clear' }));
+
+const fwTimeLeft = () => (fw.view ? Math.max(0, fw.view.timeLeft - (performance.now() - fw.recvAt)) : 0);
+const fwMine = () => (fw.view && state.me ? fw.view.players.find((p) => p.id === state.me.playerId) || null : null);
+const fwShort = (n) => (n >= 1e6 ? `${Math.round(n / 1e5) / 10}М` : n >= 1e4 ? `${Math.round(n / 100) / 10}k` : String(n));
+
+function renderWheel() {
+  const v = fw.view;
+  if (!v) return;
+  const mine = fwMine();
+  const betting = v.phase === 'betting';
+
+  $('fw-history').replaceChildren(...v.history.map((m) => Object.assign(document.createElement('span'), { className: `fwh m${m}`, textContent: fwLabel(m) })));
+
+  for (const m of FW_MULTS) {
+    const c = fw.cards[m];
+    c.b.disabled = !betting;
+    const bettors = v.players.filter((p) => p.stakes[m]).length;
+    c.pot.textContent = v.pots[m] ? `в банке ${fwShort(v.pots[m])} · ${bettors} ${bettors === 1 ? 'игрок' : bettors < 5 ? 'игрока' : 'игроков'}` : 'пока никто';
+    const my = mine && mine.stakes[m];
+    c.mine.textContent = my ? `твоя ${fwShort(my)}` : '';
+    c.b.classList.toggle('has-mine', !!my);
+    c.b.classList.toggle('win', v.phase === 'result' && v.mult === m);
+    c.b.classList.toggle('dim', v.phase === 'result' && v.mult !== m);
+  }
+  $('fw-mytotal').textContent = mine ? `Твои ставки: ${mine.total.toLocaleString('ru-RU')}` : '';
+  $('fw-clear').disabled = !(betting && mine);
+
+  const res = $('fw-result');
+  if (v.phase === 'result' && mine) {
+    res.textContent = mine.won > 0 ? `Выигрыш ${mine.won.toLocaleString('ru-RU')} (+${(mine.won - mine.total).toLocaleString('ru-RU')})` : `Мимо: −${mine.total.toLocaleString('ru-RU')}`;
+    res.className = `r-result ${mine.won > 0 ? 'win' : 'lose'}`;
+  } else {
+    res.textContent = '';
+    res.className = 'r-result';
+  }
+  if (v.phase === 'result' && fw.lastResultRound !== v.roundId) {
+    fw.lastResultRound = v.roundId;
+    if (mine && mine.won > 0) {
+      sounds.win();
+      if (v.mult === 60) effects.money();
+      else if (v.mult >= 10) effects.confetti();
+    } else if (mine) sounds.lose();
+  }
+
+  $('fw-players').replaceChildren(...v.players.map((p) => {
+    const tr = document.createElement('tr');
+    if (state.me && p.id === state.me.playerId) tr.className = 'self';
+    const name = Object.assign(document.createElement('td'), { textContent: p.name });
+    const stakes = document.createElement('td');
+    for (const m of FW_MULTS) {
+      if (!p.stakes[m]) continue;
+      stakes.append(Object.assign(document.createElement('span'), { className: `fw-stake m${m}`, textContent: `×${m} ${fwShort(p.stakes[m])}` }));
+    }
+    const won = document.createElement('td');
+    if (p.won !== null) {
+      won.textContent = p.won > 0 ? `+${(p.won - p.total).toLocaleString('ru-RU')}` : `−${p.total.toLocaleString('ru-RU')}`;
+      won.className = p.won > 0 ? 'won' : 'lost';
+    } else {
+      won.textContent = '…';
+    }
+    tr.append(name, stakes, won);
+    return tr;
+  }));
+}
+
+const fwFlap = { flap: 0, flapV: 0, dir: 1, prevRot: fw.rotation };
+
+function wheelFrame(now) {
+  const dt = Math.min(0.05, (now - (fw.lastFrameAt || now)) / 1000);
+  fw.lastFrameAt = now;
+  const v = fw.view;
+  if (v && !$('wheel').hidden) {
+    let rot = fw.rotation;
+    if (v.phase !== 'betting') {
+      if (!fw.spin || fw.spin.roundId !== v.roundId) {
+        // Новое вращение: случайная физика с зерном из номера раунда, у всех одинаковая.
+        fw.spin = { roundId: v.roundId, sim: FP.spin({ seed: v.roundId * 31 + 7, rotation: fw.rotation, segment: v.result, spinMs: v.spinMs }) };
+      }
+      const { sim } = fw.spin;
+      const elapsed = v.phase === 'spinning' ? (v.spinMs - fwTimeLeft()) / 1000 : Infinity;
+      rot = sim.frames[Math.min(sim.frames.length - 1, Math.floor((elapsed * sim.scale) / sim.frameDt))];
+    }
+    // Щелчок, когда штырёк проскакивает язычок.
+    if (FP.segmentAt(rot) !== FP.segmentAt(fw.rotation) && now - fw.lastTickAt > 28) {
+      fw.lastTickAt = now;
+      if (soundOn) beep([[1700 + Math.random() * 500, 0.012]], 'square');
+    }
+    fw.rotation = rot;
+    fwFlapStep(fwFlap, rot, dt);
+    const stopped = v.phase === 'result' || (v.phase === 'spinning' && fwTimeLeft() < v.spinMs * (1 - FP.SETTLE_SHARE));
+    const mine = fwMine();
+    fwDraw($('fw-canvas'), $('fw-canvas').clientWidth || 360, rot, fwFlap.flap, {
+      time: now / 1000,
+      lights: v.phase === 'spinning' && !stopped ? 'spin' : v.phase === 'result' && mine && mine.won > 0 ? 'win' : 'idle',
+      highlight: stopped,
+    });
+
+    const hub = $('fw-hub');
+    const secs = Math.ceil(fwTimeLeft() / 1000);
+    if (v.phase === 'betting') {
+      hub.textContent = secs;
+      hub.className = 'fw-hub';
+      $('fw-phase').textContent = `Делайте ставки: ${secs} с`;
+    } else if (!stopped) {
+      hub.textContent = '';
+      hub.className = 'fw-hub';
+      $('fw-phase').textContent = 'Ставок больше нет, колесо крутится';
+    } else {
+      hub.textContent = fwLabel(v.mult);
+      hub.className = `fw-hub show m${v.mult}`;
+      $('fw-phase').textContent = v.phase === 'result' ? `Выпало ${fwLabel(v.mult)}. Новый раунд через ${secs} с` : `Выпало ${fwLabel(v.mult)}!`;
+    }
+  }
+  requestAnimationFrame(wheelFrame);
+}
+requestAnimationFrame(wheelFrame);
 
 // ---------- Музыка (включает админ, файлы из папки music на сервере) ----------
 
@@ -2254,7 +2634,7 @@ const VT_LINES = {
   ],
 };
 
-const vt = { awaiting: false, holding: false, busy: false, pendingBalance: null, idleTimer: null, amount: 0 };
+const vt = { awaiting: false, holding: false, busy: false, pendingBalance: null, idleTimer: null, amount: 0, series: null, sentSeries: null };
 const vtPick = (list) => list[Math.floor(Math.random() * list.length)];
 const vtSleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
@@ -2492,7 +2872,7 @@ async function vtGoodEnding(r) {
   $('vt-pile').animate([{ transform: 'scale(1)' }, { transform: 'scale(1.18)' }, { transform: 'scale(1)' }], { duration: 350 });
   sounds.win();
   if (r.amount >= 1000) effects.confetti();
-  vtShowResult(true, r.amount);
+  vtShowResult(true, r.amount, r);
   await vtSleep(500);
   coins.forEach((c) => c.remove());
   // Выигрыш уезжает к игроку.
@@ -2543,12 +2923,12 @@ async function vtEvilEnding(r) {
   vtHero.classList.remove('chomp', 'eat');
   vtHero.classList.add('burp');
   sounds.lose();
-  vtShowResult(false, r.amount);
+  vtShowResult(false, r.amount, r);
   await vtSleep(700);
   vtHero.classList.remove('burp');
 }
 
-function vtShowResult(good, amount) {
+function vtShowResult(good, amount, r = {}) {
   vt.holding = false;
   const msg = vt.pendingBalance;
   vt.pendingBalance = null;
@@ -2556,8 +2936,33 @@ function vtShowResult(good, amount) {
   const pre = msg && msg.balance === vt.base - amount;
   if (msg) handlers.balance(good && pre ? { ...msg, balance: msg.balance + 2 * amount } : msg);
   const res = $('vt-result');
-  res.textContent = good ? `Добрый Верити: +${amount}` : `Злой Верити съел ${amount}`;
+  const streak = r.streak || 1;
+  if (good && streak > 1) res.textContent = `🔥 Серия ×${2 ** streak}: ${r.base.toLocaleString('ru-RU')} → ${(2 * amount).toLocaleString('ru-RU')}`;
+  else if (!good && streak > 1) res.textContent = `Злой Верити оборвал серию ×${2 ** (streak - 1)} и съел ${amount.toLocaleString('ru-RU')}`;
+  else res.textContent = good ? `Добрый Верити: +${amount}` : `Злой Верити съел ${amount}`;
   res.className = `u-result ${good ? 'win' : 'lose'}`;
+  // Серия: после победы можно поставить весь выигрыш ещё раз.
+  vt.series = good ? { base: r.base || amount, streak, next: 2 * amount } : null;
+  renderVtSeries();
+}
+
+const vtFmt = (n) => n.toLocaleString('ru-RU');
+function renderVtSeries() {
+  const s = vt.series;
+  $('vt-series').hidden = !s || vt.busy || vt.awaiting;
+  if (!s) return;
+  const steps = Math.max(6, s.streak + 2);
+  $('vt-ladder').replaceChildren(...Array.from({ length: steps }, (_, i) => {
+    const k = i + 1;
+    const el = document.createElement('span');
+    el.textContent = `×${2 ** k}`;
+    el.className = k < s.streak ? 'done' : k === s.streak ? 'now' : k === s.streak + 1 ? 'next' : '';
+    return el;
+  }));
+  const go = $('vt-series-go');
+  go.textContent = `🔥 Поставить ${vtFmt(s.next)} → ${vtFmt(2 * s.next)} (×${2 ** (s.streak + 1)})`;
+  go.disabled = s.next > state.balance;
+  $('vt-series-take').textContent = `Забрать ${vtFmt(s.next)}`;
 }
 
 function verityHoldsBalance(msg) {
@@ -2570,6 +2975,8 @@ async function startVerity(r) {
   vt.awaiting = false;
   vt.holding = true;
   vt.busy = true;
+  vt.sentSeries = null;
+  renderVtSeries();
   clearTimeout(vt.idleTimer);
   $('vt-result').textContent = '';
   $('vt-result').className = 'u-result';
@@ -2578,16 +2985,18 @@ async function startVerity(r) {
   vtSetPile(r.amount, { drop: true });
   vtSay(vtPick(VT_LINES.think), 'think');
   // Вкладка в фоне не рисует кадры — баланс всё равно не должен зависнуть.
-  const guard = setTimeout(() => { if (vt.holding) vtShowResult(r.good, r.amount); }, r.spinMs + 4000);
+  const guard = setTimeout(() => { if (vt.holding) vtShowResult(r.good, r.amount, r); }, r.spinMs + 4000);
   try {
     await vtToss(r.good, Math.max(1600, r.spinMs - 2700));
     if (r.good) await vtGoodEnding(r);
     else await vtEvilEnding(r);
   } finally {
     clearTimeout(guard);
-    if (vt.holding) vtShowResult(r.good, r.amount);
+    if (vt.holding) vtShowResult(r.good, r.amount, r);
     vt.busy = false;
     $('vt-go').disabled = false;
+    renderVtSeries();
+    if (r.good && r.streak > 1) vtSay(`Серия ×${2 ** r.streak}! Рискнёшь ещё раз? 😏`, 'good');
     vt.idleTimer = setTimeout(vtIdle, 7000);
   }
 }
@@ -2596,6 +3005,10 @@ function vtCancelPending() {
   if (!vt.awaiting) return;
   vt.awaiting = false;
   $('vt-go').disabled = false;
+  // Сервер не принял продолжение серии — серия остаётся, можно попробовать ещё.
+  if (vt.sentSeries) vt.series = vt.sentSeries;
+  vt.sentSeries = null;
+  renderVtSeries();
   vtSetPile(0);
   const msg = vt.pendingBalance;
   vt.pendingBalance = null;
@@ -2624,7 +3037,8 @@ function renderVerityFeed(feed) {
     what.textContent = e.good ? `+${e.amount}` : `−${e.amount}`;
     const who = document.createElement('span');
     who.className = 'u-ch';
-    who.textContent = e.good ? '😊 добрый' : '😈 злой';
+    const streak = e.streak || 1;
+    who.textContent = e.good ? (streak > 1 ? `🔥 серия ×${2 ** streak}` : '😊 добрый') : (streak > 1 ? `😈 оборвал ×${2 ** (streak - 1)}` : '😈 злой');
     li.append(name, what, who);
     return li;
   }) : [Object.assign(document.createElement('li'), { className: 'muted', textContent: 'Верити пока никого не проверял' })]));
@@ -2644,8 +3058,30 @@ $('vt-go').addEventListener('click', async () => {
   if (vt.busy || vt.awaiting) return;
   vt.awaiting = true;
   vt.base = state.balance;
+  vt.series = null;
+  renderVtSeries();
   $('vt-go').disabled = true;
   send({ type: 'verity_play', amount });
+});
+
+$('vt-series-go').addEventListener('click', () => {
+  const s = vt.series;
+  if (!s || vt.busy || vt.awaiting) return;
+  if (s.next > state.balance) return toast('Не хватает фишек');
+  vt.awaiting = true;
+  vt.base = state.balance;
+  vt.sentSeries = s;
+  vt.series = null;
+  renderVtSeries();
+  $('vt-go').disabled = true;
+  send({ type: 'verity_play', series: true, amount: s.next });
+});
+$('vt-series-take').addEventListener('click', () => {
+  if (!vt.series) return;
+  const { next } = vt.series;
+  vt.series = null;
+  renderVtSeries();
+  vtSay(`Мудро. ${vtFmt(next)} — твои 😊`, 'good');
 });
 renderVerityFeed([]);
 
@@ -2654,6 +3090,7 @@ renderVerityFeed([]);
 const DV_GAMES = {
   crash: { icon: '📈', name: 'Краш', rule: 'У каждого своя ракета. Чья улетит выше — тот забирает банк.' },
   roulette: { icon: '🎡', name: 'Рулетка', rule: 'У каждого своё колесо. У кого выпадет число больше — тот забирает банк.' },
+  wheel: { icon: '🎰', name: 'Колесо', rule: 'У каждого своё колесо фортуны. Чей сектор дороже — тот забирает банк (череп дешевле всех).' },
   upgrade: { icon: '⬆️', name: 'Апгрейд', rule: 'Одно колесо, две стрелки. Чья встанет ближе к центру зелёной зоны — тот забирает банк.' },
   verity: { icon: '😊', name: 'Верити', rule: 'Верити проверяет обоих. Кого признает добрым, а соперника злым — тот забирает банк.' },
   plinko: { icon: '🔺', name: 'Плинко', rule: 'Два шарика на одной доске: 12 рядов, высокий риск. У чьего множитель больше — тот забирает банк.' },
@@ -2661,6 +3098,7 @@ const DV_GAMES = {
 // Как на сервере (server/duel.js).
 const DV_CRASH_GROWTH = 0.18;
 const DV_ROULETTE_SPIN_MS = 7000;
+const DV_WHEEL_SPIN_MS = 7000;
 const DV_UPGRADE_SPIN_MS = 4500;
 const DV_VERITY_ROUND_MS = 2400;
 const DV_REVEAL_PAD_MS = 1200;
@@ -2687,6 +3125,7 @@ function dvWinner(d) {
   const x = d.data;
   if (d.game === 'crash') return x.crash[0] > x.crash[1] ? 0 : 1;
   if (d.game === 'roulette') return x.numbers[0] > x.numbers[1] ? 0 : 1;
+  if (d.game === 'wheel') return FP.WHEEL[x.segments[0]] > FP.WHEEL[x.segments[1]] ? 0 : 1;
   if (d.game === 'upgrade') return dvUpgradeScore(x.landings[0], x.start, x.chance) > dvUpgradeScore(x.landings[1], x.start, x.chance) ? 0 : 1;
   if (d.game === 'plinko') return x.multipliers[0] > x.multipliers[1] ? 0 : 1;
   return x.rounds.at(-1)[0] ? 0 : 1;
@@ -2838,6 +3277,22 @@ function dvBuildStage(d) {
       // Свой бросок у каждого: зерно из номера дуэли.
       const sim = RPH.spin({ seed: Number(d.id) * 7919 + i * 104729 + 1, rotation: i * 1.3, slot: R_WHEEL.indexOf(d.data.numbers[i]), spinMs: DV_ROULETTE_SPIN_MS });
       return { canvas, num, sim, rotation: i * 1.3 };
+    });
+  } else if (d.game === 'wheel') {
+    s.cols = d.players.map((p, i) => {
+      const col = document.createElement('div');
+      col.className = 'dv-col';
+      col.style.setProperty('--pc', DV_COLORS[i]);
+      const canvas = document.createElement('canvas');
+      const mult = FP.WHEEL[d.data.segments[i]];
+      const num = Object.assign(document.createElement('div'), { className: `dv-num m${mult}`, textContent: fwLabel(mult) });
+      const name = Object.assign(document.createElement('div'), { className: 'dv-col-name', textContent: p.name });
+      col.append(name, canvas, num);
+      stage.append(col);
+      // Своё вращение у каждого: зерно из номера дуэли.
+      const rotation = i * 1.1;
+      const sim = FP.spin({ seed: Number(d.id) * 7919 + i * 104729 + 3, rotation, segment: d.data.segments[i], spinMs: DV_WHEEL_SPIN_MS });
+      return { canvas, num, sim, flap: { flap: 0, flapV: 0, dir: 1, prevRot: rotation }, rotation, lastAt: 0 };
     });
   } else if (d.game === 'upgrade') {
     s.canvas = Object.assign(document.createElement('canvas'), { className: 'dv-up-canvas' });
@@ -3049,6 +3504,24 @@ function dvDrawRoulette(s, d, t) {
   });
 }
 
+function dvDrawFortune(s, d, t) {
+  const now = performance.now();
+  const stopped = t >= DV_WHEEL_SPIN_MS * FP.SETTLE_SHARE;
+  s.cols.forEach((c) => {
+    const f = c.sim.frames[Math.min(c.sim.frames.length - 1, Math.floor((Math.min(t, DV_WHEEL_SPIN_MS) / 1000) * c.sim.scale / c.sim.frameDt))];
+    const dt = c.lastAt ? Math.min(0.05, (now - c.lastAt) / 1000) : 0;
+    c.lastAt = now;
+    if (FP.segmentAt(f) !== FP.segmentAt(c.rotation) && now - fw.lastTickAt > 28) {
+      fw.lastTickAt = now;
+      if (soundOn) beep([[1700 + Math.random() * 500, 0.012]], 'square');
+    }
+    c.rotation = f;
+    fwFlapStep(c.flap, f, dt);
+    fwDraw(c.canvas, c.canvas.clientWidth || 200, f, c.flap.flap, { time: now / 1000, lights: stopped ? 'idle' : 'spin', highlight: stopped });
+    if (stopped && !c.num.classList.contains('show')) c.num.classList.add('show');
+  });
+}
+
 function dvDrawUpgrade(s, d, t) {
   const size = s.canvas.clientWidth || 280;
   const ctx = dvCanvas(s.canvas, size, size);
@@ -3194,6 +3667,7 @@ function dvFrame() {
     const t = dvTime(d);
     if (d.game === 'crash') dvDrawCrash(s, d, t);
     else if (d.game === 'roulette') dvDrawRoulette(s, d, t);
+    else if (d.game === 'wheel') dvDrawFortune(s, d, t);
     else if (d.game === 'upgrade') dvDrawUpgrade(s, d, t);
     else if (d.game === 'plinko') dvDrawPlinko(s, d, t);
     else dvDrawVerity(s, d, t);
@@ -3994,6 +4468,7 @@ document.querySelectorAll('[data-dep]').forEach((b) => {
 const ACT_GAMES = {
   crash: { icon: '📈', name: 'Краш' },
   roulette: { icon: '🎡', name: 'Рулетка' },
+  wheel: { icon: '🎰', name: 'Колесо' },
   bomb: { icon: '💣', name: 'Бомба' },
   upgrade: { icon: '⬆️', name: 'Апгрейд' },
   verity: { icon: '😊', name: 'Верити' },
@@ -4388,6 +4863,12 @@ const handlers = {
     rl.view = msg;
     rl.recvAt = performance.now();
     renderRoulette();
+  },
+
+  wheel_state(msg) {
+    fw.view = msg;
+    fw.recvAt = performance.now();
+    renderWheel();
   },
 
   notice(msg) {

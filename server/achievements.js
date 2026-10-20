@@ -11,11 +11,11 @@ const MSK = 3 * 60 * 60 * 1000;
 const HALL_SIZE = 12;
 const SEASON_TOP = 10;
 const SAVE_DELAY_MS = 1000;
-const GAMES = ['crash', 'roulette', 'upgrade', 'verity', 'plinko', 'mines', 'bomb', 'pool', 'poker'];
+const GAMES = ['crash', 'roulette', 'wheel', 'upgrade', 'verity', 'plinko', 'mines', 'bomb', 'pool', 'poker'];
 
 const ACHIEVEMENTS = [
   { id: 'first_win', icon: '🩸', name: 'Первая кровь', desc: 'Выиграть в любой игре' },
-  { id: 'regular', icon: '🎪', name: 'Завсегдатай', desc: 'Сыграть во все девять игр зала' },
+  { id: 'regular', icon: '🎪', name: 'Завсегдатай', desc: 'Сыграть во все десять игр зала' },
   { id: 'big_win', icon: '💰', name: 'Крупный куш', desc: 'Выиграть 10 000 за раз' },
   { id: 'jackpot', icon: '💎', name: 'Джекпот', desc: 'Выиграть 100 000 за раз' },
   { id: 'high_roller', icon: '🎩', name: 'Хайроллер', desc: 'Поставить 50 000 за раз' },
@@ -26,9 +26,12 @@ const ACHIEVEMENTS = [
   { id: 'crash_instant', icon: '🫠', name: 'Не взлетели', desc: 'Проиграть в Краше на ×1.00' },
   { id: 'roulette_straight', icon: '🎯', name: 'Снайпер', desc: 'Угадать число в рулетке' },
   { id: 'roulette_zero', icon: '🟢', name: 'Зеро!', desc: 'Выиграть ставкой на зеро' },
+  { id: 'wheel_gold', icon: '🌟', name: 'Золотой сектор', desc: 'Поймать ×60 на колесе фортуны' },
+  { id: 'wheel_skull', icon: '💀', name: 'Черепушка', desc: 'Проиграть черепу на колесе фортуны' },
   { id: 'upgrade_odds', icon: '🍀', name: 'Против всех шансов', desc: 'Выиграть апгрейд с шансом 5% или меньше' },
   { id: 'verity_good', icon: '😊', name: 'Любимчик Верити', desc: 'Добрый Верити 5 раз подряд' },
   { id: 'verity_evil', icon: '😈', name: 'Ужин Верити', desc: 'Злой Верити 5 раз подряд' },
+  { id: 'verity_series', icon: '🔥', name: 'Огненная серия', desc: 'Довести серию Верити до ×16' },
   { id: 'plinko_edge', icon: '🔺', name: 'В самый край', desc: 'Попасть шариком плинко в крайнюю лунку' },
   { id: 'plinko_1000', icon: '🌠', name: 'Тысяча!', desc: 'Поймать ×1000 в плинко' },
   { id: 'mines_x10', icon: '💎', name: 'Алмазная жила', desc: 'Забрать в минах ×10 или больше' },
@@ -188,6 +191,10 @@ function createAchievements({
         if (meta.straight) unlock(player, 'roulette_straight');
         if (meta.zero) unlock(player, 'roulette_zero');
         break;
+      case 'wheel':
+        if (meta.gold) unlock(player, 'wheel_gold');
+        if (meta.skull) unlock(player, 'wheel_skull');
+        break;
       case 'upgrade':
         if (kind === 'win' && meta.chance <= 5) unlock(player, 'upgrade_odds');
         break;
@@ -206,6 +213,7 @@ function createAchievements({
           save();
           if (st.verityGood >= 5) unlock(player, 'verity_good');
           if (st.verityEvil >= 5) unlock(player, 'verity_evil');
+          if (meta.good && meta.streak >= 4) unlock(player, 'verity_series');
         }
         break;
       case 'bomb':
