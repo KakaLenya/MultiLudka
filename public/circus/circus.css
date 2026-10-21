@@ -1,0 +1,78 @@
+/* «Заброшенный цирк»: выцветшая афиша — пыльный кармин, крем, горчица, лампочки.
+   Основа панели и окон — общая с Кракеном (kraken.css). */
+
+.circus .cc-stage { padding-top: 12px; }
+.cc-top { display: grid; grid-template-columns: 1fr auto 1fr; align-items: center; gap: 10px; margin-bottom: 8px; }
+.cc-top > .cc-plaque:last-child { justify-self: end; }
+.cc-plaque {
+  display: flex; flex-direction: column; align-items: center; min-width: 120px; max-width: 180px;
+  padding: 5px 12px 7px; border-radius: 6px;
+  background: repeating-linear-gradient(90deg, rgba(122, 30, 34, .9) 0 14px, rgba(205, 191, 158, .85) 14px 28px);
+  border: 2px solid #c9962e;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, .65), inset 0 0 0 60px rgba(18, 6, 8, .72);
+  font-family: Oswald, var(--font); text-shadow: 0 2px 3px rgba(0, 0, 0, .8);
+}
+.cc-plaque span { font-size: 10px; font-weight: 500; letter-spacing: .2em; text-transform: uppercase; color: #e8c87a; }
+.cc-plaque b { font-size: 21px; font-weight: 600; color: #f6e2b0; font-variant-numeric: tabular-nums; line-height: 1.15; }
+
+.cc-logo { text-align: center; line-height: 1; display: flex; flex-direction: column; align-items: center; }
+.cc-logo-title {
+  font-family: "Kelly Slab", Georgia, serif; font-size: 44px; letter-spacing: .02em;
+  background: linear-gradient(180deg, #fff6dc 0%, #e8c87a 45%, #a8323a 100%);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+  filter: drop-shadow(0 3px 2px rgba(0, 0, 0, .95)) drop-shadow(0 0 22px rgba(255, 190, 100, .3));
+}
+.cc-logo-sub { margin-top: 4px; font-family: "Kelly Slab", Georgia, serif; font-size: 15px; letter-spacing: .12em; color: #b8a888; text-shadow: 0 2px 4px #000; }
+
+#cc-reels { width: 100%; max-width: 690px; aspect-ratio: 686 / 512; display: block; }
+.cc-msg { color: #f6e2b0; text-shadow: 0 2px 6px #000, 0 0 14px rgba(255, 190, 100, .35); }
+
+.cc-bar { border-top-color: rgba(201, 150, 46, .5); background: linear-gradient(180deg, rgba(30, 8, 10, .9), rgba(8, 2, 4, .96)), url(../textures/leather.jpg) center / 280px; }
+.cc-bar .kr-stat span { color: #d8a878; }
+.cc-bar .kr-stat b { color: #f6e2b0; }
+.cc-bar .kr-bet > button { background: radial-gradient(circle at 40% 35%, #4a1a1e, #14060a); color: #f6e2b0; border-color: rgba(201, 150, 46, .5); }
+.cc-spin {
+  background: radial-gradient(circle at 38% 32%, #5a1a20, #1a0608 60%, #060204);
+  border-color: #c9962e; color: #f6e2b0;
+  box-shadow: 0 0 0 2px #060204, 0 0 26px rgba(255, 190, 100, .4), inset 0 0 18px rgba(255, 120, 60, .2);
+}
+.cc-buy { background: radial-gradient(circle at 35% 30%, #f0d08a, #c9962e 50%, #5a3a0a); color: #2a0a0c; border-color: #1a0608; }
+.circus .kr-small { color: #f6e2b0; border-color: rgba(201, 150, 46, .4); }
+.circus .kr-small.on { background: linear-gradient(180deg, #a8323a, #4a0e12); border-color: #e8c87a; color: #fff6e8; }
+
+.cc-mods { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 0 0 12px; padding: 0; list-style: none; font-size: 14px; color: #f0e0c0; }
+.cc-mods li { padding: 4px 10px; border-radius: 999px; background: rgba(122, 30, 34, .45); border: 1px solid rgba(201, 150, 46, .4); }
+
+.circus-modal .kr-dialog { border-color: rgba(201, 150, 46, .7); background: linear-gradient(180deg, rgba(30, 8, 12, .96), rgba(8, 2, 4, .98)), url(../textures/leather.jpg) center / 300px; }
+.circus-modal .kr-dialog h3 { font-family: "Kelly Slab", Georgia, serif; font-weight: 400; color: #e8c87a; }
+.circus-modal .kr-buy-card.fs { background: linear-gradient(180deg, rgba(122, 30, 34, .9), rgba(30, 6, 8, .95)); border-color: rgba(232, 200, 122, .6); }
+.circus-modal .kr-buy-card.fs .action { background: linear-gradient(180deg, #f0d08a, #c9962e 60%, #5a3a0a); color: #2a0a0c; }
+.circus-modal .kr-pay { background: rgba(0, 0, 0, .3); }
+
+/* Карточка на главной зала. */
+.slot-circus {
+  background:
+    radial-gradient(80% 70% at 80% 110%, rgba(255, 180, 90, .35), transparent 60%),
+    repeating-conic-gradient(from 0deg at 50% -40%, rgba(122, 30, 34, .55) 0 6deg, rgba(205, 191, 158, .08) 6deg 12deg),
+    linear-gradient(180deg, #14060a, #2a0c10 60%, #3a1214);
+  border-color: rgba(201, 150, 46, .55);
+}
+.slot-circus .home-window { box-shadow: inset 0 0 0 2px rgba(0, 0, 0, .6), inset 0 0 18px rgba(0, 0, 0, .7), 0 0 0 3px #c9962e; }
+.slot-circus .home-name, .slot-circus .home-sub {
+  font-family: "Kelly Slab", Georgia, serif; font-weight: 400;
+  background: linear-gradient(180deg, #fff6dc, #e8c87a 50%, #a8323a);
+  -webkit-background-clip: text; background-clip: text; color: transparent;
+}
+.slot-circus .home-name { font-size: 28px; }
+
+@media (max-width: 700px) {
+  .cc-logo-title { font-size: 30px; }
+  .cc-logo-sub { font-size: 12px; }
+  .cc-plaque { min-width: 0; padding: 4px 8px 6px; }
+  .cc-plaque b { font-size: 15px; }
+  .cc-plaque span { font-size: 8px; }
+}
+@media (max-width: 480px) {
+  .cc-logo-title { font-size: 22px; }
+  .cc-logo-sub { display: none; }
+}

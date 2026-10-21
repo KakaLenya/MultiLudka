@@ -74,8 +74,8 @@ const MOD_NAMES = {
 };
 
 // Щит метателя: 15 секторов. Числа — призы в ставках.
-const BOARD = [2, 3, 3, 5, 5, 8, 10, 15, 25, 50, 100, 'x2', 'knives', 'assistant', 'assistant'];
-const BOARD_SCALE = 1.5;                    // общий множитель призов щита (подбирается симуляцией)
+const BOARD = [3, 4, 5, 7, 8, 12, 15, 20, 40, 75, 150, 'x2', 'knives', 'assistant', 'assistant'];
+const BOARD_SCALE = 1;                    // общий множитель призов щита (подбирается симуляцией)
 const EXTRA_KNIVES = 2;
 
 function pickWeighted(rand, entries) {

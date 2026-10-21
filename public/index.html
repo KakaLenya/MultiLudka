@@ -6,10 +6,11 @@
   <title>Казино-зал</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@500;600;700;800&family=Rubik:wght@700;900&family=Rubik+Wet+Paint&family=Ruslan+Display&family=Cormorant+SC:wght@500;700&family=Oswald:wght@400;500;600;700&display=swap">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@500;600;700;800&family=Rubik:wght@700;900&family=Rubik+Wet+Paint&family=Ruslan+Display&family=Cormorant+SC:wght@500;700&family=Oswald:wght@400;500;600;700&family=Kelly+Slab&display=swap">
   <link rel="stylesheet" href="kraken/kraken.css">
   <link rel="stylesheet" href="saloon/saloon.css">
   <link rel="stylesheet" href="yokai/yokai.css">
+  <link rel="stylesheet" href="circus/circus.css">
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -86,6 +87,7 @@
             <button type="button" class="tab" data-tab="kraken">🐙 Кракен</button>
             <button type="button" class="tab" data-tab="saloon">🤠 Салун</button>
             <button type="button" class="tab" data-tab="yokai">🏮 Парад</button>
+            <button type="button" class="tab" data-tab="circus">🎪 Цирк</button>
           </div>
         </nav>
 
@@ -387,6 +389,89 @@
                 <div class="kr-rule"><div id="yk-pay-torii"></div><p><b>Тории.</b> 3, 4 или 5 ворот — <b>Ночь ста демонов</b>: 8, 12 или 20 бесплатных вращений (и сами платят ×2, ×5, ×20 ставки). Ночью лисы шагают по барабану за вращение и на каждом шаге отращивают ещё хвост. Ещё три тории — +5 вращений. Когда вращения кончатся, парад доигрывается, пока не уйдёт последняя лиса.</p></div>
               </div>
               <p class="muted small">1024 пути: символ платит, если стоит на соседних барабанах слева направо в любом ряду; выплата умножается на число путей. Отдача около 96%, максимальный выигрыш — ×5000 ставки. Покупка ночи — ×100 ставки.</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="card kraken circus" id="circus" hidden>
+          <div class="kr-stage cc-stage">
+            <canvas class="kr-bg" id="cc-bg"></canvas>
+            <div class="cc-top">
+              <div class="cc-plaque"><span>Гвоздь программы</span><b id="cc-maxwin">…</b></div>
+              <div class="cc-logo">
+                <div class="cc-logo-title">Заброшенный цирк</div>
+                <div class="cc-logo-sub">представление окончено. или нет</div>
+              </div>
+              <div class="cc-plaque"><span>Линии</span><b>25</b></div>
+            </div>
+            <div class="kr-reels-box">
+              <canvas id="cc-reels" aria-label="Барабаны и барабан распорядителя"></canvas>
+            </div>
+            <div class="kr-msg cc-msg" id="cc-msg">Купол скрипит. Пробел тоже крутит</div>
+          </div>
+          <div class="kr-bar cc-bar">
+            <div class="kr-bar-left">
+              <button type="button" class="kr-buy cc-buy" id="cc-buy"><span>Купить</span><span>ножи</span></button>
+              <div class="kr-stats">
+                <div class="kr-stat"><span>Баланс</span><b id="cc-balance">0</b></div>
+                <div class="kr-stat"><span>Выигрыш</span><b id="cc-win">0</b></div>
+              </div>
+            </div>
+            <button type="button" class="kr-spin cc-spin" id="cc-spin" title="Крутить (пробел)" aria-label="Крутить"><span>⟳</span></button>
+            <div class="kr-bar-right">
+              <div class="kr-bet">
+                <button type="button" id="cc-bet-down" aria-label="Меньше">−</button>
+                <div class="kr-stat"><span>Ставка</span><b id="cc-bet">100</b></div>
+                <button type="button" id="cc-bet-up" aria-label="Больше">+</button>
+                <button type="button" class="kr-max" id="cc-bet-max">макс</button>
+              </div>
+              <div class="kr-side">
+                <div class="kr-auto-wrap">
+                  <button type="button" class="kr-small" id="cc-auto">Авто</button>
+                  <div class="kr-auto-menu" id="cc-auto-menu" hidden>
+                    <button type="button" data-auto="10">10</button>
+                    <button type="button" data-auto="25">25</button>
+                    <button type="button" data-auto="50">50</button>
+                    <button type="button" data-auto="100">100</button>
+                    <button type="button" data-auto="1000000">∞</button>
+                    <label><input type="checkbox" id="cc-auto-stop" checked> стоп на метателе</label>
+                  </div>
+                </div>
+                <button type="button" class="kr-small" id="cc-turbo" title="Быстрые вращения">Турбо</button>
+                <button type="button" class="kr-small" id="cc-info" title="Правила и выплаты">Правила</button>
+                <button type="button" class="kr-small" id="cc-sound" title="Музыка цирка">🎵</button>
+              </div>
+            </div>
+          </div>
+          <h2 class="u-feed-title">Лента цирка</h2>
+          <ul class="list u-feed" id="cc-feed"></ul>
+
+          <div class="kr-modal circus-modal" id="cc-buy-modal" hidden>
+            <div class="kr-dialog">
+              <button type="button" class="kr-close" data-close aria-label="Закрыть">✕</button>
+              <h3>Купить метателя ножей</h3>
+              <div class="kr-buys">
+                <div class="kr-buy-card fs">
+                  <div class="kr-buy-title">Метатель ножей</div>
+                  <p>3 ножа и вращающийся щит из 15 секторов: призы до ×150 ставки, удвоение, +2 ножа и две ассистентки — попал в неё, и бонус окончен. Куда бросать, выбираешь сам.</p>
+                  <button type="button" class="action" data-buy="buy-knives">Купить за <b id="cc-buy-price">0</b></button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="kr-modal circus-modal" id="cc-pay-modal" hidden>
+            <div class="kr-dialog wide">
+              <button type="button" class="kr-close" data-close aria-label="Закрыть">✕</button>
+              <h3>Правила и выплаты <small>при ставке <b id="cc-pay-bet">0</b>, за одну линию</small></h3>
+              <div class="kr-pays" id="cc-pays"></div>
+              <div class="kr-rules">
+                <div class="kr-rule"><div id="cc-pay-hoop"></div><p><b>Огненный обруч — дикий.</b> Бывает на барабанах 2–4 и заменяет всё, кроме мишени.</p></div>
+                <div class="kr-rule"><div id="cc-pay-target"></div><p><b>Мишень.</b> 3, 4 или 5 мишеней в любом месте — <b>Метатель ножей</b> с 3, 4 или 5 ножами (и сами платят ×2, ×10, ×50 ставки). Ты выбираешь сектор вращающегося щита: призы до ×150, «×2» удваивает итог, «+2 ножа», а попадание в ассистентку заканчивает бонус.</p></div>
+              </div>
+              <p class="muted small"><b>Барабан распорядителя</b> над полем крутится каждый ход и даёт модификатор:</p>
+              <ul class="cc-mods" id="cc-mods"></ul>
+              <p class="muted small">25 линий: символ платит, если стоит на линии подряд с первого барабана. Отдача около 96%, максимальный выигрыш — ×5000 ставки. Покупка метателя — ×82 ставки.</p>
             </div>
           </div>
         </section>
@@ -998,6 +1083,7 @@
   <script src="kraken/rig.js"></script>
   <script src="saloon/rig.js"></script>
   <script src="yokai/rig.js"></script>
+  <script src="circus/rig.js"></script>
   <script src="kraken/audio.js"></script>
   <script src="kraken/slot.js"></script>
   <script src="saloon/art.js"></script>
@@ -1005,6 +1091,8 @@
   <script src="saloon/slot.js"></script>
   <script src="yokai/audio.js"></script>
   <script src="yokai/slot.js"></script>
+  <script src="circus/audio.js"></script>
+  <script src="circus/slot.js"></script>
   <script src="home.js"></script>
 </body>
 </html>

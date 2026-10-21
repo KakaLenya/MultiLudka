@@ -38,6 +38,7 @@
         { tab: 'kraken', name: 'Кракен', sub: 'сундук глубин', text: '20 линий, хватка Кракена, сундук жемчуга и фриспины', rig: () => window.KrakenRig && window.KrakenRig.SYMBOLS.wild },
         { tab: 'saloon', name: 'Салун', sub: 'мертвецов', text: '243 пути, Кольт-дикий и дуэль на закате', rig: () => window.SaloonRig && window.SaloonRig.SYMBOLS.colt },
         { tab: 'yokai', name: 'Ночной парад', sub: 'ста демонов', text: '1024 пути, шагающие лисы-кицунэ и ночь ста демонов', rig: () => window.YokaiRig && window.YokaiRig.fox(5) },
+        { tab: 'circus', name: 'Заброшенный цирк', sub: 'шатёр открыт', text: '25 линий, барабан распорядителя и метатель ножей', rig: () => window.CircusRig && window.CircusRig.SYMBOLS.clown },
       ],
     },
   ];
