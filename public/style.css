@@ -1956,7 +1956,7 @@ body.fx-disco { animation: fx-disco .5s linear infinite; }
 @keyframes pj-pulse { to { transform: scale(1.06); } }
 
 .prank-chest {
-  position: fixed; left: 50%; bottom: 24px; transform: translateX(-50%); z-index: 120;
+  position: fixed; left: 16px; bottom: 16px; z-index: 120;
   display: flex; align-items: center; gap: 14px; padding: 12px 16px; border-radius: 18px;
   background: linear-gradient(180deg, #3a2a0e, #1a1206); border: 2px solid var(--gold);
   box-shadow: 0 0 0 4px rgba(0, 0, 0, .4), 0 14px 40px rgba(0, 0, 0, .6), 0 0 40px rgba(242, 193, 78, .35);
@@ -1971,25 +1971,27 @@ body.fx-disco { animation: fx-disco .5s linear infinite; }
 .prank-chest.won { border-color: var(--green); }
 .prank-chest.lost { border-color: var(--muted); opacity: .85; }
 .prank-chest.won .pc-icon, .prank-chest.lost .pc-icon { animation: none; }
-@keyframes pc-drop { from { transform: translate(-50%, -60vh) rotate(-12deg); } }
+@keyframes pc-drop { from { transform: translate(-30px, -60vh) rotate(-12deg); } }
 @keyframes pc-wobble { 50% { transform: rotate(-10deg) scale(1.08); } }
 
-.prank-lottery { position: fixed; inset: 0; z-index: 180; display: grid; place-items: center; background: rgba(0, 0, 0, .72); transition: opacity .45s; }
-.prank-lottery.out { opacity: 0; }
+/* Лотерея — карточка сверху справа: не закрывает игру и пропускает клики (можно забрать краш, крутить слот). */
+.prank-lottery { position: fixed; top: 76px; right: 16px; z-index: 180; pointer-events: none; transition: opacity .45s, transform .45s; animation: pl-in .4s cubic-bezier(.3, 1.4, .5, 1); }
+@keyframes pl-in { from { transform: translateX(120%); } }
+.prank-lottery.out { opacity: 0; transform: translateX(40%); }
 .pl-card {
-  width: min(360px, calc(100vw - 32px)); padding: 22px 22px 18px; border-radius: 22px; text-align: center;
+  width: min(280px, calc(100vw - 32px)); padding: 14px 16px 12px; border-radius: 18px; text-align: center;
   background: linear-gradient(180deg, #2a1e08, #120c04); border: 2px solid var(--gold);
   box-shadow: 0 20px 60px rgba(0, 0, 0, .7), 0 0 50px rgba(242, 193, 78, .3);
 }
-.pl-title { font-family: var(--display); font-weight: 800; font-size: 30px; background: var(--gold-grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
-.pl-prize { color: var(--muted); margin-bottom: 14px; }
+.pl-title { font-family: var(--display); font-weight: 800; font-size: 22px; background: var(--gold-grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.pl-prize { color: var(--muted); margin-bottom: 10px; font-size: 13px; }
 .pl-window {
   position: relative; height: 54px; overflow: hidden; border-radius: 12px; background: rgba(0, 0, 0, .5);
   box-shadow: inset 0 0 0 2px rgba(242, 193, 78, .5), inset 0 10px 16px rgba(0, 0, 0, .6), inset 0 -10px 16px rgba(0, 0, 0, .6);
 }
 .pl-strip { will-change: transform; }
 .pl-name { height: 54px; line-height: 54px; text-align: center; font-family: var(--display); font-weight: 700; font-size: 22px; color: #fff; }
-.pl-result { min-height: 30px; margin-top: 14px; font-family: var(--display); font-weight: 700; font-size: 19px; color: var(--gold-2); }
+.pl-result { min-height: 24px; margin-top: 10px; font-size: 16px !important; font-family: var(--display); font-weight: 700; font-size: 19px; color: var(--gold-2); }
 .pl-card.won { border-color: var(--green); box-shadow: 0 20px 60px rgba(0, 0, 0, .7), 0 0 60px rgba(69, 212, 131, .45); }
 .pl-card.won .pl-result { color: var(--green); }
 
@@ -2018,4 +2020,9 @@ body.fx-disco { animation: fx-disco .5s linear infinite; }
 }
 @media (max-width: 420px) {
   #me-name { display: none; }
+}
+
+@media (max-width: 700px) {
+  .prank-lottery { top: 64px; right: 8px; }
+  .prank-chest { left: 8px; right: 70px; bottom: 8px; }
 }
