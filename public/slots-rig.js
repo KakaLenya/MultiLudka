@@ -118,18 +118,39 @@
     if (v === '1' || v === '0') Object.assign(perf, { lite: v === '1', forced: true });
   } catch (e) { /* хранилище недоступно — решим по замеру */ }
   // Первые 3 секунды после показа вкладки не считаем: браузер впервые распаковывает картинки деталей.
+  // Экономный режим включается, только если кадры тормозят 4 секунды подряд (короткие рывки — не повод),
+  // и не навсегда: через 20 секунд, если всё идёт ровно, пробуем полную анимацию снова. Если машина
+  // опять не тянет — после трёх попыток остаёмся в экономном до перезагрузки страницы.
   let lastTick = 0;
   let warm = 0;
+  let liteFor = 0;
+  let fast = 0;
+  let tries = 0;
   function frameTick(dt) {
     const now = performance.now();
     if (now - lastTick > 250) warm = 0;
     lastTick = now;
-    if (perf.lite || perf.forced || !(dt > 0) || dt > 250) return;
+    if (perf.forced || !(dt > 0) || dt > 250) return;
     warm += dt;
     if (warm < 3000) return;
     perf.ema += (dt - perf.ema) * 0.05;
-    perf.slow = perf.ema > 24 ? perf.slow + dt : 0;
-    if (perf.slow > 1500) perf.lite = true;
+    if (!perf.lite) {
+      perf.slow = perf.ema > 26 ? perf.slow + dt : 0;
+      if (perf.slow > 4000) {
+        perf.lite = true;
+        tries += 1;
+        liteFor = 0;
+        fast = 0;
+      }
+      return;
+    }
+    liteFor += dt;
+    fast = perf.ema < 15 ? fast + dt : 0;
+    if (tries < 3 && liteFor > 20_000 && fast > 10_000) {
+      perf.lite = false;
+      perf.slow = 0;
+      perf.ema = 16;
+    }
   }
   // Статистика кадров слота: раз в 10 секунд уходит на сервер (slot_perf), чтобы видеть лаги
   // на настоящих машинах игроков, а не гадать. dt — между кадрами, ms — сколько рисовали сами.

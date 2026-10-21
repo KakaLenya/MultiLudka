@@ -235,7 +235,7 @@ function crashAction() {
 function renderCrashAction() {
   const btn = $('crash-action');
   const a = crashAction();
-  btn.textContent = a.label;
+  setText(btn, a.label);
   btn.disabled = a.mode === null;
   btn.dataset.mode = a.mode || '';
   btn.classList.toggle('cashout', a.mode === 'cashout');
@@ -380,18 +380,25 @@ function drawCrash(m) {
   ctx.restore();
 }
 
+// Пишем в страницу, только если текст изменился: каждая запись заставляет браузер пересчитать вёрстку.
+function setText(el, text) {
+  if (el.textContent !== text) el.textContent = text;
+}
+
 function crashFrame() {
   const c = state.crash;
-  if (c && !$('lobby').hidden) {
+  // Только на вкладке Краша: раньше график и надписи обновлялись каждый кадр на любой вкладке зала,
+  // и браузер пересчитывал вёрстку всей страницы — отсюда подтормаживания слотов.
+  if (c && !$('crash').hidden) {
     const m = liveMultiplier();
     const mult = $('crash-mult');
-    mult.textContent = `${m.toFixed(2)}×`;
-    mult.dataset.phase = c.phase;
+    setText(mult, `${m.toFixed(2)}×`);
+    if (mult.dataset.phase !== c.phase) mult.dataset.phase = c.phase;
     const secs = Math.ceil(phaseTimeLeft() / 1000);
-    $('crash-phase').textContent =
+    setText($('crash-phase'),
       c.phase === 'betting' ? `Приём ставок: ${secs} с`
         : c.phase === 'running' ? 'Летим!'
-          : `Краш! Новый раунд через ${secs} с`;
+          : `Краш! Новый раунд через ${secs} с`);
     drawCrash(m);
     if (c.phase === 'running') renderCrashAction();
   }
@@ -477,6 +484,12 @@ function showTab(name) {
   document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t.dataset.tab === name));
   for (const id of TABS) $(id).hidden = name !== id;
   $('tabs-nav').hidden = name === 'home';   // на главной вкладки не нужны: там карточки
+  // На телефоне вкладки — одна листаемая строка: показываем активную по центру.
+  requestAnimationFrame(() => {
+    const nav = $('tabs-nav');
+    const act = nav.querySelector('.tab.active');
+    if (act && nav.scrollWidth > nav.clientWidth) nav.scrollLeft = act.offsetLeft - nav.clientWidth / 2 + act.offsetWidth / 2;
+  });
   // В игре раскрыта только её категория; остальные свёрнуты до названия.
   document.querySelectorAll('.tab-group').forEach((g) => setGroupOpen(g, !!g.querySelector(`.tab[data-tab="${name}"]`)));
   if (window.homeShown) window.homeShown(name === 'home');
@@ -499,6 +512,14 @@ document.querySelectorAll('.tab-group-name').forEach((b) => b.addEventListener('
   setGroupOpen(g, !g.classList.contains('open'));
 }));
 showTab('home');   // зал всегда открывается с главной
+
+// На сенсорных экранах пробела нет — убираем подсказку про него из приветствий слотов.
+if (window.matchMedia && window.matchMedia('(pointer: coarse)').matches) {
+  for (const id of ['kr-msg', 'sl-msg', 'yk-msg', 'cc-msg']) {
+    const el = $(id);
+    if (el) el.textContent = el.textContent.replace(/\s*[—.]\s*[Пп]робел.*$/, '');
+  }
+}
 
 // ---------- Звуки (WebAudio, без файлов) ----------
 

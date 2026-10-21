@@ -1992,3 +1992,30 @@ body.fx-disco { animation: fx-disco .5s linear infinite; }
 .pl-result { min-height: 30px; margin-top: 14px; font-family: var(--display); font-weight: 700; font-size: 19px; color: var(--gold-2); }
 .pl-card.won { border-color: var(--green); box-shadow: 0 20px 60px rgba(0, 0, 0, .7), 0 0 60px rgba(69, 212, 131, .45); }
 .pl-card.won .pl-result { color: var(--green); }
+
+/* ---------- Телефон: компактная шапка, вкладки в одну строку, рулетка по ширине ---------- */
+
+.quick button { flex: 1 1 0; min-width: 40px; padding-left: 8px; padding-right: 8px; }
+
+@media (max-width: 700px) {
+  .topbar { flex-wrap: nowrap; gap: 8px; padding: 8px 10px; }
+  .logo-text { display: none; }
+  .logo { font-size: 22px; margin-right: 0; }
+  .me { gap: 8px; margin-left: auto; min-width: 0; }
+  #me-name { max-width: 84px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .chips { padding: 4px 9px 4px 6px; font-size: 13px; }
+  .conn { font-size: 0; }
+  .conn::before { margin-right: 0; }
+
+  /* Вкладки игры — одна строка, листается пальцем; активная вкладка сама прокручивается в центр. */
+  .tabs { position: relative; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+  .tabs::-webkit-scrollbar { display: none; }
+  .tab-group, .tab-home { flex: none; flex-wrap: nowrap; }
+
+  .board { grid-template-columns: 24px repeat(12, minmax(17px, 1fr)) 24px; grid-template-rows: repeat(3, 34px) 30px 30px; min-width: 0; }
+  .board .cell { font-size: 10px; white-space: nowrap; letter-spacing: -.02em; }
+  .board-wrap { padding: 8px; border-width: 4px; }
+}
+@media (max-width: 420px) {
+  #me-name { display: none; }
+}
