@@ -2045,6 +2045,8 @@ requestAnimationFrame(upgradeFrame);
 function finishUpgrade() {
   const r = upg.spin.result;
   upg.spin = null;
+  // Колесо встало — сервер сразу засчитывает итог и разрешает следующий апгрейд.
+  send({ type: 'upgrade_done', id: r.id });
   upg.trail = [];
   upg.needle = r.landing;
   upg.outcome = r.win ? 'win' : 'lose';

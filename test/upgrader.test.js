@@ -32,6 +32,21 @@ function setup({ random = seeded(1) } = {}) {
   return { store, up, a, clock, flush, feeds };
 }
 
+test('колесо встало у игрока раньше запаса: done засчитывает итог и снимает блокировку', () => {
+  const { up, a, clock, flush } = setup();
+  const r = up.spin(a, 100, 50).spin;
+  assert.match(up.spin(a, 100, 50).error, /крутится/);
+  clock.t = 1500;                              // у игрока анимация короче spinMs
+  up.done(a, r.id + 1);                        // чужой id — ничего не меняет
+  assert.match(up.spin(a, 100, 50).error, /крутится/);
+  up.done(a, r.id);
+  assert.equal(a.balance, 900 + r.payout, 'итог засчитан сразу');
+  const again = up.spin(a, 100, 50);
+  assert.ok(again.ok, 'следующий апгрейд можно сразу');
+  flush();
+  assert.equal(a.balance, 900 + r.payout - 100 + again.spin.payout, 'отложенный итог первого не платит повторно');
+});
+
 test('множитель: 99 / шанс, вниз до сотых', () => {
   assert.equal(multiplierFor(30), 3.3);
   assert.equal(multiplierFor(50), 1.98);

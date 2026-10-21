@@ -637,6 +637,10 @@ const handlers = {
     send(ws, { type: 'upgrade_result', ...result.spin });
   },
 
+  upgrade_done(ws, msg) {
+    upgrader.done(ws.player, msg.id);
+  },
+
   mines_start(ws, msg) {
     const result = mines.start(ws.player, msg.amount, Number(msg.mines));
     if (result.error) return send(ws, { type: 'error', message: result.error });

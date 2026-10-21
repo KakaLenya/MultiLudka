@@ -93,7 +93,7 @@ function createUpgrader({
         meta: { chance, stake: amount },
       });
     };
-    pending.set(player.id, { amount, settle });
+    pending.set(player.id, { id: entry.id, amount, settle });
     store.adjust(player, -amount);
     schedule(settle, spinMs);
 
@@ -101,6 +101,15 @@ function createUpgrader({
       ok: true,
       spin: { id: entry.id, amount, chance, multiplier: entry.multiplier, start, landing, win, payout, spinMs },
     };
+  }
+
+  // Колесо у игрока остановилось раньше запаса (анимация бывает короче spinMs): итог объявляем сразу
+  // и снимаем блокировку — иначе новый апгрейд ещё пару секунд отвечал «Колесо ещё крутится».
+  function done(player, id) {
+    const p = pending.get(player.id);
+    if (!p || p.id !== id) return;
+    p.settle();
+    busyUntil.delete(player.id);
   }
 
   // Админ: исход следующего апгрейда любого игрока. null = честно.
@@ -117,6 +126,7 @@ function createUpgrader({
 
   return {
     spin,
+    done,
     settleAll,
     reserved: (player) => (pending.has(player.id) ? pending.get(player.id).amount : 0),
     rig,
