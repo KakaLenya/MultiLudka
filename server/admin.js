@@ -25,7 +25,7 @@ function tokenMatches(given, expected) {
 }
 
 function createAdminRouter({
-  adminToken, store, crash, table, roulette, wheel = null, bomb, upgrader, verity, plinko = null, mines = null, kraken = null, saloon = null, yokai = null, achievements, luck, pool, duel = null, music, songRequests, chat, mutes, cleanText,
+  adminToken, store, crash, table, roulette, wheel = null, bomb, upgrader, verity, plinko = null, mines = null, kraken = null, saloon = null, yokai = null, circus = null, achievements, luck, pool, duel = null, music, songRequests, chat, mutes, cleanText,
   onlineIds, sendToPlayer, broadcast, refreshLists, disconnectPlayer = () => {}, shutdown = () => {},
 }) {
   const router = express.Router();
@@ -69,7 +69,7 @@ function createAdminRouter({
         createdAt: p.createdAt,
       }))
       .sort((a, b) => b.online - a.online || b.capital - a.capital);
-    res.json({ players, crash: crash.adminState(), roulette: roulette.adminState(), wheel: wheel ? wheel.adminState() : null, bomb: bomb.adminState(), upgrader: upgrader.adminState(), verity: verity.adminState(), plinko: plinko ? plinko.adminState() : null, mines: mines ? mines.adminState() : null, kraken: kraken ? kraken.adminState() : null, saloon: saloon ? saloon.adminState() : null, yokai: yokai ? yokai.adminState() : null, season: achievements.adminState(), pool: pool.adminState(), duel: duel ? duel.adminState() : null, poker: table.adminView(), chat: chat.log(),
+    res.json({ players, crash: crash.adminState(), roulette: roulette.adminState(), wheel: wheel ? wheel.adminState() : null, bomb: bomb.adminState(), upgrader: upgrader.adminState(), verity: verity.adminState(), plinko: plinko ? plinko.adminState() : null, mines: mines ? mines.adminState() : null, kraken: kraken ? kraken.adminState() : null, saloon: saloon ? saloon.adminState() : null, yokai: yokai ? yokai.adminState() : null, circus: circus ? circus.adminState() : null, season: achievements.adminState(), pool: pool.adminState(), duel: duel ? duel.adminState() : null, poker: table.adminView(), chat: chat.log(),
       music: { current: music.state(), playlist: music.playlist(), autoplay: music.autoplay() },
       requests: songRequests.list() });
   });
@@ -148,6 +148,7 @@ function createAdminRouter({
     if (kraken) kraken.forget(p.id);
     if (saloon) saloon.forget(p.id);
     if (yokai) yokai.forget(p.id);
+    if (circus) circus.forget(p.id);
     if (wheel) wheel.forget(p.id);
     if (verity.forget) verity.forget(p.id);
     const result = store.remove(p);
@@ -309,6 +310,14 @@ function createAdminRouter({
   router.post('/yokai/rig', (req, res) => {
     if (!yokai) return fail(res, 'Ночной парад не подключён');
     const result = yokai.rig(req.body.mode === undefined ? null : req.body.mode);
+    if (result.error) return fail(res, result.error);
+    ok(res);
+  });
+
+  // { mode: 'knives' | 'hoops' | 'lose' | null } — следующий спин Заброшенного цирка (любого игрока).
+  router.post('/circus/rig', (req, res) => {
+    if (!circus) return fail(res, 'Заброшенный цирк не подключён');
+    const result = circus.rig(req.body.mode === undefined ? null : req.body.mode);
     if (result.error) return fail(res, result.error);
     ok(res);
   });

@@ -38,6 +38,7 @@ const PHASES = {
 const KR_RIG = { fs: 'фриспины', hw: 'сундук глубин', tentacle: 'хватка Кракена', lose: 'проигрыш' };
 const SL_RIG = { duel: 'дуэль на закате', bullets: 'шальная пуля', lose: 'проигрыш' };
 const YK_RIG = { bonus: 'ночь ста демонов', fox: 'лиса-кицунэ', lose: 'проигрыш' };
+const CC_RIG = { knives: 'метатель ножей', hoops: 'огненные обручи', lose: 'проигрыш' };
 const DUEL_GAMES = { crash: 'Краш', roulette: 'Рулетка', wheel: 'Колесо', upgrade: 'Апгрейд', verity: 'Верити', plinko: 'Плинко' };
 const fwLabel = (m) => (m === 0 ? '💀 череп' : `×${m}`);
 
@@ -545,6 +546,7 @@ function activeRigs() {
   if (d.kraken && d.kraken.rigged) out.push(['g-kraken', `🐙 Кракен: ${KR_RIG[d.kraken.rigged]}`]);
   if (d.saloon && d.saloon.rigged) out.push(['g-saloon', `🤠 Салун: ${SL_RIG[d.saloon.rigged]}`]);
   if (d.yokai && d.yokai.rigged) out.push(['g-yokai', `🦊 Парад: ${YK_RIG[d.yokai.rigged] || d.yokai.rigged}`]);
+  if (d.circus && d.circus.rigged) out.push(['g-circus', `🎪 Цирк: ${CC_RIG[d.circus.rigged] || d.circus.rigged}`]);
   const lucky = d.players.filter((p) => p.luck);
   if (lucky.length) out.push(['luck', `🍀 Везение: ${lucky.map((p) => `${p.name} ${p.luck}%`).join(', ')}`]);
   return out;
@@ -715,6 +717,15 @@ function renderYokai() {
   feed('yk-feed', y.feed, (e) => li(`${e.name}: ${chips(e.cost)} → ${chips(e.payout)} (×${e.mult}${e.night ? ', ночь демонов' : ''}${e.mode === 'buy-bonus' ? ', купил бонус' : ''})`), 'На парад ещё никто не ходил');
 }
 
+function renderCircus() {
+  const c = admin.data.circus;
+  $('g-circus').hidden = !c;
+  if (!c) return;
+  pill('cc-pill', c.rigged ? (CC_RIG[c.rigged] || c.rigged) : null);
+  seg('cc-seg', 'ccrig', c.rigged);
+  feed('cc-feed', c.feed, (e) => li(`${e.name}: ${chips(e.cost)} → ${chips(e.payout)} (×${e.mult}${e.knives ? ', метатель ножей' : ''}${e.mode === 'buy-knives' ? ', купил бонус' : ''})`), 'В цирк ещё никто не заходил');
+}
+
 function renderDuels() {
   const { duel, pool } = admin.data;
   const rows = [
@@ -741,6 +752,7 @@ function renderGames(rigs) {
   renderKraken();
   renderSaloon();
   renderYokai();
+  renderCircus();
 }
 
 $('rig-crash').addEventListener('click', () => {
@@ -777,6 +789,7 @@ const RIGS = [
   ['kr-seg', 'krrig', (v) => run('/kraken/rig', { mode: v }, v ? `Следующий спин Кракена: ${KR_RIG[v]}` : 'Кракен снова честный')],
   ['sl-seg', 'slrig', (v) => run('/saloon/rig', { mode: v }, v ? `Следующий спин Салуна: ${SL_RIG[v]}` : 'Салун снова честный')],
   ['yk-seg', 'ykrig', (v) => run('/yokai/rig', { mode: v }, v ? `Следующий спин Ночного парада: ${YK_RIG[v]}` : 'Ночной парад снова честный')],
+  ['cc-seg', 'ccrig', (v) => run('/circus/rig', { mode: v }, v ? `Следующий спин Заброшенного цирка: ${CC_RIG[v]}` : 'Цирк снова честный')],
 ];
 for (const [id, attr, act] of RIGS) {
   for (const b of $(id).children) b.addEventListener('click', () => act(b.dataset[attr] || null));

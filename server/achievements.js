@@ -11,11 +11,11 @@ const MSK = 3 * 60 * 60 * 1000;
 const HALL_SIZE = 12;
 const SEASON_TOP = 10;
 const SAVE_DELAY_MS = 1000;
-const GAMES = ['crash', 'roulette', 'wheel', 'upgrade', 'verity', 'plinko', 'mines', 'kraken', 'saloon', 'yokai', 'bomb', 'pool', 'poker'];
+const GAMES = ['crash', 'roulette', 'wheel', 'upgrade', 'verity', 'plinko', 'mines', 'kraken', 'saloon', 'yokai', 'circus', 'bomb', 'pool', 'poker'];
 
 const ACHIEVEMENTS = [
   { id: 'first_win', icon: '🩸', name: 'Первая кровь', desc: 'Выиграть в любой игре' },
-  { id: 'regular', icon: '🎪', name: 'Завсегдатай', desc: 'Сыграть во все тринадцать игр зала' },
+  { id: 'regular', icon: '🎪', name: 'Завсегдатай', desc: 'Сыграть во все четырнадцать игр зала' },
   { id: 'big_win', icon: '💰', name: 'Крупный куш', desc: 'Выиграть 10 000 за раз' },
   { id: 'jackpot', icon: '💎', name: 'Джекпот', desc: 'Выиграть 100 000 за раз' },
   { id: 'high_roller', icon: '🎩', name: 'Хайроллер', desc: 'Поставить 50 000 за раз' },
@@ -43,6 +43,9 @@ const ACHIEVEMENTS = [
   { id: 'yokai_parade', icon: '🦊', name: 'Девятихвостая', desc: 'Довести кицунэ в Ночи ста демонов до 9 хвостов и больше' },
   { id: 'yokai_bonus', icon: '⛩️', name: 'Ночь ста демонов', desc: 'Пройти через ворота тории в Ночь ста демонов' },
   { id: 'yokai_1000', icon: '🏮', name: 'Хозяин парада', desc: 'Выиграть ×1000 в Ночном параде' },
+  { id: 'circus_bullseye', icon: '🎯', name: 'Яблочко', desc: 'Попасть ножом в главный приз щита в Заброшенном цирке' },
+  { id: 'circus_assistant', icon: '🔪', name: 'Ассистентка цела?', desc: 'Попасть ножом в ассистентку' },
+  { id: 'circus_300', icon: '🎪', name: 'Гвоздь программы', desc: 'Выиграть ×300 в Заброшенном цирке' },
   { id: 'mines_x10', icon: '💎', name: 'Алмазная жила', desc: 'Забрать в минах ×10 или больше' },
   { id: 'mines_clear', icon: '🧹', name: 'Чистое поле', desc: 'Открыть в минах все безопасные клетки' },
   { id: 'bomb_win', icon: '🧨', name: 'Сапёр', desc: 'Выиграть в Бомбе' },
@@ -225,6 +228,11 @@ function createAchievements({
         if (meta.night && meta.maxTails >= 9) unlock(player, 'yokai_parade');
         if (meta.night) unlock(player, 'yokai_bonus');
         if (kind === 'win' && meta.mult >= 1000) unlock(player, 'yokai_1000');
+        break;
+      case 'circus':
+        if (meta.top) unlock(player, 'circus_bullseye');
+        if (meta.assistant) unlock(player, 'circus_assistant');
+        if (kind === 'win' && meta.mult >= 300) unlock(player, 'circus_300');
         break;
       case 'plinko':
         if (meta.edge) unlock(player, 'plinko_edge');
