@@ -28,7 +28,12 @@ const EFFECTS = [
   ['shake', '📳 Тряска'],
   ['flip', '🙃 Перевернуть'],
   ['disco', '🪩 Дискотека'],
+  ['scare-clown', '🤡 Скример: клоун'],
+  ['scare-kraken', '🐙 Скример: Кракен'],
+  ['jackpot', '💰 Мираж джекпота'],
+  ['runaway', '🏃 Убегающая кнопка'],
 ];
+const TITLE_PRESETS = ['👑 Король зала', '🤡 Клоун дня', '🐟 Лудик', '🍀 Везунчик', '💀 Банкрот', '🦈 Акула', '🎯 Снайпер', '🐌 Тормоз'];
 const QUICK = [['100', 100], ['1k', 1000], ['15k', 15000], ['100k', 100000], ['1М', 1e6], ['1 млрд', 1e9]];
 const PHASES = {
   betting: 'ставки', running: 'летит', crashed: 'краш', spinning: 'крутится', result: 'результат',
@@ -296,6 +301,11 @@ function renderPlayerCard() {
   else if (!p.password) { pass.textContent = 'пароль есть, но задан раньше и не сохранён'; pass.className = ''; }
   else { pass.textContent = admin.showPass ? p.password : '•'.repeat(Math.min(12, p.password.length)); pass.className = 'secret-pass'; }
   $('pc-pass-show').textContent = admin.showPass ? 'скрыть' : 'показать';
+
+  const titles = (admin.data && admin.data.pranks && admin.data.pranks.titles) || [];
+  const title = titles.find((t) => String(t.id) === String(p.id));
+  $('pc-title-now').textContent = title ? `Сейчас: ${title.text} — до ${new Date(title.until).toLocaleString('ru-RU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}` : 'Титула нет';
+  $('pc-title-clear').hidden = !title;
 }
 
 // ---------- Суммы ----------
@@ -755,6 +765,44 @@ function renderGames(rigs) {
   renderCircus();
 }
 
+function renderPranks() {
+  const pr = admin.data.pranks;
+  if (!pr) return;
+  const parts = [];
+  if (pr.chest) parts.push(`📦 лежит сундук на ${chips(pr.chest.amount)}`);
+  if (pr.lottery) parts.push('🎟 лотерея крутится');
+  if (pr.titles.length) parts.push(`👑 титулы: ${pr.titles.map((t) => `${t.name} — ${t.text}`).join(', ')}`);
+  $('prank-status').textContent = parts.join(' · ') || 'Сейчас ничего не разыгрывается';
+}
+
+for (const id of ['chest-amount', 'lottery-amount']) $(id).addEventListener('input', () => amountHint($(id)));
+$('chest-btn').addEventListener('click', () => {
+  const amount = readAmount($('chest-amount'));
+  if (amount) run('/chest', { amount, seconds: Number($('chest-sec').value) }, `Сундук на ${chips(amount)} упал в чат`);
+});
+$('lottery-btn').addEventListener('click', async () => {
+  const amount = readAmount($('lottery-amount'));
+  if (!amount) return;
+  const online = admin.data.players.filter((p) => p.online).length;
+  if (await ask({ title: 'Разыграть лотерею?', text: `Приз ${chips(amount)} получит один из ${online} игроков онлайн.`, ok: 'Разыграть' })) {
+    run('/lottery', { amount }, (r) => `Лотерея запущена`);
+  }
+});
+for (const text of TITLE_PRESETS) {
+  $('pc-title-presets').append(h('button', { type: 'button', className: 'ghost fx-btn', onclick: () => { $('pc-title').value = text; } }, text));
+}
+$('pc-title-btn').addEventListener('click', () => {
+  const p = selectedPlayer();
+  if (!p) return toast('Сначала выбери игрока', true);
+  const text = $('pc-title').value.trim();
+  if (!text) return toast('Выбери титул или впиши свой', true);
+  run('/title', { playerId: p.id, text, hours: Number($('pc-title-hours').value) }, `${p.name} теперь «${text}»`);
+});
+$('pc-title-clear').addEventListener('click', () => {
+  const p = selectedPlayer();
+  if (p) run('/title/clear', { playerId: p.id }, `Титул у ${p.name} снят`);
+});
+
 $('rig-crash').addEventListener('click', () => {
   const multiplier = Number($('rig-mult').value);
   if (!$('rig-mult').value) return toast('Впиши множитель, например 1.00 или 50', true);
@@ -1002,7 +1050,7 @@ function render() {
   if (admin.tab === 'players') { renderPlayers(); renderPlayerCard(); }
   else if (admin.tab === 'games') renderGames(rigs);
   else if (admin.tab === 'music') renderMusic();
-  else if (admin.tab === 'hall') { renderSeason(); renderChat(); }
+  else if (admin.tab === 'hall') { renderSeason(); renderChat(); renderPranks(); }
   else if (admin.tab === 'server') renderServer();
 }
 

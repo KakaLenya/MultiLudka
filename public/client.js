@@ -877,7 +877,10 @@ function chatItem(m) {
   author.textContent = m.name;
   const text = document.createElement('span');
   text.textContent = m.text;
-  li.append(time, author, text);
+  li.append(time, author);
+  const tag = window.titleTag && window.titleTag(m.playerId);   // титул дня (pranks.js)
+  if (tag) li.append(tag);
+  li.append(text);
   return li;
 }
 
@@ -4997,10 +5000,15 @@ const handlers = {
 
   online(msg) {
     state.onlinePlayers = msg.players;
+    state.lastOnline = msg;
     if (pl.view) plRenderLobby();
     if (dv.view && !dv.watching) dvRenderLobby();
-    $('online-list').replaceChildren(...msg.players.map((p) =>
-      profileLink(listItem(p.name, state.me && p.id === state.me.playerId), p.id)));
+    $('online-list').replaceChildren(...msg.players.map((p) => {
+      const li = profileLink(listItem(p.name, state.me && p.id === state.me.playerId), p.id);
+      const tag = window.titleTag && window.titleTag(p.id);
+      if (tag) li.querySelector('.name').after(tag);
+      return li;
+    }));
     $('online-count').textContent = msg.players.length;
   },
 
@@ -5030,8 +5038,11 @@ const handlers = {
   },
 
   leaderboard(msg) {
+    state.lastLeaderboard = msg;
     $('leaderboard').replaceChildren(...msg.players.map((p) => {
       const li = profileLink(listItem(p.name, state.me && p.id === state.me.playerId), p.id);
+      const tag = window.titleTag && window.titleTag(p.id);
+      if (tag) li.querySelector('.name').after(tag);
       if (!p.online) li.classList.add('offline');
       if (p.badges) {
         const badges = document.createElement('span');

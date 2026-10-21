@@ -18,6 +18,7 @@ const { createKraken } = require('./kraken');
 const { createSaloon } = require('./saloon');
 const { createYokai } = require('./yokai');
 const { createCircus } = require('./circus');
+const { createPranks } = require('./pranks');
 const { createMines } = require('./mines');
 const { createAchievements, ACHIEVEMENTS } = require('./achievements');
 const { createLuck } = require('./luck');
@@ -509,6 +510,8 @@ const handlers = {
     send(ws, { type: 'saloon_feed', feed: saloon.feed() });
     send(ws, { type: 'yokai_feed', feed: yokai.feed() });
     send(ws, { type: 'circus_feed', feed: circus.feed() });
+    send(ws, { type: 'titles', titles: pranks.titles() });
+    if (pranks.chest()) send(ws, { type: 'chest', ...pranks.chest() });
     send(ws, { type: 'mines_feed', feed: mines.feed() });
     send(ws, { type: 'mines_state', ...mines.view(player) });
     send(ws, { type: 'activity_history', entries: activity });
@@ -699,6 +702,10 @@ const handlers = {
     circus.done(ws.player, msg.id);
   },
 
+  chest_claim(ws, msg) {
+    reply(ws, pranks.claimChest(ws.player, msg.id));
+  },
+
   // Статистика кадров слотов с машин игроков — чтобы искать лаги по цифрам (data/logs/perf.log).
   slot_perf(ws, msg) {
     const now = Date.now();
@@ -863,6 +870,15 @@ process.on('SIGINT', shutdown);
 process.on('SIGTERM', shutdown);
 process.on('SIGHUP', shutdown);
 
+// Приколы от админа: сундук в чате, лотерея, титул дня.
+const pranks = createPranks({
+  store,
+  broadcast,
+  postChat,
+  onlineIds,
+  file: path.join(DATA_DIR, 'titles.json'),
+});
+
 app.use('/admin/api', createAdminRouter({
   adminToken,
   store,
@@ -879,6 +895,7 @@ app.use('/admin/api', createAdminRouter({
   saloon,
   yokai,
   circus,
+  pranks,
   achievements,
   luck,
   pool,

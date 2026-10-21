@@ -253,7 +253,7 @@ button.fchip.hot { color: #ffd2ce; border-color: rgba(239, 91, 84, .45); backgro
 .pass-line code.secret-pass { font-family: var(--display); color: var(--gold-2); }
 .cards-input { font-family: var(--display); letter-spacing: .08em; }
 
-.fx { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+.fx, .fx-presets { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
 .fx-btn { padding: 8px 12px; font-size: 13px; }
 
 .mass .seg { margin-bottom: 10px; }

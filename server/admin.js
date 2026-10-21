@@ -5,7 +5,7 @@ const express = require('express');
 const { MAX_BALANCE } = require('./players');
 const MAX_AMOUNT = MAX_BALANCE;   // сколько угодно — до потолка баланса (квадриллион)
 const MAX_MUTE_MIN = 24 * 60;
-const EFFECTS = new Set(['confetti', 'money', 'shake', 'flip', 'disco']);
+const EFFECTS = new Set(['confetti', 'money', 'shake', 'flip', 'disco', 'scare-clown', 'scare-kraken', 'jackpot', 'runaway']);
 const LOOPBACK = new Set(['127.0.0.1', '::1', '::ffff:127.0.0.1']);
 const SYSTEM_NAME = '🎰 Зал';
 
@@ -25,7 +25,7 @@ function tokenMatches(given, expected) {
 }
 
 function createAdminRouter({
-  adminToken, store, crash, table, roulette, wheel = null, bomb, upgrader, verity, plinko = null, mines = null, kraken = null, saloon = null, yokai = null, circus = null, achievements, luck, pool, duel = null, music, songRequests, chat, mutes, cleanText,
+  adminToken, store, crash, table, roulette, wheel = null, bomb, upgrader, verity, plinko = null, mines = null, kraken = null, saloon = null, yokai = null, circus = null, pranks = null, achievements, luck, pool, duel = null, music, songRequests, chat, mutes, cleanText,
   onlineIds, sendToPlayer, broadcast, refreshLists, disconnectPlayer = () => {}, shutdown = () => {},
 }) {
   const router = express.Router();
@@ -69,7 +69,7 @@ function createAdminRouter({
         createdAt: p.createdAt,
       }))
       .sort((a, b) => b.online - a.online || b.capital - a.capital);
-    res.json({ players, crash: crash.adminState(), roulette: roulette.adminState(), wheel: wheel ? wheel.adminState() : null, bomb: bomb.adminState(), upgrader: upgrader.adminState(), verity: verity.adminState(), plinko: plinko ? plinko.adminState() : null, mines: mines ? mines.adminState() : null, kraken: kraken ? kraken.adminState() : null, saloon: saloon ? saloon.adminState() : null, yokai: yokai ? yokai.adminState() : null, circus: circus ? circus.adminState() : null, season: achievements.adminState(), pool: pool.adminState(), duel: duel ? duel.adminState() : null, poker: table.adminView(), chat: chat.log(),
+    res.json({ players, crash: crash.adminState(), roulette: roulette.adminState(), wheel: wheel ? wheel.adminState() : null, bomb: bomb.adminState(), upgrader: upgrader.adminState(), verity: verity.adminState(), plinko: plinko ? plinko.adminState() : null, mines: mines ? mines.adminState() : null, kraken: kraken ? kraken.adminState() : null, saloon: saloon ? saloon.adminState() : null, yokai: yokai ? yokai.adminState() : null, circus: circus ? circus.adminState() : null, pranks: pranks ? pranks.adminState() : null, season: achievements.adminState(), pool: pool.adminState(), duel: duel ? duel.adminState() : null, poker: table.adminView(), chat: chat.log(),
       music: { current: music.state(), playlist: music.playlist(), autoplay: music.autoplay() },
       requests: songRequests.list() });
   });
@@ -149,6 +149,7 @@ function createAdminRouter({
     if (saloon) saloon.forget(p.id);
     if (yokai) yokai.forget(p.id);
     if (circus) circus.forget(p.id);
+    if (pranks) pranks.forget(p.id);
     if (wheel) wheel.forget(p.id);
     if (verity.forget) verity.forget(p.id);
     const result = store.remove(p);
@@ -321,6 +322,19 @@ function createAdminRouter({
     if (result.error) return fail(res, result.error);
     ok(res);
   });
+
+  // Приколы: { amount, seconds } — сундук в чат; { amount } — лотерея среди онлайн;
+  // { playerId, text, hours } — титул дня; { playerId } — снять титул.
+  const prank = (fn) => (req, res) => {
+    if (!pranks) return fail(res, 'Приколы не подключены');
+    const result = fn(req.body);
+    if (result.error) return fail(res, result.error);
+    ok(res);
+  };
+  router.post('/chest', prank((b) => pranks.dropChest(parseAmount(b.amount) || 0, b.seconds)));
+  router.post('/lottery', prank((b) => pranks.runLottery(parseAmount(b.amount) || 0)));
+  router.post('/title', prank((b) => pranks.setTitle(String(b.playerId), b.text, b.hours)));
+  router.post('/title/clear', prank((b) => pranks.clearTitle(String(b.playerId))));
 
   router.post('/plinko/rig', (req, res) => {
     if (!plinko) return fail(res, 'Плинко не подключено');
