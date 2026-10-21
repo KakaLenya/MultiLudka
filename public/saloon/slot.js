@@ -1547,7 +1547,8 @@
   }
 
   el('sl-spin').addEventListener('click', skipOrSpin);
-  reelsCv.addEventListener('click', () => { if (G.busy) skipOrSpin(); });
+  // Клик по барабанам не ускоряет показ — только закрывает окно большого выигрыша.
+  reelsCv.addEventListener('click', () => { if (G.bigWin && G.onSkip) G.onSkip(); });
   el('sl-bet-down').addEventListener('click', () => changeBet(-1));
   el('sl-bet-up').addEventListener('click', () => changeBet(1));
   el('sl-bet-max').addEventListener('click', () => {

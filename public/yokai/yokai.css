@@ -35,7 +35,7 @@
 .yk-night span { font-size: 10px; font-weight: 500; letter-spacing: .16em; text-transform: uppercase; color: #e0a080; }
 .yk-night b { font-size: 17px; font-weight: 600; color: #f0e6d0; line-height: 1.1; }
 
-#yk-reels { width: 100%; max-width: 640px; aspect-ratio: 616 / 504; display: block; cursor: pointer; }
+#yk-reels { width: 100%; max-width: 640px; aspect-ratio: 616 / 504; display: block; }
 .yk-msg { color: #f0e6d0; text-shadow: 0 2px 6px #000, 0 0 14px rgba(127, 224, 208, .35); }
 
 .yk-bar { border-top-color: rgba(201, 161, 74, .45); background: linear-gradient(180deg, rgba(10, 8, 22, .88), rgba(4, 3, 10, .96)), url(../textures/paper.jpg) center / 260px; }

@@ -43,7 +43,7 @@
 .sl-hats img { width: 30px; height: 30px; display: block; border-radius: 50%; transition: filter .3s, opacity .3s, transform .3s; }
 .sl-hats img.lost { filter: grayscale(1) brightness(.5); opacity: .45; transform: rotate(-20deg) translateY(4px); }
 
-#sl-reels { width: 100%; max-width: 690px; aspect-ratio: 686 / 434; display: block; cursor: pointer; }
+#sl-reels { width: 100%; max-width: 690px; aspect-ratio: 686 / 434; display: block; }
 .sl-msg { color: #e8d8bc; text-shadow: 0 2px 6px #000, 0 0 14px rgba(200, 80, 30, .35); }
 
 .sl-bar { border-top-color: rgba(150, 100, 60, .5); background: linear-gradient(180deg, rgba(20, 8, 3, .82), rgba(6, 2, 1, .94)), url(../textures/leather.jpg) center / 280px; }

@@ -79,7 +79,7 @@
 .kr-hw i.on { background: radial-gradient(circle at 35% 30%, #fff, #c9b6ff 50%, #6b4bd6); box-shadow: 0 0 10px rgba(180, 150, 255, .8); }
 
 .kr-reels-box { display: flex; justify-content: center; }
-#kr-reels { width: 100%; max-width: 640px; aspect-ratio: 632 / 516; display: block; cursor: pointer; }
+#kr-reels { width: 100%; max-width: 640px; aspect-ratio: 632 / 516; display: block; }
 
 .kr-msg {
   text-align: center; margin-top: 6px; min-height: 1.4em;
