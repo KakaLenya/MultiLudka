@@ -437,6 +437,25 @@ document.querySelectorAll('[data-quick]').forEach((btn) => {
   });
 });
 
+// Ставка долей баланса во всех играх с полем ставки: 1/300 — спокойно и надолго, 1/100 — азартнее.
+// Кнопки добавляются в каждую группу быстрых ставок (½, ×2…), кроме покера: там «½ банка» — от банка стола.
+document.querySelectorAll('.quick').forEach((box) => {
+  const field = box.previousElementSibling;
+  const input = field && field.querySelector('input[type="number"]');
+  if (!input || box.querySelector('[data-rq]')) return;
+  for (const [div, label, hint] of [[300, '1/300', 'спокойно и надолго'], [100, '1/100', 'азартнее']]) {
+    const b = Object.assign(document.createElement('button'), { type: 'button', className: 'ghost share', textContent: label, title: `Ставка — ${label} баланса: ${hint}` });
+    b.addEventListener('click', () => {
+      const min = Number(input.min) || 1;
+      const step = Number(input.step) > 1 ? Number(input.step) : 1;
+      const v = Math.floor((state.balance || 0) / div / step) * step;
+      input.value = Math.max(min, v);
+      input.dispatchEvent(new Event('input', { bubbles: true }));
+    });
+    box.append(b);
+  }
+});
+
 // Пробел в Краше: поставить/забрать, если фокус не в поле ввода. Только на вкладке Краша:
 // на других вкладках у пробела свои дела (в плинко он бросает шарики).
 document.addEventListener('keydown', (ev) => {

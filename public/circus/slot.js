@@ -1458,6 +1458,16 @@
     G.bet = affordable.length ? affordable[affordable.length - 1] : BET_STEPS[0];
     storage.set(BET_KEY, String(G.bet));
   });
+  // Ставка долей баланса: самый крупный шаг шкалы, который не больше 1/300 (или 1/100) баланса.
+  for (const [id, div] of [['cc-bet-300', 300], ['cc-bet-100', 100]]) {
+    el(id).addEventListener('click', () => {
+      if (G.busy) return;
+      const fit = BET_STEPS.filter((x) => x <= (state.balance || 0) / div);
+      G.bet = fit.length ? fit[fit.length - 1] : BET_STEPS[0];
+      storage.set(BET_KEY, String(G.bet));
+      AUDIO()?.sfx('click');
+    });
+  }
   el('cc-turbo').addEventListener('click', () => {
     G.turbo = !G.turbo;
     storage.set(TURBO_KEY, G.turbo ? '1' : '0');

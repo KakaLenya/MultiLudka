@@ -370,7 +370,7 @@ button.link:not(:disabled):hover { color: var(--text); box-shadow: none; filter:
 }
 .field { display: flex; flex-direction: column; gap: 6px; flex: 1 1 120px; font-size: 12px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
 .field input { flex: none; font-size: 16px; text-transform: none; letter-spacing: 0; }
-.quick { display: flex; gap: 6px; }
+.quick { display: flex; flex-wrap: wrap; gap: 6px; }
 .quick button { min-width: 46px; }
 .action { flex: 1 1 200px; min-height: 48px; font-size: 16px; font-family: var(--display); }
 .action.cashout {
