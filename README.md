@@ -6,7 +6,7 @@
 ## Быстрый запуск (Windows)
 
 Двойной клик по `start.bat`. Откроется окно-пульт: он сам запускает сервер и туннель cloudflared и показывает
-- ссылку для друзей `https://….trycloudflare.com` (появится секунд через 10, при каждом запуске новая) с кнопками «Копировать» и «Открыть»;
+- ссылку для друзей: постоянную `https://dodepchik.ru`, если настроен именованный туннель (см. ниже), иначе `https://….trycloudflare.com` (при каждом запуске новая); с кнопками «Копировать» и «Открыть»;
 - админку на этом компьютере (http://127.0.0.1:3000/admin.html);
 - админку с телефона через туннель и кнопку, копирующую токен админки.
 
@@ -65,7 +65,20 @@ cloudflared tunnel --url http://127.0.0.1:3000
 
 - Если в логе повторяется `failed to dial to edge with quic: timeout`, сеть режет UDP. Запускай через TCP:
   `cloudflared tunnel --protocol http2 --url http://127.0.0.1:3000`
-- Ссылка новая при каждом запуске cloudflared. Для постоянной нужен именованный туннель с аккаунтом Cloudflare.
+- Ссылка новая при каждом запуске cloudflared. Постоянная — через именованный туннель (ниже).
+
+### Постоянный адрес dodepchik.ru
+
+Домен в Cloudflare (Free), туннель `casino` создан один раз:
+
+```bash
+cloudflared tunnel login
+cloudflared tunnel create casino
+cloudflared tunnel route dns casino dodepchik.ru
+cloudflared tunnel route dns casino www.dodepchik.ru
+```
+
+`%USERPROFILE%\.cloudflared\casino.yml`: `tunnel: <id>`, `credentials-file: …\<id>.json`, `protocol: http2`, ingress `dodepchik.ru` и `www.dodepchik.ru` → `http://127.0.0.1:3000`. Именно не `config.yml`: его cloudflared подхватывает и для быстрых туннелей, и те отвечают 404. Запуск: `cloudflared tunnel --config %USERPROFILE%\.cloudflared\casino.yml run`. Пульт (`start.bat`), увидев casino.yml, сам запускает именованный туннель вместо быстрого (если домен открывается; иначе — быстрый).
 - В команде именно `127.0.0.1`, а не `localhost`: на Windows `localhost` может уйти в IPv6 (`::1`), а сервер слушает только IPv4.
 - WebSocket через туннель работает сам: клиент берёт адрес из текущей страницы (`wss://` на https).
 

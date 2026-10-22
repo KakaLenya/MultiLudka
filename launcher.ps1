@@ -32,6 +32,18 @@ $script:req = $null          # процесс curl, который запраш�
 $script:apiHost = $null      # ссылка, выданная по запросу (готова, когда cloudflared подключится)
 $curl = (Get-Command curl.exe -ErrorAction SilentlyContinue).Source
 
+# Постоянный (именованный) туннель: есть ~/.cloudflared/casino.yml — ссылка всегда с адресом оттуда (dodepchik.ru).
+# Не config.yml: его cloudflared подхватывает и для быстрых туннелей, и те отвечают 404.
+# Нет файла или домен ещё не открывается — быстрый туннель *.trycloudflare.com, новый при каждом запуске.
+$cfConfig = Join-Path $env:USERPROFILE '.cloudflared\casino.yml'
+$script:fixedHost = $null
+if (Test-Path $cfConfig) {
+  $m = [regex]::Match((Get-Content $cfConfig -Raw), '(?m)^\s*-?\s*hostname:\s*(\S+)')
+  if ($m.Success) {
+    try { [System.Net.Dns]::GetHostAddresses($m.Groups[1].Value) | Out-Null; $script:fixedHost = $m.Groups[1].Value } catch { }
+  }
+}
+
 # ---------- Проверки ----------
 
 function Test-Port {
@@ -59,6 +71,10 @@ function Read-TunnelLog {
 function Get-OwnTunnelHost {
   if ($script:req) { return $null }   # туннель ещё запрашивается
   $content = Read-TunnelLog
+  if ($script:fixedHost) {
+    if ($content -match 'Registered tunnel connection') { return $script:fixedHost }
+    return $null
+  }
   if ($script:apiHost) {
     if ($content -match 'Registered tunnel connection') { return $script:apiHost }
     return $null
@@ -104,7 +120,9 @@ function Start-Tunnel {
   Remove-Item (Join-Path $logs 'tunnel.log') -ErrorAction SilentlyContinue   # чтобы не прочитать старую ссылку
   $script:own = $true
   $script:attempt++
-  if ($curl -and $script:attempt % 2 -eq 1) {
+  if ($script:fixedHost) {
+    Start-Cloudflared @('tunnel', '--config', "`"$cfConfig`"", 'run')   # всё нужное (http2, адрес сервера) — в casino.yml
+  } elseif ($curl -and $script:attempt % 2 -eq 1) {
     $out = Join-Path $logs 'quick-tunnel-request.json'
     Remove-Item $out -ErrorAction SilentlyContinue
     $script:req = Start-Process -FilePath $curl -WindowStyle Hidden -PassThru `
@@ -232,7 +250,7 @@ $serverLabel = New-Label 'Сервер: запускается…' 20 60 10 'Reg
 $tunnelLabel = New-Label 'Туннель: получаю ссылку…' 330 60 10 'Regular' $muted
 
 New-Label 'Ссылка для друзей' 20 100 11 'Bold' | Out-Null
-New-Label 'Отправь её друзьям. При каждом запуске ссылка новая.' 20 122 9 'Regular' $muted | Out-Null
+New-Label $(if ($script:fixedHost) { 'Отправь её друзьям. Ссылка постоянная.' } else { 'Отправь её друзьям. При каждом запуске ссылка новая.' }) 20 122 9 'Regular' $muted | Out-Null
 $friendsBox = New-Box 148
 $friendsBox.Text = 'появится через ~10 секунд…'
 $friendsCopy = New-Button 'Копировать' 430 147 105 $true
@@ -251,7 +269,7 @@ $phoneBox.Text = '—'
 $phoneCopy = New-Button 'Ссылка' 430 317 105
 $tokenCopy = New-Button 'Токен' 542 317 98
 
-$newLink = New-Button '↻ Новая ссылка' 20 380 190
+$newLink = New-Button $(if ($script:fixedHost) { '↻ Переподключить' } else { '↻ Новая ссылка' }) 20 380 190
 $restart = New-Button '↻ Перезапустить сервер' 220 380 220
 $stop = New-Button 'Выключить зал' 450 380 190
 $stop.ForeColor = $red
@@ -350,7 +368,7 @@ $form.Add_FormClosing({
 $serverWasRunning = Test-Port
 Start-Server
 # Сервер уже работал (запущен не отсюда) — скорее всего, и туннель к нему есть: берём его ссылку.
-if ($serverWasRunning) { $script:hostName = Get-TunnelHost }
+if ($serverWasRunning -and -not $script:fixedHost) { $script:hostName = Get-TunnelHost }
 if (-not $script:hostName) { Start-Tunnel }
 
 # Для проверки без человека: CASINO_SNAPSHOT=путь.png — снимок окна через 12 с и выход без остановки зала.
