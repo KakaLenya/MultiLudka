@@ -5206,3 +5206,49 @@ connect();
   L.onChange(render);
   render(L.status());
 })();
+
+// ---------- Приложение (PWA): service worker и кнопка «Установить» ----------
+
+if ('serviceWorker' in navigator && window.isSecureContext) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' }).catch(() => {});
+  });
+}
+
+(function setupInstall() {
+  const INSTALL_KEY = 'casino.install.hidden';
+  const bar = $('install-bar');
+  const standalone = window.matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+  const ios = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  let prompt = null;
+
+  const hide = () => { bar.hidden = true; storage.set(INSTALL_KEY, '1'); };
+  $('install-close').addEventListener('click', hide);
+  if (standalone || storage.get(INSTALL_KEY)) return;
+
+  // iPhone: установить можно только руками — подсказываем один раз.
+  if (ios) {
+    $('install-text').innerHTML = 'Поставь зал на экран iPhone: <b>Поделиться</b> → <b>На экран «Домой»</b>.';
+    $('install-btn').textContent = 'Понятно';
+    $('install-btn').addEventListener('click', hide);
+    bar.hidden = false;
+    storage.set(INSTALL_KEY, '1'); // подсказка — один раз
+    return;
+  }
+
+  // Android / Chrome: кнопка только когда браузер готов установить.
+  window.addEventListener('beforeinstallprompt', (ev) => {
+    ev.preventDefault();
+    prompt = ev;
+    bar.hidden = false;
+  });
+  $('install-btn').addEventListener('click', async () => {
+    if (!prompt) return;
+    prompt.prompt();
+    const { outcome } = await prompt.userChoice.catch(() => ({}));
+    prompt = null;
+    bar.hidden = true;
+    if (outcome === 'dismissed') storage.set(INSTALL_KEY, '1');
+  });
+  window.addEventListener('appinstalled', () => { bar.hidden = true; prompt = null; });
+})();

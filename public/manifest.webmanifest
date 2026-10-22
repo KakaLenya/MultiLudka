@@ -1,0 +1,20 @@
+{
+  "id": "/",
+  "name": "Казино-зал",
+  "short_name": "Казино",
+  "description": "Краш, рулетка, слоты, покер и пул с друзьями на виртуальные фишки.",
+  "lang": "ru",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "display_override": ["standalone"],
+  "orientation": "any",
+  "theme_color": "#07130d",
+  "background_color": "#07130d",
+  "categories": ["games", "entertainment"],
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

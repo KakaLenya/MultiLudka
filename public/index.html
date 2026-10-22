@@ -2,7 +2,16 @@
 <html lang="ru">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#07130d">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Казино">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <link rel="icon" href="/favicon.ico" sizes="32x32">
+  <link rel="icon" href="/icons/icon-192.png" type="image/png" sizes="192x192">
+  <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png">
   <title>Казино-зал</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -28,6 +37,12 @@
   </header>
 
   <main>
+    <div class="install-bar" id="install-bar" hidden>
+      <img src="/icons/icon-192.png" alt="" width="40" height="40">
+      <span class="install-text" id="install-text">Поставь зал на экран телефона — откроется как приложение.</span>
+      <button type="button" id="install-btn">Установить</button>
+      <button type="button" class="link install-close" id="install-close" title="Скрыть" aria-label="Скрыть">✕</button>
+    </div>
     <section class="card login" id="login" hidden>
       <h1>Казино-зал</h1>
       <p class="muted">Краш, рулетка, плинко, мины, покер, пул и не только — с друзьями. Фишки виртуальные, азарт настоящий.</p>

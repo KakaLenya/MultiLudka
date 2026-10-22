@@ -2344,3 +2344,28 @@ body.fx-disco { animation: fx-disco .5s linear infinite; }
   .bj-table { --w: 52px; }
   .bj-cards .bj-card + .bj-card { margin-left: calc(var(--w) * -.55); }
 }
+
+/* ---------- Приложение (PWA): вырез экрана и кнопка установки ---------- */
+
+/* В standalone-режиме iPhone страница уходит под статус-бар: закрываем полосу цветом шапки. */
+.topbar { border-top: env(safe-area-inset-top, 0px) solid #06100b; }
+html { padding-left: env(safe-area-inset-left, 0px); padding-right: env(safe-area-inset-right, 0px); }
+.toast, .music, .lounge, .prank-chest { margin-bottom: env(safe-area-inset-bottom, 0px); }
+main { padding-bottom: calc(90px + env(safe-area-inset-bottom, 0px)); }
+
+.install-bar {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0 0 18px;
+  padding: 10px 12px 10px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  background: var(--card);
+  box-shadow: var(--shadow);
+}
+.install-bar img { flex: none; border-radius: 10px; }
+.install-text { flex: 1; min-width: 0; font-size: 14px; line-height: 1.35; }
+.install-text b { color: var(--gold-2); }
+.install-bar #install-btn { flex: none; padding: 9px 16px; font-size: 14px; }
+button.install-close { flex: none; padding: 6px; color: var(--muted); font-size: 15px; }
