@@ -33,6 +33,7 @@ const PORT = Number(process.env.PORT) || 3000;
 // По умолчанию слушаем только локально: наружу пускает cloudflared.
 const HOST = process.env.HOST || '127.0.0.1';
 const HEARTBEAT_MS = 30_000;
+const AWAY_MS = 15_000;          // столько вкладка может быть скрыта, прежде чем игрок пропадёт из «онлайн»
 const LEADERBOARD_THROTTLE_MS = 300;
 const CHAT_MAX_LEN = 200;
 const CHAT_HISTORY = 50;
@@ -169,10 +170,20 @@ function onlineIds() {
   return ids;
 }
 
+// Кого показывать в «онлайн»: вкладка на экране или скрыта меньше AWAY_MS.
+// Свёрнутый браузер и заблокированный телефон держат соединение и отвечают на ping,
+// поэтому для игр они ещё на связи (onlineIds), а в списке — уже нет.
+function visibleIds() {
+  const ids = new Set();
+  const now = Date.now();
+  for (const ws of clients) if (ws.player && !(ws.hiddenAt && now - ws.hiddenAt >= AWAY_MS)) ids.add(ws.player.id);
+  return ids;
+}
+
 function broadcastOnline() {
   if (typeof broadcastPool === 'function') broadcastPool();
   // Удалённый админом игрок может ещё долю секунды висеть в соединениях: пропускаем его.
-  const players = [...onlineIds()].map((id) => store.get(id)).filter(Boolean).map((p) => ({ id: p.id, name: p.name }));
+  const players = [...visibleIds()].map((id) => store.get(id)).filter(Boolean).map((p) => ({ id: p.id, name: p.name }));
   broadcast({ type: 'online', players });
   scheduleLeaderboard();
 }
@@ -187,7 +198,7 @@ function balanceMsg(player) {
 }
 
 function leaderboardMsg() {
-  const online = onlineIds();
+  const online = visibleIds();
   return {
     type: 'leaderboard',
     players: store.leaderboard().map((p) => ({ ...p, online: online.has(p.id), badges: achievements.count(p.id) })),
@@ -468,6 +479,19 @@ function blackjackReply(ws, result, action) {
 }
 
 const handlers = {
+  presence(ws, msg) {
+    const hidden = msg.hidden === true;
+    if (hidden === Boolean(ws.hiddenAt)) return;
+    clearTimeout(ws.awayTimer);
+    if (hidden) {
+      ws.hiddenAt = Date.now();
+      ws.awayTimer = setTimeout(broadcastOnline, AWAY_MS + 50);
+    } else {
+      ws.hiddenAt = 0;
+      broadcastOnline();
+    }
+  },
+
   hello(ws, msg) {
     if (ws.player) return send(ws, { type: 'error', message: 'Уже вошёл' });
 
@@ -860,6 +884,7 @@ wss.on('connection', (ws, req) => {
   });
 
   ws.on('close', () => {
+    clearTimeout(ws.awayTimer);
     clients.delete(ws);
     if (ws.player) {
       if (!isOnline(ws.player)) table.setConnected(ws.player, false);

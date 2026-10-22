@@ -40,6 +40,13 @@ function send(msg) {
   if (state.ws && state.ws.readyState === WebSocket.OPEN) state.ws.send(JSON.stringify(msg));
 }
 
+// Свернул браузер или заблокировал телефон — соединение в фоне живёт, но в «онлайн» его не показываем.
+function sendPresence() {
+  if (state.ws?.authed) send({ type: 'presence', hidden: document.hidden });
+}
+document.addEventListener('visibilitychange', sendPresence);
+window.addEventListener('pagehide', () => { if (state.ws?.authed) send({ type: 'presence', hidden: true }); });
+
 function showLogin() {
   $('lobby').hidden = true;
   $('me').hidden = true;
@@ -4862,6 +4869,8 @@ showRankTab(ach.tab);
 const handlers = {
   welcome(msg) {
     state.me = msg;
+    if (state.ws) state.ws.authed = true;
+    if (document.hidden) sendPresence();
     state.token = msg.token;
     storage.set(TOKEN_KEY, msg.token);
     storage.set(NAME_KEY, msg.name);
