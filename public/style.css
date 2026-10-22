@@ -567,6 +567,15 @@ button.link:not(:disabled):hover { color: var(--text); box-shadow: none; filter:
 .chip[data-v="1000"] { --c: #7a3fd1; }
 .chip[data-v="5000"] { --c: #c9862a; }
 .chip.active { transform: translateY(-4px); box-shadow: 0 0 0 3px var(--gold-2), 0 0 18px rgba(242, 193, 78, .7); }
+.r-custom { display: flex; align-items: center; gap: 10px; margin-top: 10px; color: var(--muted, #9aa3b2); font-size: 14px; }
+.r-custom input {
+  width: 130px; padding: 8px 12px;
+  border-radius: 999px; border: 1px solid rgba(255, 255, 255, .18);
+  background: rgba(0, 0, 0, .3); color: #fff; font: inherit; font-weight: 700;
+}
+.r-custom input:focus { outline: none; border-color: var(--gold-2); }
+.r-custom input.active { border-color: var(--gold-2); box-shadow: 0 0 0 2px rgba(242, 193, 78, .35), 0 0 14px rgba(242, 193, 78, .4); }
+.r-custom input.bad { border-color: #e05252; box-shadow: none; }
 .r-mytotal { color: var(--gold-2); min-height: 1.4em; font-weight: 700; }
 
 .board-wrap {

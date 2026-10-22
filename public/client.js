@@ -975,7 +975,7 @@ const rl = {
   lastResultRound: 0,
   cells: [],            // [{ el, type, number }]
 };
-if (!R_CHIPS.includes(rl.chip)) rl.chip = 50;
+if (!Number.isSafeInteger(rl.chip) || rl.chip < 10) rl.chip = 50;
 
 // Чипы выбора номинала.
 $('r-chips').replaceChildren(...R_CHIPS.map((v) => {
@@ -987,12 +987,30 @@ $('r-chips').replaceChildren(...R_CHIPS.map((v) => {
   b.addEventListener('click', () => {
     rl.chip = v;
     storage.set(R_CHIP_KEY, String(v));
+    $('r-custom').value = '';
     renderChips();
   });
   return b;
 }));
+// Своя ставка: любое целое от 10, точки и пробелы в числе можно писать (60.000).
+const rCustom = $('r-custom');
+if (!R_CHIPS.includes(rl.chip)) rCustom.value = chips(rl.chip);
+rCustom.addEventListener('input', () => {
+  const v = Number(rCustom.value.replace(/\D/g, ''));
+  if (Number.isSafeInteger(v) && v >= 10) {
+    rl.chip = v;
+    storage.set(R_CHIP_KEY, String(v));
+  }
+  renderChips();
+});
+rCustom.addEventListener('change', () => {
+  if (!R_CHIPS.includes(rl.chip)) rCustom.value = chips(rl.chip);
+});
 function renderChips() {
   document.querySelectorAll('.chip').forEach((c) => c.classList.toggle('active', Number(c.dataset.v) === rl.chip));
+  const custom = !R_CHIPS.includes(rl.chip);
+  rCustom.classList.toggle('active', custom);
+  rCustom.classList.toggle('bad', rCustom.value !== '' && Number(rCustom.value.replace(/\D/g, '')) < 10);
 }
 renderChips();
 
