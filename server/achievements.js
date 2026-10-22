@@ -11,11 +11,11 @@ const MSK = 3 * 60 * 60 * 1000;
 const HALL_SIZE = 12;
 const SEASON_TOP = 10;
 const SAVE_DELAY_MS = 1000;
-const GAMES = ['crash', 'roulette', 'wheel', 'upgrade', 'verity', 'plinko', 'mines', 'kraken', 'saloon', 'yokai', 'circus', 'bomb', 'pool', 'poker'];
+const GAMES = ['crash', 'roulette', 'wheel', 'upgrade', 'verity', 'plinko', 'mines', 'blackjack', 'kraken', 'saloon', 'yokai', 'circus', 'bomb', 'pool', 'poker'];
 
 const ACHIEVEMENTS = [
   { id: 'first_win', icon: '🩸', name: 'Первая кровь', desc: 'Выиграть в любой игре' },
-  { id: 'regular', icon: '🎪', name: 'Завсегдатай', desc: 'Сыграть во все четырнадцать игр зала' },
+  { id: 'regular', icon: '🎪', name: 'Завсегдатай', desc: 'Сыграть во все пятнадцать игр зала' },
   { id: 'big_win', icon: '💰', name: 'Крупный куш', desc: 'Выиграть 10 000 за раз' },
   { id: 'jackpot', icon: '💎', name: 'Джекпот', desc: 'Выиграть 100 000 за раз' },
   { id: 'high_roller', icon: '🎩', name: 'Хайроллер', desc: 'Поставить 50 000 за раз' },
@@ -48,6 +48,9 @@ const ACHIEVEMENTS = [
   { id: 'circus_300', icon: '🎪', name: 'Гвоздь программы', desc: 'Выиграть ×300 в Заброшенном цирке' },
   { id: 'mines_x10', icon: '💎', name: 'Алмазная жила', desc: 'Забрать в минах ×10 или больше' },
   { id: 'mines_clear', icon: '🧹', name: 'Чистое поле', desc: 'Открыть в минах все безопасные клетки' },
+  { id: 'bj_natural', icon: '🂡', name: 'Двадцать одно', desc: 'Собрать блэкджек с первых двух карт' },
+  { id: 'bj_double', icon: '⏫', name: 'Дерзкое удвоение', desc: 'Выиграть удвоенную руку в блэкджеке' },
+  { id: 'bj_split', icon: '✂️', name: 'Двойной удар', desc: 'Выиграть обе руки после сплита в блэкджеке' },
   { id: 'bomb_win', icon: '🧨', name: 'Сапёр', desc: 'Выиграть в Бомбе' },
   { id: 'bomb_boom', icon: '💥', name: 'Бабах', desc: 'Взорваться в Бомбе' },
   { id: 'bomb_last', icon: '🦁', name: 'Последний герой', desc: 'Забрать банк Бомбы, когда все остальные сбежали' },
@@ -213,6 +216,11 @@ function createAchievements({
       case 'mines':
         if (kind === 'win' && meta.multiplier >= 10) unlock(player, 'mines_x10');
         if (kind === 'win' && meta.cleared) unlock(player, 'mines_clear');
+        break;
+      case 'blackjack':
+        if (meta.natural) unlock(player, 'bj_natural');
+        if (meta.doubledWin) unlock(player, 'bj_double');
+        if (meta.splitWin) unlock(player, 'bj_split');
         break;
       case 'kraken':
         if (meta.level >= 4) unlock(player, 'kraken_awake');

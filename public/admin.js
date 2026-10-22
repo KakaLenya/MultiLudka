@@ -552,6 +552,7 @@ function activeRigs() {
   if (d.upgrader.rigged) out.push(['g-upgrader', `⬆️ Апгрейд: ${d.upgrader.rigged === 'win' ? 'выиграет' : 'проиграет'}`]);
   if (d.verity.rigged) out.push(['g-verity', `😊 Верити: ${d.verity.rigged === 'good' ? 'добрый' : 'злой'}`]);
   if (d.mines && d.mines.rigged) out.push(['g-mines', '💥 Мины: следующий клик — мина']);
+  if (d.blackjack && d.blackjack.rigged) out.push(['g-blackjack', `🂡 Блэкджек: ${BJ_RIG[d.blackjack.rigged]}`]);
   if (d.plinko && d.plinko.rigged) out.push(['g-plinko', '🔺 Плинко: в край']);
   if (d.kraken && d.kraken.rigged) out.push(['g-kraken', `🐙 Кракен: ${KR_RIG[d.kraken.rigged]}`]);
   if (d.saloon && d.saloon.rigged) out.push(['g-saloon', `🤠 Салун: ${SL_RIG[d.saloon.rigged]}`]);
@@ -690,6 +691,23 @@ function renderMines() {
   feed('mn-list', rows, (r) => li(r.text, r.live ? 'live' : ''), 'В мины ещё никто не играл', 12);
 }
 
+const BJ_RIG = { blackjack: 'блэкджек с раздачи', win: 'выиграет', lose: 'проиграет' };
+const BJ_RES = { win: 'выигрыш', blackjack: 'блэкджек', push: 'ничья', lose: 'проигрыш', bust: 'перебор' };
+
+function renderBlackjack() {
+  const b = admin.data.blackjack;
+  $('g-blackjack').hidden = !b;
+  if (!b) return;
+  pill('bj-pill', b.rigged ? BJ_RIG[b.rigged] : null);
+  seg('bj-seg', 'bjrig', b.rigged);
+  $('bj-info').textContent = `В шузе ${b.shoe.left} карт из ${b.shoe.size}`;
+  const rows = [
+    ...b.playing.map((g) => ({ live: true, text: `▶ ${g.name}: ставка ${chips(g.bet)}, на руках ${g.hands.join(' и ')}, у дилера ${cardText(g.up)}` })),
+    ...b.feed.slice(0, 6).map((e) => ({ text: `${e.name}: ${chips(e.bet)} → ${chips(e.payout)} (${e.natural ? 'блэкджек' : `${e.hands.map((h) => `${h.total} ${BJ_RES[h.result] || ''}`.trim()).join(', ')} · дилер ${e.dealer > 21 ? 'перебрал' : e.dealer}`})` })),
+  ];
+  feed('bj-feed', rows, (r) => li(r.text, r.live ? 'live' : ''), 'За столом блэкджека ещё никто не играл', 12);
+}
+
 function renderPlinko() {
   const p = admin.data.plinko;
   $('g-plinko').hidden = !p;
@@ -758,6 +776,7 @@ function renderGames(rigs) {
   renderUpgrader();
   renderVerity();
   renderMines();
+  renderBlackjack();
   renderPlinko();
   renderKraken();
   renderSaloon();
@@ -833,6 +852,7 @@ const RIGS = [
   ['up-seg', 'uprig', (v) => run('/upgrader/rig', { mode: v }, v === 'win' ? 'Следующий апгрейд выиграет' : v === 'lose' ? 'Следующий апгрейд проиграет' : 'Апгрейды снова честные')],
   ['vt-seg', 'vtrig', (v) => run('/verity/rig', { mode: v }, v === 'good' ? 'Верити будет добрым' : v === 'evil' ? 'Верити будет злым' : 'Верити снова честный')],
   ['mn-seg', 'mnrig', (v) => run('/mines/rig', { mode: v }, v ? 'Следующий клик в минах — мина' : 'Мины снова честные')],
+  ['bj-seg', 'bjrig', (v) => run('/blackjack/rig', { mode: v }, v ? `Следующая раздача блэкджека: ${BJ_RIG[v]}` : 'Блэкджек снова честный')],
   ['pk-seg', 'pkrig', (v) => run('/plinko/rig', { mode: v }, v ? 'Следующий шарик плинко упадёт в край' : 'Плинко снова честное')],
   ['kr-seg', 'krrig', (v) => run('/kraken/rig', { mode: v }, v ? `Следующий спин Кракена: ${KR_RIG[v]}` : 'Кракен снова честный')],
   ['sl-seg', 'slrig', (v) => run('/saloon/rig', { mode: v }, v ? `Следующий спин Салуна: ${SL_RIG[v]}` : 'Салун снова честный')],

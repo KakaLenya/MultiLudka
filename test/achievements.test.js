@@ -63,6 +63,12 @@ test('игровые достижения по подробностям собы
   ach.record({ game: 'bomb', kind: 'win', player: a, amount: 50, meta: { last: true } });
   ach.record({ game: 'poker', kind: 'win', player: a, amount: 50, meta: { rank: 9, royal: true, folded: false } });
   ach.record({ game: 'poker', kind: 'win', player: b, amount: 50, meta: { rank: null, folded: true } });
+  ach.record({ game: 'blackjack', kind: 'win', player: a, amount: 150, meta: { natural: true } });
+  ach.record({ game: 'blackjack', kind: 'win', player: b, amount: 200, meta: { doubledWin: true, splitWin: true } });
+  ach.record({ game: 'blackjack', kind: 'lose', player: a, amount: 100, meta: { natural: false } });
+  assert.ok(unlocked.includes('Аня:bj_natural'));
+  assert.ok(unlocked.includes('Боря:bj_double') && unlocked.includes('Боря:bj_split'));
+  assert.ok(!unlocked.includes('Аня:bj_double'));
   for (const id of ['crash_x10', 'crash_x50', 'roulette_straight', 'roulette_zero', 'bomb_win', 'bomb_last', 'poker_quads', 'poker_royal']) {
     assert.ok(unlocked.includes(`Аня:${id}`), id);
   }
@@ -81,11 +87,11 @@ test('Верити: пять раз подряд, серия сбрасывае�
   assert.ok(unlocked.includes('Аня:verity_evil'));
 });
 
-test('пул: пять побед — акула, все четырнадцать игр — завсегдатай, большая ставка — хайроллер', () => {
+test('пул: пять побед — акула, все пятнадцать игр — завсегдатай, большая ставка — хайроллер', () => {
   const { a, ach, unlocked } = setup();
   for (let i = 0; i < 5; i++) ach.record({ game: 'pool', kind: 'win', player: a, amount: 100, meta: { byEight: i === 2 } });
   assert.ok(unlocked.includes('Аня:pool_shark') && unlocked.includes('Аня:pool_clean'));
-  for (const game of ['crash', 'roulette', 'wheel', 'upgrade', 'verity', 'plinko', 'mines', 'kraken', 'saloon', 'yokai', 'circus', 'bomb', 'poker']) {
+  for (const game of ['crash', 'roulette', 'wheel', 'upgrade', 'verity', 'plinko', 'mines', 'blackjack', 'kraken', 'saloon', 'yokai', 'circus', 'bomb', 'poker']) {
     ach.record({ game, kind: 'bet', player: a, amount: 10, meta: { stake: game === 'roulette' ? 50_000 : 10 } });
   }
   assert.ok(unlocked.includes('Аня:regular'));

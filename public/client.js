@@ -144,7 +144,7 @@ function listItem(name, isSelf) {
 
 // Спрашиваем, только если игрок сам ввёл сумму в поле (не кнопками ½, ×2, «макс», не фишками)
 // и она больше половины баланса. В каждой игре — один раз до перезагрузки страницы.
-const BET_INPUTS = ['bet-amount', 'u-amount', 'vt-amount', 'b-amount', 'pl-stake', 'buyin', 'raise-amount', 'dv-stake', 'pk-amount', 'mn-amount', 'fw-amount'];
+const BET_INPUTS = ['bet-amount', 'u-amount', 'vt-amount', 'b-amount', 'pl-stake', 'buyin', 'raise-amount', 'dv-stake', 'pk-amount', 'mn-amount', 'fw-amount', 'bj-amount'];
 const confirmedGames = new Set();
 let betConfirm = null;   // { resolve } — окно открыто
 
@@ -478,7 +478,7 @@ document.addEventListener('keydown', (ev) => {
 const TAB_KEY = 'casino.tab';
 
 // Все вкладки зала; 'home' — главная с карточками игр (home.js). Новая игра: id сюда и карточку в home.js.
-const TABS = ['home', 'crash', 'roulette', 'wheel', 'kraken', 'saloon', 'yokai', 'circus', 'upgrade', 'plinko', 'mines', 'verity', 'duel', 'bomb', 'pool', 'poker'];
+const TABS = ['home', 'crash', 'roulette', 'wheel', 'kraken', 'saloon', 'yokai', 'circus', 'upgrade', 'plinko', 'mines', 'blackjack', 'verity', 'duel', 'bomb', 'pool', 'poker'];
 function showTab(name) {
   if (!TABS.includes(name)) name = 'home';
   document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t.dataset.tab === name));
@@ -4558,6 +4558,7 @@ const ACT_GAMES = {
   verity: { icon: '😊', name: 'Верити' },
   plinko: { icon: '🔺', name: 'Плинко' },
   mines: { icon: '💎', name: 'Мины' },
+  blackjack: { icon: '🂡', name: 'Блэкджек' },
   poker: { icon: '🃏', name: 'Покер' },
   pool: { icon: '🎱', name: 'Пул' },
   duel: { icon: '⚔️', name: 'Дуэль' },
@@ -5008,7 +5009,7 @@ const handlers = {
   },
 
   balance(msg) {
-    if (upgradeHoldsBalance(msg) || verityHoldsBalance(msg)) return;
+    if (upgradeHoldsBalance(msg) || verityHoldsBalance(msg) || (window.blackjackHoldsBalance && window.blackjackHoldsBalance(msg))) return;
     state.balance = msg.balance;
     $('me-balance').textContent = chips(msg.balance);
     state.bonus = {
@@ -5085,6 +5086,7 @@ const handlers = {
     if (window.saloonOnError) window.saloonOnError(msg);
     if (window.yokaiOnError) window.yokaiOnError(msg);
     if (window.circusOnError) window.circusOnError(msg);
+    if (window.blackjackOnError) window.blackjackOnError(msg);
     if (upg.awaiting) {
       upg.awaiting = false;
       $('u-go').disabled = false;

@@ -73,6 +73,7 @@
             <button type="button" class="tab" data-tab="upgrade">⬆️ Апгрейд</button>
             <button type="button" class="tab" data-tab="plinko">🔺 Плинко</button>
             <button type="button" class="tab" data-tab="mines">💎 Мины</button>
+            <button type="button" class="tab" data-tab="blackjack">🂡 Блэкджек</button>
             <button type="button" class="tab" data-tab="verity">😊 Верити</button>
           </div>
           <div class="tab-group versus">
@@ -632,6 +633,49 @@
           <ul class="list u-feed" id="mn-feed"></ul>
         </section>
 
+        <section class="card bjgame" id="blackjack" hidden>
+          <div class="bj-table" id="bj-table">
+            <svg class="bj-arc" viewBox="0 0 600 120" aria-hidden="true">
+              <path id="bj-arc-path" d="M 40 18 Q 300 128 560 18" fill="none"/>
+              <path id="bj-arc-path-2" d="M 92 8 Q 300 96 508 8" fill="none"/>
+              <text class="bj-arc-main"><textPath href="#bj-arc-path" startOffset="50%" text-anchor="middle">БЛЭКДЖЕК ПЛАТИТ 3 К 2</textPath></text>
+              <text class="bj-arc-sub"><textPath href="#bj-arc-path-2" startOffset="50%" text-anchor="middle">дилер берёт до 17 · на мягких 17 стоит</textPath></text>
+            </svg>
+            <div class="bj-shoe" id="bj-shoe" title="Шуз: шесть колод">
+              <span class="bj-shoe-cards"></span>
+              <span class="bj-shoe-left" id="bj-shoe-left">312</span>
+            </div>
+            <div class="bj-zone bj-dealer-zone">
+              <div class="bj-cards" id="bj-dealer" aria-label="Карты дилера"></div>
+              <span class="bj-badge" id="bj-dealer-total" hidden></span>
+            </div>
+            <div class="bj-msg" id="bj-msg" aria-live="polite">Сделай ставку — и карты пойдут</div>
+            <div class="bj-hands" id="bj-hands" aria-label="Твои карты"></div>
+          </div>
+          <div class="bj-controls">
+            <div class="bj-betbox" id="bj-betbox">
+              <label class="field">
+                <span>Ставка</span>
+                <input id="bj-amount" type="number" min="1" step="1" value="100" inputmode="numeric">
+              </label>
+              <div class="quick">
+                <button type="button" class="ghost" data-bjq="half">½</button>
+                <button type="button" class="ghost" data-bjq="double">×2</button>
+                <button type="button" class="ghost" data-bjq="max">макс</button>
+              </div>
+              <button type="button" class="action" id="bj-deal">♠ Раздать</button>
+            </div>
+            <div class="bj-actions" id="bj-actions" hidden>
+              <button type="button" class="bj-act hit" id="bj-hit"><b>Ещё</b><small>взять карту</small></button>
+              <button type="button" class="bj-act stand" id="bj-stand"><b>Хватит</b><small>ход дилера</small></button>
+              <button type="button" class="bj-act double" id="bj-double"><b>Удвоить</b><small>×2 и одна карта</small></button>
+              <button type="button" class="bj-act split" id="bj-split"><b>Сплит</b><small>разделить пару</small></button>
+            </div>
+          </div>
+          <h2 class="u-feed-title">Лента блэкджека</h2>
+          <ul class="list u-feed" id="bj-feed"></ul>
+        </section>
+
         <section class="card verity" id="verity" hidden>
           <div class="history vt-strip" id="vt-strip" aria-label="Последние решения Верити"></div>
           <div class="vt-stage" id="vt-stage">
@@ -1101,6 +1145,7 @@
   <script src="yokai/slot.js"></script>
   <script src="circus/audio.js"></script>
   <script src="circus/slot.js"></script>
+  <script src="blackjack.js"></script>
   <script src="pranks.js"></script>
   <script src="home.js"></script>
 </body>

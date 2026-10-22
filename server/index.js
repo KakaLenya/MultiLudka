@@ -20,6 +20,7 @@ const { createYokai } = require('./yokai');
 const { createCircus } = require('./circus');
 const { createPranks } = require('./pranks');
 const { createMines } = require('./mines');
+const { createBlackjack } = require('./blackjack');
 const { createAchievements, ACHIEVEMENTS } = require('./achievements');
 const { createLuck } = require('./luck');
 const { createPool } = require('./pool');
@@ -299,6 +300,14 @@ const mines = createMines({
 });
 store.addReserver(mines.reserved);
 
+const blackjack = createBlackjack({
+  store,
+  lucky: luck.roll,
+  onEvent: onActivity,
+  onFeed: (feed) => broadcast({ type: 'blackjack_feed', feed }),
+});
+store.addReserver(blackjack.reserved);
+
 const kraken = createKraken({
   store,
   lucky: luck.roll,
@@ -450,6 +459,12 @@ function reply(ws, result) {
   if (result && result.error) send(ws, { type: 'error', message: result.error });
 }
 
+// Блэкджек: новое состояние раздачи; action — какой кнопкой оно вызвано (клиенту для звука и анимации).
+function blackjackReply(ws, result, action) {
+  if (result.error) return send(ws, { type: 'error', message: result.error, game: 'blackjack' });
+  send(ws, { type: 'blackjack_state', ...result.state, action });
+}
+
 const handlers = {
   hello(ws, msg) {
     if (ws.player) return send(ws, { type: 'error', message: 'Уже вошёл' });
@@ -514,6 +529,8 @@ const handlers = {
     if (pranks.chest()) send(ws, { type: 'chest', ...pranks.chest() });
     send(ws, { type: 'mines_feed', feed: mines.feed() });
     send(ws, { type: 'mines_state', ...mines.view(player) });
+    send(ws, { type: 'blackjack_feed', feed: blackjack.feed() });
+    send(ws, { type: 'blackjack_state', ...blackjack.view(player) });
     send(ws, { type: 'activity_history', entries: activity });
     send(ws, { type: 'achievements_defs', list: ACHIEVEMENTS, mine: achievements.unlockedOf(player.id) });
     send(ws, { type: 'season', ...achievements.season() });
@@ -660,6 +677,26 @@ const handlers = {
     const result = mines.cashout(ws.player);
     if (result.error) return send(ws, { type: 'error', message: result.error });
     send(ws, { type: 'mines_state', ...result.state });
+  },
+
+  blackjack_start(ws, msg) {
+    blackjackReply(ws, blackjack.start(ws.player, msg.amount), 'start');
+  },
+
+  blackjack_hit(ws) {
+    blackjackReply(ws, blackjack.hit(ws.player), 'hit');
+  },
+
+  blackjack_stand(ws) {
+    blackjackReply(ws, blackjack.stand(ws.player), 'stand');
+  },
+
+  blackjack_double(ws) {
+    blackjackReply(ws, blackjack.double(ws.player), 'double');
+  },
+
+  blackjack_split(ws) {
+    blackjackReply(ws, blackjack.split(ws.player), 'split');
   },
 
   kraken_spin(ws, msg) {
@@ -860,6 +897,7 @@ function shutdown() {
     yokai.settleAll();
     circus.settleAll();
     mines.settleAll();
+    blackjack.settleAll();
     store.flush();
     achievements.flush();
   } finally {
@@ -891,6 +929,7 @@ app.use('/admin/api', createAdminRouter({
   verity,
   plinko,
   mines,
+  blackjack,
   kraken,
   saloon,
   yokai,
