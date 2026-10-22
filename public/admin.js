@@ -40,7 +40,7 @@ const PHASES = {
   lobby: 'сбор', playing: 'идёт',
   waiting: 'ждём игроков', starting: 'скоро раздача', preflop: 'префлоп', flop: 'флоп', turn: 'тёрн', river: 'ривер', showdown: 'вскрытие',
 };
-const KR_RIG = { fs: 'фриспины', hw: 'сундук глубин', tentacle: 'хватка Кракена', lose: 'проигрыш' };
+const KR_RIG = { fs: 'фриспины', hw: 'сундук глубин', tentacle: 'хватка Кракена', ships: 'все галеоны', lose: 'проигрыш' };
 const SL_RIG = { duel: 'дуэль на закате', bullets: 'шальная пуля', lose: 'проигрыш' };
 const YK_RIG = { bonus: 'ночь ста демонов', fox: 'лиса-кицунэ', lose: 'проигрыш' };
 const CC_RIG = { knives: 'метатель ножей', hoops: 'огненные обручи', lose: 'проигрыш' };

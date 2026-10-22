@@ -28,7 +28,7 @@ function createKraken({
 }) {
   const pending = new Map();   // playerId -> { id, cost, settle }
   const feed = [];
-  let rigged = null;           // админ: 'fs' | 'hw' | 'tentacle' | 'lose' для следующего спина
+  let rigged = null;           // админ: 'fs' | 'hw' | 'tentacle' | 'lose' | 'ships' для следующего спина
   let seq = 0;
 
   function spin(player, bet, mode = 'spin') {
@@ -86,7 +86,7 @@ function createKraken({
   }
 
   function rig(mode) {
-    if (![null, 'fs', 'hw', 'tentacle', 'lose'].includes(mode)) return { error: 'Режим: fs, hw, tentacle, lose или null' };
+    if (![null, 'fs', 'hw', 'tentacle', 'lose', 'ships'].includes(mode)) return { error: 'Режим: fs, hw, tentacle, lose, ships или null' };
     rigged = mode;
     return { ok: true };
   }

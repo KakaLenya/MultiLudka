@@ -258,13 +258,14 @@ function freeSpins(rand, count) {
   return { count, spins, pay };
 }
 
-// Полный исход ставки. mode: 'spin' | 'buy-fs' | 'buy-hw'. rig (админ): 'fs' | 'hw' | 'tentacle' | 'lose'.
+// Полный исход ставки. mode: 'spin' | 'buy-fs' | 'buy-hw'. rig (админ): 'fs' | 'hw' | 'tentacle' | 'lose' | 'ships'.
 function play(rand, { mode = 'spin', rig = null } = {}) {
   const force = mode === 'buy-fs' || rig === 'fs' ? { maps: 3 } : mode === 'buy-hw' || rig === 'hw' ? { pearls: HW_TRIGGER } : {};
   let { grid, pearls } = rollGrid(rand, BASE_WEIGHTS, force, BASE_PEARL_VALUES);
   if (rig === 'lose') ({ grid, pearls } = losingGrid(rand));
+  if (rig === 'ships') ({ grid, pearls } = { grid: Array.from({ length: REELS }, () => Array(ROWS).fill('ship')), pearls: {} });
   let tentacle = null;
-  if (rig === 'tentacle' || (rig !== 'lose' && mode === 'spin' && rand() < TENTACLE_CHANCE)) tentacle = tentacleGrab(rand, grid);
+  if (rig === 'tentacle' || (rig !== 'lose' && rig !== 'ships' && mode === 'spin' && rand() < TENTACLE_CHANCE)) tentacle = tentacleGrab(rand, grid);
   const base = { grid, pearls, tentacle, ...evaluate(grid, pearls) };
   let total = base.pay;
   const out = { mode, base, hw: null, fs: null };
