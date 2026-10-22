@@ -2036,6 +2036,78 @@ body.fx-disco { animation: fx-disco .5s linear infinite; }
   .prank-chest { left: 8px; right: 70px; bottom: 8px; }
 }
 
+/* ---------- Мероприятия от админа ---------- */
+/* Колонка плашек слева сверху: не мешает кликам мимо них. */
+.ev-stack { position: fixed; top: 76px; left: 16px; z-index: 125; display: flex; flex-direction: column; gap: 8px; width: min(300px, calc(100vw - 32px)); pointer-events: none; }
+.ev-stack > * {
+  pointer-events: auto; padding: 10px 14px; border-radius: 16px;
+  background: linear-gradient(180deg, #2a1e08, #120c04); border: 2px solid var(--gold);
+  box-shadow: 0 14px 40px rgba(0, 0, 0, .6), 0 0 30px rgba(242, 193, 78, .25);
+  animation: ev-in .4s cubic-bezier(.3, 1.4, .5, 1);
+}
+@keyframes ev-in { from { transform: translateX(-120%); } }
+.ev-left { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 13px; }
+.ev-stack b { font-family: var(--display); font-size: 15px; color: var(--gold-2); }
+
+.ev-happy { display: flex; justify-content: space-between; align-items: center; gap: 10px; border-color: #ffd23a; background: linear-gradient(90deg, #3b2a00, #1b1300); animation: ev-in .4s cubic-bezier(.3, 1.4, .5, 1), ev-glow 1.6s ease-in-out infinite alternate; }
+.ev-happy b { background: var(--gold-grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
+@keyframes ev-glow { to { box-shadow: 0 14px 40px rgba(0, 0, 0, .6), 0 0 44px rgba(255, 210, 58, .6); } }
+
+.ev-race-head, .ev-quiz-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+.ev-race-top { list-style: none; margin: 6px 0 0; padding: 0; font-size: 14px; }
+.ev-race-top li { display: flex; justify-content: space-between; gap: 8px; padding: 2px 0; }
+.ev-race-top li span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ev-race-top li.me { color: var(--gold-2); font-weight: 700; }
+.ev-race-top li.empty { color: var(--muted); font-size: 13px; }
+.ev-race-top .plus { color: var(--green); font-variant-numeric: tabular-nums; }
+.ev-race-top .minus { color: #ff8a80; font-variant-numeric: tabular-nums; }
+.ev-race-foot { margin-top: 4px; font-size: 12px; color: var(--muted); }
+.ev-race.done { border-color: var(--green); }
+
+.ev-quiz { border-color: #8ec5ff; box-shadow: 0 14px 40px rgba(0, 0, 0, .6), 0 0 30px rgba(110, 170, 255, .35); }
+.ev-quiz-q { margin: 6px 0 8px; font-size: 15px; color: #fff; overflow-wrap: anywhere; }
+.ev-quiz-form { display: flex; gap: 6px; }
+.ev-quiz-form input { flex: 1 1 auto; min-width: 0; }
+.ev-quiz-form button { flex: none; }
+.ev-quiz-res { font-family: var(--display); font-weight: 700; color: var(--muted); }
+.ev-quiz-res.won { color: var(--green); }
+
+/* Дождь: слой пропускает клики, ловятся только сами монеты. */
+.ev-rain { position: fixed; inset: 0; z-index: 175; pointer-events: none; overflow: hidden; }
+.ev-rain-banner {
+  position: absolute; top: 70px; left: 50%; transform: translateX(-50%); white-space: nowrap;
+  padding: 8px 18px; border-radius: 999px; background: rgba(10, 20, 14, .85); border: 2px solid var(--gold);
+  font-family: var(--display); font-weight: 700; color: var(--gold-2); box-shadow: 0 10px 30px rgba(0, 0, 0, .5);
+}
+.ev-rain-banner.done { border-color: var(--green); }
+.ev-coin {
+  position: absolute; top: -60px; width: 48px; height: 48px; padding: 0; border: 0; border-radius: 50%;
+  background: radial-gradient(circle at 35% 30%, rgba(255, 240, 180, .35), transparent 60%); font-size: 36px; line-height: 48px;
+  pointer-events: auto; cursor: pointer; touch-action: none; filter: drop-shadow(0 4px 6px rgba(0, 0, 0, .5));
+  animation: ev-fall linear both;
+}
+.ev-coin-i { display: block; transition: transform .1s; }
+.ev-coin:hover .ev-coin-i { transform: scale(1.15); }
+.ev-coin.got, .ev-coin.gone { pointer-events: none; }
+.ev-coin.got .ev-coin-i { animation: ev-pop .25s ease-out forwards; }
+.ev-coin.gone .ev-coin-i { animation: ev-gone .2s ease-out forwards; }
+@keyframes ev-fall { from { transform: translateY(0) rotate(-20deg); } to { transform: translateY(calc(100vh + 120px)) rotate(340deg); } }
+@keyframes ev-pop { to { transform: scale(1.8); opacity: 0; } }
+@keyframes ev-gone { to { transform: scale(.3); opacity: 0; } }
+
+.ev-float {
+  position: fixed; z-index: 190; transform: translate(-50%, 0); pointer-events: none; white-space: nowrap;
+  font-family: var(--display); font-weight: 800; font-size: 20px; color: var(--gold-2); text-shadow: 0 2px 8px rgba(0, 0, 0, .9);
+  animation: ev-up 1.2s ease-out forwards;
+}
+.ev-float.happy { font-size: 24px; color: #ffd23a; }
+@keyframes ev-up { to { transform: translate(-50%, -70px); opacity: 0; } }
+
+@media (max-width: 700px) {
+  .ev-stack { top: 64px; left: 8px; width: min(260px, calc(100vw - 16px)); }
+  .ev-stack > * { padding: 8px 12px; }
+}
+
 /* ---------- Блэкджек ---------- */
 /* Полукруглый стол: кожаный борт, зелёное сукно, золотая надпись по дуге. Карты — вёрстка с 3D-переворотом. */
 

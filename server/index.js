@@ -19,6 +19,7 @@ const { createSaloon } = require('./saloon');
 const { createYokai } = require('./yokai');
 const { createCircus } = require('./circus');
 const { createPranks } = require('./pranks');
+const { createEvents } = require('./events');
 const { createMines } = require('./mines');
 const { createBlackjack } = require('./blackjack');
 const { createAchievements, ACHIEVEMENTS } = require('./achievements');
@@ -105,6 +106,7 @@ let activitySeq = 0;
 function onActivity(event) {
   const { game, kind, player, amount, note = '' } = event;
   achievements.record(event);
+  events.onActivity(event);
   scheduleSeason();
   if (!amount) return;
   const entry = { id: ++activitySeq, at: Date.now(), game, kind, playerId: player.id, name: player.name, amount, note };
@@ -527,6 +529,7 @@ const handlers = {
     send(ws, { type: 'circus_feed', feed: circus.feed() });
     send(ws, { type: 'titles', titles: pranks.titles() });
     if (pranks.chest()) send(ws, { type: 'chest', ...pranks.chest() });
+    for (const m of events.snapshot()) send(ws, m);
     send(ws, { type: 'mines_feed', feed: mines.feed() });
     send(ws, { type: 'mines_state', ...mines.view(player) });
     send(ws, { type: 'blackjack_feed', feed: blackjack.feed() });
@@ -743,6 +746,10 @@ const handlers = {
     reply(ws, pranks.claimChest(ws.player, msg.id));
   },
 
+  rain_catch(ws, msg) {
+    reply(ws, events.catchCoin(ws.player, Number(msg.id), Number(msg.coin)));
+  },
+
   // Статистика кадров слотов с машин игроков — чтобы искать лаги по цифрам (data/logs/perf.log).
   slot_perf(ws, msg) {
     const now = Date.now();
@@ -807,6 +814,7 @@ const handlers = {
     if (command) return requestSong(ws, { text: command[2] });
     if (!allow(ws.chatRate, CHAT_LIMIT)) return send(ws, { type: 'error', message: 'Не так быстро, чат отдыхает' });
     postChat(ws.player.id, ws.player.name, text);
+    events.chatMessage(ws.player, text);
   },
 };
 
@@ -917,6 +925,9 @@ const pranks = createPranks({
   file: path.join(DATA_DIR, 'titles.json'),
 });
 
+// Мероприятия от админа: дождь из фишек, викторина, счастливый час, гонка.
+const events = createEvents({ store, broadcast, postChat, notify: sendToPlayer });
+
 app.use('/admin/api', createAdminRouter({
   adminToken,
   store,
@@ -935,6 +946,7 @@ app.use('/admin/api', createAdminRouter({
   yokai,
   circus,
   pranks,
+  events,
   achievements,
   luck,
   pool,

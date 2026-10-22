@@ -794,6 +794,54 @@ function renderPranks() {
   $('prank-status').textContent = parts.join(' · ') || 'Сейчас ничего не разыгрывается';
 }
 
+// ---------- Мероприятия ----------
+const leftText = (until) => {
+  const s = Math.max(0, Math.ceil((until - Date.now()) / 1000));
+  return s >= 60 ? `${Math.floor(s / 60)} мин ${s % 60} с` : `${s} с`;
+};
+function renderEvents() {
+  const ev = admin.data.events;
+  if (!ev) return;
+  const parts = [];
+  if (ev.rain) parts.push(`🌧 идёт дождь, осталось монет: ${ev.rain.left}`);
+  if (ev.quiz) parts.push(`❓ «${ev.quiz.question}» → ${ev.quiz.answer}, ещё ${leftText(ev.quiz.until)}`);
+  if (ev.happy) parts.push(`⚡ ×${String(ev.happy.mult).replace('.', ',')} ещё ${leftText(ev.happy.until)}, доплачено ${chips(ev.happy.paid)}`);
+  if (ev.race) {
+    const top = ev.race.top.slice(0, 3).map((r, i) => `${i + 1}. ${r.name} ${r.net > 0 ? '+' : ''}${chips(r.net)}`).join(', ');
+    parts.push(`🏁 гонка ещё ${leftText(ev.race.until)}${top ? `: ${top}` : ', пока никто не играл'}`);
+  }
+  $('ev-status').textContent = parts.join(' · ') || 'Сейчас мероприятий нет';
+  $('ev-quiz-cancel').hidden = !ev.quiz;
+  $('ev-happy-stop').hidden = !ev.happy;
+  $('ev-race-finish').hidden = !ev.race;
+}
+
+for (const id of ['ev-rain-amount', 'ev-quiz-amount', 'ev-race-amount']) $(id).addEventListener('input', () => amountHint($(id)));
+$('ev-rain-btn').addEventListener('click', () => {
+  const amount = readAmount($('ev-rain-amount'));
+  if (amount) run('/event/rain', { amount, seconds: Number($('ev-rain-sec').value) }, (r) => `Дождь пошёл: ${r.coins} монет`);
+});
+$('ev-quiz-btn').addEventListener('click', async () => {
+  const amount = readAmount($('ev-quiz-amount'));
+  if (!amount) return;
+  const r = await run('/event/quiz', { question: $('ev-quiz-q').value, answer: $('ev-quiz-a').value, amount, seconds: Number($('ev-quiz-sec').value) }, 'Вопрос ушёл в чат');
+  if (r) { $('ev-quiz-q').value = ''; $('ev-quiz-a').value = ''; }
+});
+$('ev-quiz-cancel').addEventListener('click', () => run('/event/quiz/cancel', {}, 'Викторина отменена'));
+$('ev-happy-btn').addEventListener('click', () => {
+  run('/event/happy', { mult: Number($('ev-happy-mult').value), minutes: Number($('ev-happy-min').value) }, 'Счастливый час включён');
+});
+$('ev-happy-stop').addEventListener('click', () => run('/event/happy/stop', {}, 'Счастливый час выключен'));
+$('ev-race-btn').addEventListener('click', () => {
+  const amount = readAmount($('ev-race-amount'));
+  if (amount) run('/event/race', { amount, minutes: Number($('ev-race-min').value) }, 'Гонка началась');
+});
+$('ev-race-finish').addEventListener('click', async () => {
+  if (await ask({ title: 'Закончить гонку?', text: 'Призы получат те, кто сейчас в тройке и в плюсе.', ok: 'Финиш' })) {
+    run('/event/race/finish', {}, 'Гонка окончена');
+  }
+});
+
 for (const id of ['chest-amount', 'lottery-amount']) $(id).addEventListener('input', () => amountHint($(id)));
 $('chest-btn').addEventListener('click', () => {
   const amount = readAmount($('chest-amount'));
@@ -1070,7 +1118,7 @@ function render() {
   if (admin.tab === 'players') { renderPlayers(); renderPlayerCard(); }
   else if (admin.tab === 'games') renderGames(rigs);
   else if (admin.tab === 'music') renderMusic();
-  else if (admin.tab === 'hall') { renderSeason(); renderChat(); renderPranks(); }
+  else if (admin.tab === 'hall') { renderSeason(); renderChat(); renderPranks(); renderEvents(); }
   else if (admin.tab === 'server') renderServer();
 }
 

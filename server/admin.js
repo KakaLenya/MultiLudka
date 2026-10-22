@@ -25,7 +25,7 @@ function tokenMatches(given, expected) {
 }
 
 function createAdminRouter({
-  adminToken, store, crash, table, roulette, wheel = null, bomb, upgrader, verity, plinko = null, mines = null, blackjack = null, kraken = null, saloon = null, yokai = null, circus = null, pranks = null, achievements, luck, pool, duel = null, music, songRequests, chat, mutes, cleanText,
+  adminToken, store, crash, table, roulette, wheel = null, bomb, upgrader, verity, plinko = null, mines = null, blackjack = null, kraken = null, saloon = null, yokai = null, circus = null, pranks = null, events = null, achievements, luck, pool, duel = null, music, songRequests, chat, mutes, cleanText,
   onlineIds, sendToPlayer, broadcast, refreshLists, disconnectPlayer = () => {}, shutdown = () => {},
 }) {
   const router = express.Router();
@@ -69,7 +69,7 @@ function createAdminRouter({
         createdAt: p.createdAt,
       }))
       .sort((a, b) => b.online - a.online || b.capital - a.capital);
-    res.json({ players, crash: crash.adminState(), roulette: roulette.adminState(), wheel: wheel ? wheel.adminState() : null, bomb: bomb.adminState(), upgrader: upgrader.adminState(), verity: verity.adminState(), plinko: plinko ? plinko.adminState() : null, mines: mines ? mines.adminState() : null, blackjack: blackjack ? blackjack.adminState() : null, kraken: kraken ? kraken.adminState() : null, saloon: saloon ? saloon.adminState() : null, yokai: yokai ? yokai.adminState() : null, circus: circus ? circus.adminState() : null, pranks: pranks ? pranks.adminState() : null, season: achievements.adminState(), pool: pool.adminState(), duel: duel ? duel.adminState() : null, poker: table.adminView(), chat: chat.log(),
+    res.json({ players, crash: crash.adminState(), roulette: roulette.adminState(), wheel: wheel ? wheel.adminState() : null, bomb: bomb.adminState(), upgrader: upgrader.adminState(), verity: verity.adminState(), plinko: plinko ? plinko.adminState() : null, mines: mines ? mines.adminState() : null, blackjack: blackjack ? blackjack.adminState() : null, kraken: kraken ? kraken.adminState() : null, saloon: saloon ? saloon.adminState() : null, yokai: yokai ? yokai.adminState() : null, circus: circus ? circus.adminState() : null, pranks: pranks ? pranks.adminState() : null, events: events ? events.adminState() : null, season: achievements.adminState(), pool: pool.adminState(), duel: duel ? duel.adminState() : null, poker: table.adminView(), chat: chat.log(),
       music: { current: music.state(), playlist: music.playlist(), autoplay: music.autoplay() },
       requests: songRequests.list() });
   });
@@ -344,6 +344,22 @@ function createAdminRouter({
   router.post('/lottery', prank((b) => pranks.runLottery(parseAmount(b.amount) || 0)));
   router.post('/title', prank((b) => pranks.setTitle(String(b.playerId), b.text, b.hours)));
   router.post('/title/clear', prank((b) => pranks.clearTitle(String(b.playerId))));
+
+  // Мероприятия: { amount, seconds } — дождь; { question, answer, amount, seconds } — викторина;
+  // { mult, minutes } — счастливый час; { amount, minutes } — гонка.
+  const event = (fn) => (req, res) => {
+    if (!events) return fail(res, 'Мероприятия не подключены');
+    const result = fn(req.body);
+    if (result.error) return fail(res, result.error);
+    ok(res, result);
+  };
+  router.post('/event/rain', event((b) => events.startRain(parseAmount(b.amount) || 0, b.seconds)));
+  router.post('/event/quiz', event((b) => events.startQuiz(b.question, b.answer, parseAmount(b.amount) || 0, b.seconds)));
+  router.post('/event/quiz/cancel', event(() => events.cancelQuiz()));
+  router.post('/event/happy', event((b) => events.startHappy(b.mult, b.minutes)));
+  router.post('/event/happy/stop', event(() => events.stopHappy()));
+  router.post('/event/race', event((b) => events.startRace(parseAmount(b.amount) || 0, b.minutes)));
+  router.post('/event/race/finish', event(() => events.finishRace()));
 
   router.post('/plinko/rig', (req, res) => {
     if (!plinko) return fail(res, 'Плинко не подключено');

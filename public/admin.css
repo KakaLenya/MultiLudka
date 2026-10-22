@@ -495,3 +495,5 @@ dialog.ask .actions { justify-content: flex-end; margin-top: 18px; }
 @media (prefers-reduced-motion: reduce) {
   *, *::before { animation: none !important; transition: none !important; }
 }
+
+.ev-wide { width: 100%; margin-top: 8px; }

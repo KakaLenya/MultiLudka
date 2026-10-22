@@ -478,6 +478,66 @@
               <p class="note" id="prank-status"></p>
             </div>
             <div class="card">
+              <div class="sec-head"><h2>🎊 Мероприятия</h2></div>
+              <div class="field-label">🌧 Дождь из фишек — монетки падают у всех, кто кликнул, тот и поймал</div>
+              <div class="inline">
+                <input id="ev-rain-amount" placeholder="Всего фишек, например 100к" autocomplete="off" inputmode="text">
+                <select id="ev-rain-sec" aria-label="Сколько идёт">
+                  <option value="10">10 с</option>
+                  <option value="20" selected>20 с</option>
+                  <option value="40">40 с</option>
+                </select>
+                <button type="button" id="ev-rain-btn">Пролить</button>
+              </div>
+              <span class="amount-hint" id="ev-rain-amount-hint"></span>
+              <div class="field-label">❓ Викторина — первый, кто напишет в чат верный ответ, забирает приз</div>
+              <input id="ev-quiz-q" class="ev-wide" placeholder="Вопрос" autocomplete="off" maxlength="200">
+              <div class="inline">
+                <input id="ev-quiz-a" placeholder="Ответ (варианты через /)" autocomplete="off" maxlength="200">
+                <input id="ev-quiz-amount" placeholder="Приз" autocomplete="off" inputmode="text">
+              </div>
+              <div class="inline">
+                <select id="ev-quiz-sec" aria-label="Время на ответ">
+                  <option value="30">30 с на ответ</option>
+                  <option value="60" selected>1 мин на ответ</option>
+                  <option value="180">3 мин на ответ</option>
+                </select>
+                <button type="button" id="ev-quiz-btn">Спросить</button>
+                <button type="button" class="ghost warn" id="ev-quiz-cancel" hidden>Отменить</button>
+              </div>
+              <span class="amount-hint" id="ev-quiz-amount-hint"></span>
+              <div class="field-label">⚡ Счастливый час — выигрыши во всех играх умножаются, разницу доплачивает зал</div>
+              <div class="inline">
+                <select id="ev-happy-mult" aria-label="Множитель">
+                  <option value="1.5">×1,5</option>
+                  <option value="2" selected>×2</option>
+                  <option value="3">×3</option>
+                </select>
+                <select id="ev-happy-min" aria-label="Сколько длится">
+                  <option value="5">5 мин</option>
+                  <option value="15" selected>15 мин</option>
+                  <option value="30">30 мин</option>
+                  <option value="60">1 час</option>
+                </select>
+                <button type="button" id="ev-happy-btn">Включить</button>
+                <button type="button" class="ghost warn" id="ev-happy-stop" hidden>Выключить</button>
+              </div>
+              <div class="field-label">🏁 Гонка — кто больше всех наиграет в плюс, тот берёт приз (50% / 30% / 20%)</div>
+              <div class="inline">
+                <input id="ev-race-amount" placeholder="Призовой фонд" autocomplete="off" inputmode="text">
+                <select id="ev-race-min" aria-label="Сколько длится">
+                  <option value="5">5 мин</option>
+                  <option value="10" selected>10 мин</option>
+                  <option value="30">30 мин</option>
+                  <option value="60">1 час</option>
+                </select>
+                <button type="button" id="ev-race-btn">Старт</button>
+                <button type="button" class="ghost warn" id="ev-race-finish" hidden>Финиш сейчас</button>
+              </div>
+              <span class="amount-hint" id="ev-race-amount-hint"></span>
+              <p class="note" id="ev-status"></p>
+            </div>
+            <div class="card">
               <div class="sec-head"><h2>🏆 Неделя и достижения</h2></div>
               <p class="note" id="se-info">…</p>
               <ol class="top" id="se-top"></ol>
