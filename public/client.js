@@ -539,9 +539,10 @@ const TAB_KEY = 'casino.tab';
 // Все вкладки зала; 'home' — главная с карточками игр (home.js). Новая игра: id сюда и карточку в home.js.
 const TABS = ['home', 'crash', 'roulette', 'wheel', 'kraken', 'saloon', 'yokai', 'circus', 'upgrade', 'plinko', 'mines', 'blackjack', 'verity', 'duel', 'bomb', 'pool', 'poker', 'bjtable'];
 function showTab(name) {
-  if (!TABS.includes(name)) name = 'home';
+  // Раздела нет на странице (старая страница из кэша при новом client.js) — на главную, а не ошибка.
+  if (!TABS.includes(name) || !$(name)) name = 'home';
   document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t.dataset.tab === name));
-  for (const id of TABS) $(id).hidden = name !== id;
+  for (const id of TABS) if ($(id)) $(id).hidden = name !== id;
   $('tabs-nav').hidden = name === 'home';   // на главной вкладки не нужны: там карточки
   // На телефоне вкладки — одна листаемая строка: показываем активную по центру.
   requestAnimationFrame(() => {

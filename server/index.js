@@ -24,6 +24,7 @@ const { createMaintenance } = require('./maintenance');
 const { createMines } = require('./mines');
 const { createBlackjack } = require('./blackjack');
 const { createBjTable } = require('./bjtable');
+const { stampedPage } = require('./pages');
 const { createAchievements, defsFor, secretsOf } = require('./achievements');
 const { createLuck } = require('./luck');
 const { createPool } = require('./pool');
@@ -72,7 +73,15 @@ app.get('/healthz', (req, res) => {
   res.set('Cache-Control', 'no-store');
   res.json({ ok: true, maintenance: maintenance.view() });
 });
-app.use(express.static(path.join(__dirname, '..', 'public')));
+// Страницы — с метками версий у скриптов и стилей (server/pages.js); код всегда перепроверяется у сервера.
+const PUBLIC_DIR = path.join(__dirname, '..', 'public');
+app.get(['/', '/index.html'], stampedPage(PUBLIC_DIR, 'index.html'));
+app.get('/admin.html', stampedPage(PUBLIC_DIR, 'admin.html'));
+app.use(express.static(PUBLIC_DIR, {
+  setHeaders: (res, file) => {
+    if (/\.(?:js|css|html|webmanifest)$/.test(file)) res.setHeader('Cache-Control', 'no-cache');
+  },
+}));
 app.use('/music-files', express.static(MUSIC_DIR, {
   index: false,
   dotfiles: 'ignore',

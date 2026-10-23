@@ -4,7 +4,7 @@
 // WebSocket сюда не попадает; /admin*, /music-files, /healthz и сам sw.js не трогаем.
 'use strict';
 
-const VERSION = 'v3'; // поднять при изменении логики этого файла
+const VERSION = 'v4'; // поднять при изменении логики этого файла
 const SHELL = `shell-${VERSION}`;
 const STATIC = `static-${VERSION}`;
 const SAMPLES = 'samples-v1'; // переживает смену VERSION: 12 МБ сэмплов не качаем заново
@@ -22,7 +22,8 @@ self.addEventListener('install', (event) => {
       if (res.ok) {
         const html = await res.clone().text();
         await cache.put('/', res);
-        const urls = [...html.matchAll(/(?:src|href)="([^":?#]+\.(?:js|css))"/g)].map((m) => new URL(m[1], self.location.origin).href);
+        // Скрипты и стили на странице с метками версий (client.js?v=…, см. server/pages.js).
+        const urls = [...html.matchAll(/(?:src|href)="([^":?#]+\.(?:js|css)(?:\?v=[^"#]*)?)"/g)].map((m) => new URL(m[1], self.location.origin).href);
         const stat = await caches.open(STATIC);
         await Promise.all([...new Set(urls)].map((u) => fetch(u, { cache: 'no-cache' }).then((r) => r.ok && stat.put(u, r)).catch(() => {})));
       }
