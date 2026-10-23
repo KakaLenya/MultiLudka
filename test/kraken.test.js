@@ -159,7 +159,8 @@ test('админ: подкрутить бонус; везунчик окупае
 test('клиент показывает те же линии и выплаты, что считает сервер', () => {
   const src = require('node:fs').readFileSync(require('node:path').join(__dirname, '../public/kraken/slot.js'), 'utf8');
   const grab = (name) => {
-    const m = new RegExp(`const ${name} = ([\\s\\S]*?);\\n`).exec(src);
+    // \r? — рабочая копия на Windows (core.autocrlf) лежит с CRLF.
+    const m = new RegExp(`const ${name} = ([\\s\\S]*?);\\r?\\n`).exec(src);
     return new Function(`return ${m[1]}`)();
   };
   assert.deepEqual(grab('LINES'), K.LINES);
