@@ -26,7 +26,7 @@ function tokenMatches(given, expected) {
 
 function createAdminRouter({
   adminToken, store, crash, table, roulette, wheel = null, bomb, upgrader, verity, plinko = null, mines = null, blackjack = null, kraken = null, saloon = null, yokai = null, circus = null, pranks = null, events = null, achievements, luck, pool, duel = null, music, songRequests, chat, mutes, cleanText,
-  onlineIds, sendToPlayer, broadcast, refreshLists, disconnectPlayer = () => {}, shutdown = () => {},
+  onlineIds, sendToPlayer, broadcast, refreshLists, disconnectPlayer = () => {}, shutdown = () => {}, maintenance = null,
 }) {
   const router = express.Router();
   router.use(express.json({ limit: '4kb' }));
@@ -71,7 +71,8 @@ function createAdminRouter({
       .sort((a, b) => b.online - a.online || b.capital - a.capital);
     res.json({ players, crash: crash.adminState(), roulette: roulette.adminState(), wheel: wheel ? wheel.adminState() : null, bomb: bomb.adminState(), upgrader: upgrader.adminState(), verity: verity.adminState(), plinko: plinko ? plinko.adminState() : null, mines: mines ? mines.adminState() : null, blackjack: blackjack ? blackjack.adminState() : null, kraken: kraken ? kraken.adminState() : null, saloon: saloon ? saloon.adminState() : null, yokai: yokai ? yokai.adminState() : null, circus: circus ? circus.adminState() : null, pranks: pranks ? pranks.adminState() : null, events: events ? events.adminState() : null, season: achievements.adminState(), pool: pool.adminState(), duel: duel ? duel.adminState() : null, poker: table.adminView(), chat: chat.log(),
       music: { current: music.state(), playlist: music.playlist(), autoplay: music.autoplay() },
-      requests: songRequests.list() });
+      requests: songRequests.list(),
+      maintenance: maintenance ? { ...maintenance.adminState(), allowNames: maintenance.adminState().allow.map((id) => findPlayer(id)?.name).filter(Boolean) } : null });
   });
 
   // { amount, target: "online" | "all" | "player", playerId? }
@@ -180,6 +181,21 @@ function createAdminRouter({
   router.post('/shutdown', (req, res) => {
     ok(res);
     setTimeout(shutdown, 200);
+  });
+
+  // Технический перерыв: { on, text?, until? (мс), allow? — имена игроков, которым можно играть (например, себе) }
+  router.post('/maintenance', (req, res) => {
+    if (!maintenance) return fail(res, 'Перерыв недоступен', 404);
+    const names = Array.isArray(req.body.allow) ? req.body.allow : [];
+    const allow = [];
+    for (const name of names) {
+      const p = store.findByName(String(name).trim());
+      if (!p) return fail(res, `Нет игрока «${name}»`, 404);
+      allow.push(p.id);
+    }
+    const r = maintenance.set({ on: req.body.on, text: req.body.text, until: req.body.until, allow });
+    if (r.error) return fail(res, r.error);
+    ok(res, r);
   });
 
   router.post('/announce', (req, res) => {

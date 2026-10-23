@@ -1147,6 +1147,19 @@
   <script src="roulette-physics.js"></script>
   <script src="fortune-physics.js"></script>
   <script src="lounge.js"></script>
+  <!-- Заставка: обрыв связи (зал перезапускается) или технический перерыв из админки. -->
+  <div class="pause" id="pause" hidden role="alertdialog" aria-live="polite" aria-labelledby="pause-title">
+    <div class="pause-card">
+      <div class="pause-chip" aria-hidden="true"><span></span></div>
+      <div class="pause-brand">Додепчик</div>
+      <h2 class="pause-title" id="pause-title">Зал перезапускается</h2>
+      <p class="pause-text" id="pause-text">Сейчас вернёмся — фишки на месте.</p>
+      <p class="pause-until" id="pause-until" hidden></p>
+      <p class="pause-dots" id="pause-dots" aria-hidden="true"><i></i><i></i><i></i></p>
+      <button type="button" class="pause-stay" id="pause-stay" hidden>Остаться в зале</button>
+    </div>
+  </div>
+  <div class="pause-bar" id="pause-bar" hidden><span id="pause-bar-text">Технический перерыв</span><button type="button" id="pause-bar-open">Подробнее</button></div>
   <script src="client.js"></script>
   <script src="slots-art.js"></script>
   <script src="slots-rig.js"></script>

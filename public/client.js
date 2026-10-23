@@ -25,6 +25,7 @@ const state = {
   crash: null,        // последний crash_state
   crashRecvAt: 0,     // performance.now() в момент получения
   retryMs: 1000,
+  retryTimer: null,
 };
 
 $('name').value = storage.get(NAME_KEY) || '';
@@ -47,7 +48,44 @@ function sendPresence() {
 document.addEventListener('visibilitychange', sendPresence);
 window.addEventListener('pagehide', () => { if (state.ws?.authed) send({ type: 'presence', hidden: true }); });
 
+// ---------- Заставка: обрыв связи (зал перезапускается) и технический перерыв из админки ----------
+const LOST_SHOW_MS = 3000;  // короткий обрыв не показываем
+const pause = { lost: false, lostTimer: null, maint: null, dismissed: false };
+
+const hhmm = (ms) => new Date(ms).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
+
+function renderPause() {
+  const m = pause.maint && pause.maint.on ? pause.maint : null;
+  const until = m && m.until > Date.now() ? `Вернёмся к ${hhmm(m.until)}` : '';
+  const showMaint = !pause.lost && m && !pause.dismissed;
+  $('pause').hidden = !(pause.lost || showMaint);
+  $('pause').dataset.mode = pause.lost ? 'lost' : 'maintenance';
+  $('pause-title').textContent = m ? 'Технический перерыв' : 'Зал перезапускается';
+  $('pause-text').textContent = m ? m.text : 'Сейчас вернёмся — фишки на месте, обновлять страницу не нужно.';
+  $('pause-until').hidden = !until;
+  $('pause-until').textContent = until;
+  $('pause-dots').hidden = !pause.lost;
+  $('pause-stay').hidden = pause.lost;
+  $('pause-bar').hidden = !(m && pause.dismissed && !pause.lost);
+  $('pause-bar-text').textContent = until ? `Технический перерыв · ${until.toLowerCase()}` : 'Технический перерыв';
+}
+setInterval(() => { if (pause.maint?.on) renderPause(); }, 30_000);
+$('pause-stay').addEventListener('click', () => { pause.dismissed = true; renderPause(); });
+$('pause-bar-open').addEventListener('click', () => { pause.dismissed = false; renderPause(); });
+
+// Связи нет дольше LOST_SHOW_MS — показываем заставку; убираем, как только зал снова ответил.
+function armLost() {
+  if (pause.lost || pause.lostTimer) return;
+  pause.lostTimer = setTimeout(() => { pause.lostTimer = null; pause.lost = true; renderPause(); }, LOST_SHOW_MS);
+}
+function clearLost() {
+  clearTimeout(pause.lostTimer);
+  pause.lostTimer = null;
+  if (pause.lost) { pause.lost = false; renderPause(); }
+}
+
 function showLogin() {
+  clearLost();
   $('lobby').hidden = true;
   $('me').hidden = true;
   $('login').hidden = false;
@@ -71,9 +109,12 @@ function toast(text, ok = false) {
 function connect() {
   // Адрес берём из текущей страницы: работает и локально, и через cloudflared.
   const url = (location.protocol === 'https:' ? 'wss://' : 'ws://') + location.host;
+  clearTimeout(state.retryTimer);
+  state.retryTimer = null;
   const ws = new WebSocket(url);
   state.ws = ws;
   setConn('connecting', 'подключение…');
+  armLost();
 
   ws.addEventListener('open', () => {
     state.retryMs = 1000;
@@ -92,12 +133,23 @@ function connect() {
   });
 
   ws.addEventListener('close', () => {
+    if (state.ws !== ws) return;
     $('login-btn').disabled = true;
     setConn('closed', 'нет связи, переподключаюсь…');
-    setTimeout(connect, state.retryMs);
-    state.retryMs = Math.min(state.retryMs * 2, 10000);
+    armLost();
+    // Пауза растёт: 1 → 1,6 → 2,6 … до 15 с, с небольшим разбросом, чтобы все не ломились разом.
+    state.retryTimer = setTimeout(connect, state.retryMs * (0.85 + Math.random() * 0.3));
+    state.retryMs = Math.min(state.retryMs * 1.6, 15000);
   });
 }
+
+// Вернулся в приложение или появилась сеть — пробуем сразу, не дожидаясь паузы.
+function reconnectNow() {
+  if (document.hidden || !state.retryTimer) return;
+  connect();
+}
+document.addEventListener('visibilitychange', reconnectNow);
+window.addEventListener('online', reconnectNow);
 
 function formatWait(ms) {
   const totalMin = Math.ceil(ms / 60000);
@@ -4868,6 +4920,7 @@ showRankTab(ach.tab);
 
 const handlers = {
   welcome(msg) {
+    clearLost();
     state.me = msg;
     if (state.ws) state.ws.authed = true;
     if (document.hidden) sendPresence();
@@ -4883,6 +4936,12 @@ const handlers = {
     // Старый аккаунт без пароля: предлагаем задать, иначе на новой ссылке не войти.
     if (!msg.hasPassword) showPasswordCard(false);
     else $('pw-card').hidden = true;
+  },
+
+  maintenance(msg) {
+    if (msg.on && !pause.maint?.on) pause.dismissed = false;
+    pause.maint = msg;
+    renderPause();
   },
 
   password_set() {

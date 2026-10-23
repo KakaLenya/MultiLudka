@@ -20,6 +20,7 @@ const { createYokai } = require('./yokai');
 const { createCircus } = require('./circus');
 const { createPranks } = require('./pranks');
 const { createEvents } = require('./events');
+const { createMaintenance } = require('./maintenance');
 const { createMines } = require('./mines');
 const { createBlackjack } = require('./blackjack');
 const { createAchievements, ACHIEVEMENTS } = require('./achievements');
@@ -63,6 +64,13 @@ const adminToken = (() => {
 })();
 
 const app = express();
+// Технический перерыв из админки: флаг в data/, рассылается всем клиентам.
+const maintenance = createMaintenance({ file: path.join(DATA_DIR, 'maintenance.json'), broadcast: (m) => broadcast(m) });
+// Проверка «зал жив» для офлайн-страницы и воркера Cloudflare: service worker её не кэширует.
+app.get('/healthz', (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.json({ ok: true, maintenance: maintenance.view() });
+});
 app.use(express.static(path.join(__dirname, '..', 'public')));
 app.use('/music-files', express.static(MUSIC_DIR, {
   index: false,
@@ -849,6 +857,7 @@ wss.on('connection', (ws, req) => {
   ws.chatRate = makeBucket(CHAT_LIMIT);
   ws.strikes = 0;
   clients.add(ws);
+  send(ws, maintenance.view());
 
   ws.on('pong', () => { ws.alive = true; });
 
@@ -875,6 +884,8 @@ wss.on('connection', (ws, req) => {
     if (msg.type !== 'hello' && !ws.player) {
       return send(ws, { type: 'error', message: 'Сначала hello' });
     }
+    const paused = maintenance.blocks(ws.player, msg.type);
+    if (paused) return send(ws, { type: 'error', code: 'maintenance', message: paused, game: msg.type.split('_')[0] });
     try {
       handler(ws, msg);
     } catch (err) {
@@ -955,6 +966,7 @@ const events = createEvents({ store, broadcast, postChat, notify: sendToPlayer }
 
 app.use('/admin/api', createAdminRouter({
   adminToken,
+  maintenance,
   store,
   crash,
   table,

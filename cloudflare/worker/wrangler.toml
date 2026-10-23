@@ -1,0 +1,17 @@
+# Воркер «Технический перерыв» перед dodepchik.ru (бесплатный план: 100 000 запросов в сутки).
+# Деплой из этой папки: npx wrangler login (один раз, в браузере), затем npx wrangler deploy.
+name = "dodepchik-maintenance"
+main = "worker.js"
+compatibility_date = "2026-10-01"
+workers_dev = false
+
+routes = [
+  { pattern = "dodepchik.ru/*", zone_name = "dodepchik.ru" },
+  { pattern = "www.dodepchik.ru/*", zone_name = "dodepchik.ru" },
+]
+
+# Страница перерыва — та же public/offline.html, что показывает service worker: импортируется как текст.
+[[rules]]
+type = "Text"
+globs = ["**/*.html"]
+fallthrough = true

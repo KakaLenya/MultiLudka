@@ -794,6 +794,49 @@ function renderPranks() {
   $('prank-status').textContent = parts.join(' · ') || 'Сейчас ничего не разыгрывается';
 }
 
+// ---------- Технический перерыв ----------
+function renderMaintenance() {
+  const m = admin.data.maintenance;
+  if (!m) return;
+  const until = m.on && m.until ? ` до ${new Date(m.until).toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' })}` : '';
+  $('maint-pill').textContent = m.on ? `включён${until}` : 'выключен';
+  $('maint-pill').className = m.on ? 'pill rigged' : 'pill fair';
+  $('maint-on').textContent = m.on ? 'Обновить перерыв' : 'Включить перерыв';
+  $('maint-off').disabled = !m.on;
+  // Поля заполняем один раз, чтобы опрос не затирал то, что админ печатает.
+  if (m.on && !admin.maintFilled) {
+    admin.maintFilled = true;
+    $('maint-text').value = m.text;
+    $('maint-allow').value = m.allowNames.join(', ');
+    if (m.until) $('maint-until').value = new Date(m.until).toTimeString().slice(0, 5);
+  }
+}
+
+// «HH:MM» → ближайший такой момент (сегодня или завтра), мс; пусто → 0.
+function nextTime(hhmm) {
+  const [h, mi] = String(hhmm || '').split(':').map(Number);
+  if (!Number.isInteger(h) || !Number.isInteger(mi)) return 0;
+  const d = new Date();
+  d.setHours(h, mi, 0, 0);
+  if (d.getTime() <= Date.now()) d.setDate(d.getDate() + 1);
+  return d.getTime();
+}
+
+$('maint-on').addEventListener('click', () => {
+  const allow = $('maint-allow').value.split(',').map((x) => x.trim()).filter(Boolean);
+  admin.maintFilled = true;
+  run('/maintenance', { on: true, text: $('maint-text').value, until: nextTime($('maint-until').value), allow }, 'Перерыв включён: ставки закрыты, у всех заставка');
+});
+$('maint-off').addEventListener('click', async () => {
+  const r = await run('/maintenance', { on: false }, 'Перерыв выключен, зал снова открыт');
+  if (r) {
+    admin.maintFilled = false;
+    $('maint-text').value = '';
+    $('maint-until').value = '';
+    $('maint-allow').value = '';
+  }
+});
+
 // ---------- Мероприятия ----------
 const leftText = (until) => {
   const s = Math.max(0, Math.ceil((until - Date.now()) / 1000));
@@ -1118,7 +1161,7 @@ function render() {
   if (admin.tab === 'players') { renderPlayers(); renderPlayerCard(); }
   else if (admin.tab === 'games') renderGames(rigs);
   else if (admin.tab === 'music') renderMusic();
-  else if (admin.tab === 'hall') { renderSeason(); renderChat(); renderPranks(); renderEvents(); }
+  else if (admin.tab === 'hall') { renderMaintenance(); renderSeason(); renderChat(); renderPranks(); renderEvents(); }
   else if (admin.tab === 'server') renderServer();
 }
 

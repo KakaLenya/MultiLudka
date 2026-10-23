@@ -1,10 +1,10 @@
 // Service worker зала. Код (страница, js, css) — всегда из сети, кэш только запасной:
 // так новая версия client.js доходит до игрока сразу, без «застрявших» файлов.
 // Картинки и шрифты — stale-while-revalidate, сэмплы музыки — cache-first (они не меняются).
-// WebSocket сюда не попадает; /admin*, /music-files и сам sw.js не трогаем.
+// WebSocket сюда не попадает; /admin*, /music-files, /healthz и сам sw.js не трогаем.
 'use strict';
 
-const VERSION = 'v2'; // поднять при изменении логики этого файла
+const VERSION = 'v3'; // поднять при изменении логики этого файла
 const SHELL = `shell-${VERSION}`;
 const STATIC = `static-${VERSION}`;
 const SAMPLES = 'samples-v1'; // переживает смену VERSION: 12 МБ сэмплов не качаем заново
@@ -46,7 +46,7 @@ self.addEventListener('fetch', (event) => {
 
   if (url.origin === self.location.origin) {
     const p = url.pathname;
-    if (p.startsWith('/admin') || p.startsWith('/music-files') || p === '/sw.js') return;
+    if (p.startsWith('/admin') || p.startsWith('/music-files') || p === '/sw.js' || p === '/healthz') return;
     if (req.mode === 'navigate') return event.respondWith(page(req));
     if (p.startsWith('/samples/')) return event.respondWith(cacheFirst(req, SAMPLES, SAMPLES_MAX));
     if (/\.(?:js|css|html|webmanifest|json)$/.test(p) || p === '/') return event.respondWith(networkFirst(req, STATIC));
@@ -56,7 +56,7 @@ self.addEventListener('fetch', (event) => {
   if (url.hostname === 'fonts.googleapis.com') return event.respondWith(staleWhileRevalidate(req, STATIC, event));
 });
 
-// Страница: сеть; если сети нет или сервер зала лежит (502/530 от туннеля) — офлайн-экран.
+// Страница: сеть; если сети нет или сервер зала лежит (502/530/1033 от Cloudflare) — экран «Технический перерыв».
 async function page(req) {
   try {
     const res = await fetch(req);
@@ -73,6 +73,11 @@ async function networkFirst(req, name) {
   try {
     const res = await fetch(req, { cache: 'no-cache' });
     if (res.ok) cache.put(req, res.clone());
+    if (res.status >= 500) {
+      // Зал лежит: отдаём последнюю рабочую версию файла, а не ошибку Cloudflare.
+      const hit = await cache.match(req, { ignoreSearch: true });
+      if (hit) return hit;
+    }
     return res;
   } catch (err) {
     const hit = (await cache.match(req, { ignoreSearch: true })) || (await caches.match(req, { ignoreSearch: true }));

@@ -444,6 +444,20 @@
       <section class="view" data-view="hall" hidden>
         <div class="hall-layout">
           <div class="hall-col">
+            <div class="card" id="maint-card">
+              <div class="sec-head"><h2>🛠 Технический перерыв</h2><span class="pill fair" id="maint-pill">выключен</span></div>
+              <p class="note">Пока включён, новые ставки во всех играх не принимаются, начатые раунды и бонусы доигрываются, чат работает. У всех — заставка с этим текстом.</p>
+              <textarea id="maint-text" maxlength="200" rows="2" placeholder="Текст, например: Обновляем слоты, вернёмся через полчаса"></textarea>
+              <div class="field-label">Вернёмся к (необязательно) и кому можно играть (имена через запятую, например себе)</div>
+              <div class="inline">
+                <input id="maint-until" type="time" aria-label="Вернёмся к">
+                <input id="maint-allow" placeholder="Имена через запятую" autocomplete="off">
+              </div>
+              <div class="actions">
+                <button type="button" id="maint-on">Включить перерыв</button>
+                <button type="button" class="ghost" id="maint-off">Выключить</button>
+              </div>
+            </div>
             <div class="card">
               <div class="sec-head"><h2>📣 Объявление</h2></div>
               <textarea id="announce" maxlength="200" rows="3" placeholder="Текст объявления"></textarea>
