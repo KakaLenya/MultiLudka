@@ -33,7 +33,6 @@
   const MOD_ICONS = { blank: '🎭', clowns: '🤡', trained: '🎩', x2: '✖2', x3: '✖3', x5: '✖5', again: '🔁', hoops: '🔥', target: '🎯' };
   const MOD_ORDER = ['blank', 'clowns', 'x2', 'blank', 'trained', 'x3', 'blank', 'again', 'hoops', 'blank', 'x5', 'target'];
   const BUY = { knives: 82 };
-  const MAX_WIN = 5000;
   const SCATTER_PAY = { 3: 2, 4: 10, 5: 50 };
   const FILLER = ['ticket', 'popcorn', 'pins', 'tophat', 'ticket', 'popcorn', 'pins', 'tophat', 'bear', 'strongman', 'teller', 'acrobat', 'clown', 'hoop', 'target'];
   const CALM = ['ticket', 'popcorn', 'pins', 'tophat', 'bear', 'strongman', 'teller', 'acrobat'];
@@ -1240,7 +1239,6 @@
     el('cc-auto').textContent = G.auto > 0 ? (G.auto > 1000 ? '∞' : `${G.auto}`) : 'Авто';
     el('cc-auto').classList.toggle('on', G.auto > 0);
     el('cc-turbo').classList.toggle('on', G.turbo);
-    el('cc-maxwin').textContent = fmt(MAX_WIN * G.bet);
   }
   const setMsg = (text) => { el('cc-msg').textContent = text; };
 

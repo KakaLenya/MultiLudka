@@ -20,7 +20,6 @@
     sake: 'Чаша сакэ', geta: 'Гэта', fan: 'Веер', ofuda: 'Офуда', umbrella: 'Каса-обакэ', lantern: 'Тётин-обакэ', skeleton: 'Гасадокуро', oni: 'Маска они', spider: 'Цутигумо', fox: 'Кицунэ', torii: 'Тории',
   };
   const BUY = { bonus: 100 };
-  const MAX_WIN = 5000;
   const FREE_SPINS = { 3: 8, 4: 12, 5: 20 };
   const FILLER = ['sake', 'geta', 'fan', 'ofuda', 'sake', 'geta', 'fan', 'ofuda', 'umbrella', 'lantern', 'skeleton', 'oni', 'spider', 'fox', 'torii'];
   const CALM = ['sake', 'geta', 'fan', 'ofuda', 'umbrella', 'lantern', 'skeleton', 'oni', 'spider'];
@@ -1026,7 +1025,6 @@
     el('yk-auto').textContent = G.auto > 0 ? (G.auto > 1000 ? '∞' : `${G.auto}`) : 'Авто';
     el('yk-auto').classList.toggle('on', G.auto > 0);
     el('yk-turbo').classList.toggle('on', G.turbo);
-    el('yk-maxwin').textContent = fmt(MAX_WIN * G.bet);
   }
   const setMsg = (text) => { el('yk-msg').textContent = text; };
 

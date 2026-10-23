@@ -20,7 +20,6 @@
     horseshoe: 'Подкова', whiskey: 'Виски', hat: 'Шляпа', boot: 'Сапог', vulture: 'Стервятник', skull: 'Бычий череп', barman: 'Бармен', sheriff: 'Шериф', colt: 'Кольт', wanted: 'Розыск',
   };
   const BUY = { duel: 115, super: 500 };
-  const MAX_WIN = 10000;
   const LIVES = { 3: 3, 4: 4, 5: 5 };
   const FILLER = ['horseshoe', 'whiskey', 'hat', 'boot', 'horseshoe', 'whiskey', 'hat', 'boot', 'vulture', 'skull', 'barman', 'sheriff', 'colt', 'wanted'];
   const CALM = ['horseshoe', 'whiskey', 'hat', 'boot', 'vulture', 'skull', 'barman', 'sheriff'];
@@ -1230,7 +1229,6 @@
     el('sl-auto').textContent = G.auto > 0 ? (G.auto > 1000 ? '∞' : `${G.auto}`) : 'Авто';
     el('sl-auto').classList.toggle('on', G.auto > 0);
     el('sl-turbo').classList.toggle('on', G.turbo);
-    el('sl-maxwin').textContent = fmt(MAX_WIN * G.bet);
   }
   const setMsg = (text) => { el('sl-msg').textContent = text; };
 
