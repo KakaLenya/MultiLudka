@@ -174,11 +174,10 @@ function createBlackjack({
 
   // В руке подряд пришли шестёрка и семёрка — раз в жизни игрока показываем пасхалку. Ачивку выдаём,
   // когда у игрока доиграет анимация, иначе всплывашка её опередит.
-  // forced — подкрутка админа: показываем, даже если у игрока пасхалка уже была (ачивка — только раз).
-  function checkSixSeven(player, g, idx, dealt, forced = false) {
+  function checkSixSeven(player, g, idx, dealt) {
     const c = g.hands[idx].cards;
     if (g.sixSeven || c.length < 2 || c[c.length - 2][0] !== '6' || c[c.length - 1][0] !== '7') return;
-    if (!forced && (sixSevenNow.has(player.id) || sixSeven.seen(player))) return;
+    if (sixSevenNow.has(player.id) || sixSeven.seen(player)) return;
     sixSevenNow.add(player.id);
     g.sixSeven = { hand: idx, card: c.length - 1 };
     schedule(() => {
@@ -273,7 +272,7 @@ function createBlackjack({
     };
     games.set(player.id, g);   // сначала раздача, потом списание: капитал в рассылке уже верный
     store.adjust(player, -amount);
-    checkSixSeven(player, g, 0, true, mode === 'sixseven');
+    checkSixSeven(player, g, 0, true);
 
     const playerBJ = isNatural(g.hands[0].cards);
     const peek = [1, 10].includes(pointsOf(up));

@@ -301,6 +301,7 @@ test('итог объявляется после анимации: до того
   deal(bj, a, 100, ['Ts', '9d', 'Qh', '7c']);
   assert.equal(a.balance, 1150 + 100 - 100, 'прошлый выигрыш выплачен до новой ставки');
   assert.equal(events.length, 2);
+  bj._stack(['8s']);                                  // дилер 16 + 8 — перебор, без случайной ничьей
   bj.settleAll();
   assert.equal(events.length, 3);
 });
@@ -362,7 +363,7 @@ test('сикс-севен: пока анимация не доиграла, вт
   assert.ok(seen.has(a.id));
 });
 
-test('подкрутка «сикс-севен»: раздача 6 и 7, пасхалка даже повторно, ачивка один раз, дальше честно', () => {
+test('подкрутка «сикс-севен»: раздача 6 и 7, анимация только с первой ачивкой, дальше честно', () => {
   const granted = [];
   const seen = new Set();
   const { bj, a } = setup({ sixSeven: { seen: (p) => seen.has(p.id), grant: (p) => { if (!seen.has(p.id)) granted.push(p.name); seen.add(p.id); } } });
@@ -372,7 +373,8 @@ test('подкрутка «сикс-севен»: раздача 6 и 7, пас�
     let s = bj.start(a, 10).state;
     assert.equal(s.hands[0].cards[0][0], '6');
     assert.equal(s.hands[0].cards[1][0], '7');
-    assert.deepEqual(s.sixSeven, { hand: 0, card: 1 }, `раздача ${i + 1}`);
+    if (i === 0) assert.deepEqual(s.sixSeven, { hand: 0, card: 1 }, 'впервые — анимация');
+    else assert.equal(s.sixSeven, null, `раздача ${i + 1}: ачивка уже есть — без анимации`);
     assert.equal(bj.adminState().rigged, null);
     if (s.active) s = bj.stand(a).state;
   }
