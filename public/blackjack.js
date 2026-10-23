@@ -204,6 +204,43 @@
     bj.els.hands.forEach((h, i) => h.box.classList.toggle('cur', s.active && bj.els.hands.length > 1 && s.cur === i));
   }
 
+  // ---------- Пасхалка «сикс-севен» ----------
+  // Шестёрка и сразу семёрка: сервер решает, что это первый раз у игрока (sixSeven: { hand, card }),
+  // а здесь, когда семёрка легла на стол, — огромные 6 и 7 качаются, как ладони в меме, и надпись SIX SEVEN.
+
+  function maybeSixSeven(s, hand, card) {
+    const x = s.sixSeven;
+    if (!x || x.hand !== hand || x.card !== card || bj.sixSevenRound === s.id) return;
+    bj.sixSevenRound = s.id;
+    setTimeout(sixSevenFx, reduced ? 0 : 420);
+  }
+
+  function sixSevenFx() {
+    const layer = div('sixseven');
+    layer.setAttribute('aria-hidden', 'true');
+    // Сторона вылетает из-за края, внутри неё цифра на ладони качается вверх-вниз.
+    const side = (cls, digit) => {
+      const el = div(`ss-side ${cls}`);
+      const bob = div('ss-bob');
+      bob.append(span('ss-num', digit), span('ss-palm'));
+      el.append(bob);
+      return el;
+    };
+    const six = side('ss-left', '6');
+    const seven = side('ss-right', '7');
+    const title = div('ss-title');
+    title.append(span('ss-w', 'SIX'), span('ss-w', 'SEVEN'));
+    layer.append(div('ss-flash'), six, seven, title);
+    document.body.append(layer);
+    // «Сикс» — вниз, «се-вен» — вверх: три раза, как качают ладонями.
+    const n = [[392, 0.11], [330, 0.09], [523, 0.16]];
+    for (let k = 0; k < 3; k++) setTimeout(() => beep(n, 'square'), 420 + k * 560);
+    setTimeout(() => beep([[110, 0.25]], 'sawtooth'), 120);
+    if (!reduced) setTimeout(() => rain(['6️⃣', '7️⃣', '🤲'], 36), 300);
+    setTimeout(() => layer.classList.add('out'), reduced ? 1600 : 2400);
+    setTimeout(() => layer.remove(), reduced ? 1900 : 2800);
+  }
+
   // ---------- Итог ----------
 
   const TAGS = { win: 'Выигрыш', blackjack: 'Блэкджек 3:2', push: 'Ничья', lose: 'Проигрыш', bust: 'Перебор' };
@@ -282,6 +319,7 @@
         addDealerCard(s.dealer.cards[0], true);
         await sleep(300);
         addPlayerCard(0, s.hands[0].cards[1], true);
+        maybeSixSeven(s, 0, 1);
         await sleep(300);
         addDealerCard(null, true);
         await sleep(450);
@@ -331,6 +369,7 @@
       for (let j = shown.hands[i].length; j < hand.cards.length; j++) {
         if (hand.doubled && j === 2) beep([[2200, 0.02], [2600, 0.03], [2400, 0.03]], 'square');
         addPlayerCard(i, hand.cards[j], animate);
+        if (animate) maybeSixSeven(s, i, j);
         shown.hands[i].push(hand.cards[j]);
         if (animate) await sleep(380);
       }

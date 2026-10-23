@@ -304,3 +304,60 @@ test('итог объявляется после анимации: до того
   bj.settleAll();
   assert.equal(events.length, 3);
 });
+
+test('сикс-севен: шестёрка и сразу семёрка в руке — пасхалка один раз на игрока', () => {
+  const granted = [];
+  const seen = new Set();
+  const sixSeven = { seen: (p) => seen.has(p.id), grant: (p) => { seen.add(p.id); granted.push(p.name); } };
+  const { bj, a, store } = setup({ sixSeven });
+  a.balance = 1e6;
+  // 7 затем 6 — нет; 6, X, 7 — нет.
+  let s = deal(bj, a, 10, ['7s', '9d', '6h', 'Tc']).state;
+  assert.equal(s.sixSeven, null);
+  bj.stand(a);
+  deal(bj, a, 10, ['6s', '9d', '2h', 'Tc']);
+  bj._stack(['7d']);
+  s = bj.hit(a).state;
+  assert.deepEqual(s.hands[0].cards, ['6s', '2h', '7d']);
+  assert.equal(s.sixSeven, null);
+  bj.stand(a);
+  // 6 и сразу 7 после «ещё» — да, рука и номер карты для анимации.
+  deal(bj, a, 10, ['2s', '9d', '6h', 'Tc']);
+  bj._stack(['7c']);
+  s = bj.hit(a).state;
+  assert.deepEqual(s.sixSeven, { hand: 0, card: 2 });
+  assert.deepEqual(granted, ['Аня']);
+  bj.stand(a);
+  // Второй раз — уже нет, даже с раздачи.
+  s = deal(bj, a, 10, ['6s', '9d', '7h', 'Tc']).state;
+  assert.equal(s.sixSeven, null);
+  assert.equal(granted.length, 1);
+  bj.stand(a);
+  // Другому игроку — с раздачи и после сплита.
+  const b = store.register('Боря').player;
+  s = deal(bj, b, 10, ['6s', '9d', '7h', 'Tc']).state;
+  assert.deepEqual(s.sixSeven, { hand: 0, card: 1 });
+  bj.stand(b);
+  const c = store.register('Вика').player;
+  deal(bj, c, 10, ['6s', '9d', '6h', 'Tc']);
+  bj._stack(['2d', '7s']);                            // первой руке 6+2, второй 6+7
+  s = bj.split(c).state;
+  assert.deepEqual(s.sixSeven, { hand: 1, card: 1 });
+  assert.deepEqual(granted, ['Аня', 'Боря', 'Вика']);
+});
+
+test('сикс-севен: пока анимация не доиграла, второй раз не показываем', () => {
+  const timers = [];
+  const seen = new Set();
+  const { bj, a } = setup({ schedule: (fn, ms) => timers.push({ fn, ms }), sixSeven: { seen: (p) => seen.has(p.id), grant: (p) => seen.add(p.id) } });
+  a.balance = 1e6;
+  let s = deal(bj, a, 10, ['6s', '9d', '7h', 'Tc']).state;
+  assert.ok(s.sixSeven);
+  bj.stand(a);
+  s = deal(bj, a, 10, ['6s', '9d', '7h', 'Tc']).state;
+  assert.equal(s.sixSeven, null, 'ачивка ещё не выдана, но пасхалка уже была');
+  const grant = timers.find((t) => t.ms >= 2800);
+  assert.ok(grant, 'выдача после анимации');
+  grant.fn();
+  assert.ok(seen.has(a.id));
+});

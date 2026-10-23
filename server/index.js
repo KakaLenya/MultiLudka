@@ -24,7 +24,7 @@ const { createMaintenance } = require('./maintenance');
 const { createMines } = require('./mines');
 const { createBlackjack } = require('./blackjack');
 const { createBjTable } = require('./bjtable');
-const { createAchievements, ACHIEVEMENTS } = require('./achievements');
+const { createAchievements, defsFor, secretsOf } = require('./achievements');
 const { createLuck } = require('./luck');
 const { createPool } = require('./pool');
 const { createDuel } = require('./duel');
@@ -327,6 +327,10 @@ const blackjack = createBlackjack({
   lucky: luck.roll,
   onEvent: onActivity,
   onFeed: (feed) => broadcast({ type: 'blackjack_feed', feed }),
+  sixSeven: {
+    seen: (player) => achievements.has(player.id, 'bj_sixseven'),
+    grant: (player) => achievements.grant(player, 'bj_sixseven'),
+  },
 });
 store.addReserver(blackjack.reserved);
 
@@ -589,7 +593,7 @@ const handlers = {
     send(ws, { type: 'bjt_feed', feed: bjTable.feed() });
     send(ws, { type: 'bjt_state', ...bjTable.view() });
     send(ws, { type: 'activity_history', entries: activity });
-    send(ws, { type: 'achievements_defs', list: ACHIEVEMENTS, mine: achievements.unlockedOf(player.id) });
+    send(ws, { type: 'achievements_defs', list: defsFor(achievements.unlockedOf(player.id)), mine: achievements.unlockedOf(player.id) });
     send(ws, { type: 'season', ...achievements.season() });
     send(ws, { type: 'pool_state', ...pool.view(player) });
     send(ws, { type: 'duel_state', ...duel.view(player) });
@@ -624,6 +628,7 @@ const handlers = {
       name: p.name,
       capital: store.capital(p),
       unlocked: achievements.unlockedOf(p.id),
+      secrets: secretsOf(achievements.unlockedOf(p.id)),
       week: achievements.standing(p.id),
     });
   },

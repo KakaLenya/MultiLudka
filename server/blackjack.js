@@ -14,6 +14,7 @@ const FEED_SIZE = 20;
 const SEARCH_LIMIT = 50_000;            // предел перебора добора дилера при подкрутке
 // Сколько у игрока длится анимация до итога: раздача, переворот закрытой карты, каждая карта дилера.
 const REVEAL_MS = { deal: 1600, step: 400, flip: 950, card: 620 };
+const SIX_SEVEN_MS = 2800;              // анимация пасхалки «сикс-севен» у игрока
 
 // Очки карты: туз — 1 (мягкие 11 считает handValue), картинки — 10.
 const pointsOf = (card) => (card[0] === 'A' ? 1 : 'TJQK'.includes(card[0]) ? 10 : Number(card[0]));
@@ -155,6 +156,8 @@ function createBlackjack({
   lucky = () => false,
   schedule = (fn, ms) => setTimeout(fn, ms),
   revealMs = REVEAL_MS,
+  // Пасхалка «сикс-севен»: seen(player) — уже была у игрока, grant(player) — выдать (ачивка).
+  sixSeven = { seen: () => false, grant: () => {} },
 }) {
   const games = new Map();   // playerId -> раздача
   const announcing = new Set();   // объявления итогов, которые ждут конца анимации у игрока
@@ -164,8 +167,24 @@ function createBlackjack({
   let seq = 0;
   const { draw, drawWhere } = shoe;
 
+  const sixSevenNow = new Set();   // игроки, кому пасхалка уже показана, но ачивка ещё не выдана
+
   const value = (h) => handValue(h.cards).total;
   const current = (g) => g.hands[g.cur];
+
+  // В руке подряд пришли шестёрка и семёрка — раз в жизни игрока показываем пасхалку. Ачивку выдаём,
+  // когда у игрока доиграет анимация, иначе всплывашка её опередит.
+  function checkSixSeven(player, g, idx, dealt) {
+    const c = g.hands[idx].cards;
+    if (g.sixSeven || c.length < 2 || c[c.length - 2][0] !== '6' || c[c.length - 1][0] !== '7') return;
+    if (sixSevenNow.has(player.id) || sixSeven.seen(player)) return;
+    sixSevenNow.add(player.id);
+    g.sixSeven = { hand: idx, card: c.length - 1 };
+    schedule(() => {
+      sixSevenNow.delete(player.id);
+      sixSeven.grant(player);
+    }, (dealt ? revealMs.deal : revealMs.step) + SIX_SEVEN_MS);
+  }
   const staked = (g) => g.hands.reduce((s, h) => s + h.bet, 0);
 
   function view(player) {
@@ -201,6 +220,7 @@ function createBlackjack({
       },
       payout: g.payout,
       net: playing ? null : g.payout - staked(g),
+      sixSeven: g.sixSeven || null,
       shoe: { left: shoe.left(), size: SHOE_SIZE },
     };
   }
@@ -248,6 +268,7 @@ function createBlackjack({
     };
     games.set(player.id, g);   // сначала раздача, потом списание: капитал в рассылке уже верный
     store.adjust(player, -amount);
+    checkSixSeven(player, g, 0, true);
 
     const playerBJ = isNatural(g.hands[0].cards);
     const peek = [1, 10].includes(pointsOf(up));
@@ -297,6 +318,7 @@ function createBlackjack({
   const hit = (player) => act(player, (g, h) => {
     if (h.splitAces) return 'На тузах после сплита — только одна карта';
     h.cards.push(drawFor(g, h));
+    checkSixSeven(player, g, g.cur);
     markDone(h);
     return null;
   });
@@ -314,6 +336,7 @@ function createBlackjack({
     h.doubled = true;
     store.adjust(player, -add);
     h.cards.push(drawFor(g, h));
+    checkSixSeven(player, g, g.cur);
     h.done = true;
     return null;
   });
@@ -327,11 +350,12 @@ function createBlackjack({
     h.splitAces = aces;
     g.hands.push(second);
     store.adjust(player, -second.bet);
-    for (const x of g.hands) {
+    g.hands.forEach((x, i) => {
       x.cards.push(drawFor(g, x));
+      checkSixSeven(player, g, i);
       if (aces) x.done = true;
       else markDone(x);
-    }
+    });
     return null;
   });
 

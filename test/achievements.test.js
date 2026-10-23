@@ -166,3 +166,20 @@ test('удалённый игрок пропадает из сезона; дан
   assert.equal(ach.count(b.id), 0);
   fs.rmSync(dir, { recursive: true, force: true });
 });
+
+test('секретные достижения: заглушка до открытия, grant открывает один раз', () => {
+  const { defsFor, secretsOf, ACHIEVEMENTS: all } = require('../server/achievements');
+  const secret = all.find((x) => x.id === 'bj_sixseven');
+  assert.ok(secret.hidden);
+  const locked = defsFor({}).find((x) => x.id === 'bj_sixseven');
+  assert.deepEqual(locked, { id: 'bj_sixseven', hidden: true }, 'ни названия, ни условия');
+  assert.equal(defsFor({ bj_sixseven: 1 }).find((x) => x.id === 'bj_sixseven').name, 'Сикс-севен');
+  assert.deepEqual(secretsOf({ bj_sixseven: 1, first_win: 1 }).map((x) => x.id), ['bj_sixseven']);
+  const { a, ach, unlocked } = setup();
+  assert.equal(ach.has(a.id, 'bj_sixseven'), false);
+  assert.equal(ach.grant(a, 'bj_sixseven'), true);
+  assert.equal(ach.grant(a, 'bj_sixseven'), false);
+  assert.equal(ach.grant(a, 'no_such'), false);
+  assert.ok(ach.has(a.id, 'bj_sixseven'));
+  assert.deepEqual(unlocked.filter((x) => x.endsWith('bj_sixseven')), ['Аня:bj_sixseven']);
+});

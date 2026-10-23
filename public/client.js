@@ -4833,8 +4833,13 @@ setInterval(() => {
   if (ach.tab === 'week') renderSeason();
 }, 30_000);
 
+// Секретные достижения приходят заглушкой ({ id, hidden }) и не считаются, пока их не открыли.
+const visibleDefs = (unlocked, secrets = []) => ach.defs
+  .map((d) => (d.hidden && !d.name ? secrets.find((x) => x.id === d.id) : d))
+  .filter((d) => d && (!d.hidden || unlocked[d.id]));
+
 function renderMyAchCount() {
-  $('me-ach-count').textContent = `${Object.keys(ach.mine).length}/${ach.defs.length}`;
+  $('me-ach-count').textContent = `${Object.keys(ach.mine).length}/${visibleDefs(ach.mine).length}`;
 }
 
 function openProfile(playerId) {
@@ -4862,10 +4867,11 @@ function renderProfile(msg) {
   $('prof-name').textContent = msg.name;
   const week = msg.week.place ? `${msg.week.place}-е место в неделе (${signed(msg.week.net)})` : 'на этой неделе ещё не играл';
   $('prof-sub').textContent = `Капитал ${chips(msg.capital)} · ${week}`;
-  $('prof-count').textContent = `${count} из ${ach.defs.length}`;
-  $('prof-bar').style.width = `${ach.defs.length ? (count / ach.defs.length) * 100 : 0}%`;
+  const shown = visibleDefs(msg.unlocked, msg.secrets);
+  $('prof-count').textContent = `${count} из ${shown.length}`;
+  $('prof-bar').style.width = `${shown.length ? (count / shown.length) * 100 : 0}%`;
   // Открытые первыми, остальные в обычном порядке.
-  const defs = [...ach.defs].sort((x, y) => Number(!msg.unlocked[x.id]) - Number(!msg.unlocked[y.id]));
+  const defs = shown.sort((x, y) => Number(!msg.unlocked[x.id]) - Number(!msg.unlocked[y.id]));
   $('prof-grid').replaceChildren(...defs.map((d) => {
     const at = msg.unlocked[d.id];
     const li = document.createElement('li');
@@ -5130,6 +5136,9 @@ const handlers = {
   achievement(msg) {
     if (state.me && msg.playerId === state.me.playerId) {
       ach.mine[msg.achievement.id] = Date.now();
+      // Открылось секретное — заглушку в списке меняем на настоящее.
+      const i = ach.defs.findIndex((d) => d.id === msg.achievement.id);
+      if (i >= 0 && !ach.defs[i].name) ach.defs[i] = msg.achievement;
       renderMyAchCount();
       ach.queue.push(msg.achievement);
       showNextAch();

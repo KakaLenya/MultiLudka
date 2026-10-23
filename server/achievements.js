@@ -51,6 +51,8 @@ const ACHIEVEMENTS = [
   { id: 'bj_natural', icon: '🂡', name: 'Двадцать одно', desc: 'Собрать блэкджек с первых двух карт' },
   { id: 'bj_double', icon: '⏫', name: 'Дерзкое удвоение', desc: 'Выиграть удвоенную руку в блэкджеке' },
   { id: 'bj_split', icon: '✂️', name: 'Двойной удар', desc: 'Выиграть обе руки после сплита в блэкджеке' },
+  // hidden: секретная — в списке не видна, пока её не открыли (игрокам уходит заглушка, см. defsFor).
+  { id: 'bj_sixseven', icon: '🤲', name: 'Сикс-севен', desc: 'Шестёрка и сразу за ней семёрка в одиночном блэкджеке', hidden: true },
   { id: 'bjt_seat', icon: '🪑', name: 'За общим столом', desc: 'Сыграть раздачу за общим столом блэкджека' },
   { id: 'bjt_full', icon: '🎉', name: 'Аншлаг', desc: 'Собрать блэкджек, когда за столом играют все пять мест' },
   { id: 'bomb_win', icon: '🧨', name: 'Сапёр', desc: 'Выиграть в Бомбе' },
@@ -67,6 +69,11 @@ const ACHIEVEMENTS = [
   { id: 'season_champ', icon: '🏆', name: 'Чемпион недели', desc: 'Занять первое место по итогам недели' },
 ];
 const BY_ID = new Map(ACHIEVEMENTS.map((a) => [a.id, a]));
+
+// Список достижений для игрока: секретные, которых у него нет, — только заглушкой, без названия и условия.
+const defsFor = (unlocked = {}) => ACHIEVEMENTS.map((d) => (d.hidden && !unlocked[d.id] ? { id: d.id, hidden: true } : d));
+// Секретные, открытые этим игроком (чтобы показать их в чужом профиле).
+const secretsOf = (unlocked = {}) => ACHIEVEMENTS.filter((d) => d.hidden && unlocked[d.id]);
 
 // Начало недели (понедельник 00:00 МСК), в которую попадает момент t.
 function weekStart(t) {
@@ -326,6 +333,9 @@ function createAchievements({
     bonusClaimed,
     unlockedOf,
     standing,
+    has: (id, achId) => !!(players[id] && players[id].unlocked[achId]),
+    // Открыть напрямую (пасхалки, которые решает сама игра). true — открыто сейчас впервые.
+    grant: (player, achId) => BY_ID.has(achId) && unlock(player, achId),
     count: (id) => (players[id] ? Object.keys(players[id].unlocked).length : 0),
     season: seasonView,
     tick,
@@ -346,4 +356,4 @@ function createAchievements({
   };
 }
 
-module.exports = { createAchievements, ACHIEVEMENTS, weekStart, WEEK };
+module.exports = { createAchievements, ACHIEVEMENTS, defsFor, secretsOf, weekStart, WEEK };
