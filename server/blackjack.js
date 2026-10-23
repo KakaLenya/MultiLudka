@@ -47,6 +47,105 @@ function handPayout(hand, dealerTotal) {
 // Блэкджек 3:2: ставка + полторы ставки (вниз до целого).
 const naturalPayout = (bet) => bet + Math.floor((bet * 3) / 2);
 
+// Шуз: карты берутся с конца. Общий для всех раздач своей игры (одиночной или стола).
+function createShoe(randInt = (n) => randomInt(0, n - 1)) {
+  let cards = [];
+  function fresh() {
+    cards = [];
+    for (let d = 0; d < DECKS; d++) for (const r of RANKS) for (const s of SUITS) cards.push(r + s);
+    for (let i = cards.length - 1; i > 0; i--) {
+      const j = randInt(i + 1);
+      [cards[i], cards[j]] = [cards[j], cards[i]];
+    }
+  }
+  fresh();
+  const draw = () => cards.pop();
+  return {
+    fresh,
+    draw,
+    // Верхняя карта, подходящая под условие (для подкрутки и везения); нет такой — просто верхняя.
+    drawWhere(ok) {
+      for (let i = cards.length - 1; i >= 0; i--) {
+        if (ok(cards[i])) return cards.splice(i, 1)[0];
+      }
+      return draw();
+    },
+    // Случайная карта с нужными очками.
+    pullPoints(p) {
+      const at = [];
+      for (let i = 0; i < cards.length; i++) if (pointsOf(cards[i]) === p) at.push(i);
+      return cards.splice(at[randInt(at.length)], 1)[0];
+    },
+    putBack(card) { cards.splice(randInt(cards.length + 1), 0, card); },
+    counts() {
+      const out = Array(11).fill(0);
+      for (const c of cards) out[pointsOf(c)]++;
+      return out;
+    },
+    has: (ok) => cards.some(ok),
+    left: () => cards.length,
+    // Для тестов: положить карты на верх (первая в списке придёт первой).
+    stack(list) { cards.push(...list.slice().reverse()); },
+  };
+}
+
+// Подкрутка добора дилера: какие карты пришли бы ему, выбираем перебором по тому, что лежит в шузе.
+// dealer — [открытая, закрытая]: закрытую тоже выбираем заново — её ещё никто не видел (но блэкджека
+// у дилера быть не может: он уже проверял). hands — руки игроков { cards, bet }; goal: 'win' — им лучше
+// всего (дилер переберёт или останется ниже), 'lose' — хуже всего.
+function steerDealer(shoe, dealer, hands, goal, randInt = (n) => randomInt(0, n - 1)) {
+  shoe.putBack(dealer.pop());
+  const upP = pointsOf(dealer[0]);
+  const counts = shoe.counts();
+  const live = hands.filter((h) => handValue(h.cards).total <= 21);
+  const score = (d) => {
+    const paid = live.reduce((s, h) => s + handPayout(h, d).payout, 0);
+    return goal === 'win' ? paid : -paid;
+  };
+  const target = goal === 'win' ? live.reduce((s, h) => s + h.bet * 2, 0) : 0;
+  let best = null;
+  let bestScore = -Infinity;
+  let nodes = 0;
+  const order = () => {
+    const a = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = randInt(i + 1);
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  };
+  const search = (pts) => {
+    nodes++;
+    const t = pts.length >= 2 ? totalOfPoints(pts).total : 0;
+    if (pts.length >= 2 && t >= 17) {
+      const sc = score(t);
+      if (sc > bestScore) {
+        bestScore = sc;
+        best = pts.slice();
+      }
+      return sc >= target;
+    }
+    if (nodes > SEARCH_LIMIT) return true;
+    for (const p of order()) {
+      if (!counts[p]) continue;
+      if (pts.length === 1 && ((upP === 1 && p === 10) || (upP === 10 && p === 1))) continue;
+      counts[p]--;
+      pts.push(p);
+      const stop = search(pts);
+      pts.pop();
+      counts[p]++;
+      if (stop) return true;
+    }
+    return false;
+  };
+  search([upP]);
+  if (!best) {
+    dealer.push(shoe.drawWhere((c) => !makesNatural(dealer[0], c)));
+    return;
+  }
+  for (const p of best.slice(1)) dealer.push(shoe.pullPoints(p));
+}
+
 function createBlackjack({
   store,
   onEvent = () => {},
@@ -60,34 +159,10 @@ function createBlackjack({
   const games = new Map();   // playerId -> раздача
   const announcing = new Set();   // объявления итогов, которые ждут конца анимации у игрока
   const feed = [];
-  let shoe = [];             // карты берутся с конца
+  const shoe = createShoe(randInt);
   let rigged = null;         // админ: 'win' | 'lose' | 'blackjack' для следующей раздачи любого игрока
   let seq = 0;
-
-  function newShoe() {
-    shoe = [];
-    for (let d = 0; d < DECKS; d++) for (const r of RANKS) for (const s of SUITS) shoe.push(r + s);
-    for (let i = shoe.length - 1; i > 0; i--) {
-      const j = randInt(i + 1);
-      [shoe[i], shoe[j]] = [shoe[j], shoe[i]];
-    }
-  }
-  newShoe();
-
-  const draw = () => shoe.pop();
-  // Верхняя карта шуза, подходящая под условие (для подкрутки и везения); нет такой — просто верхняя.
-  function drawWhere(ok) {
-    for (let i = shoe.length - 1; i >= 0; i--) {
-      if (ok(shoe[i])) return shoe.splice(i, 1)[0];
-    }
-    return draw();
-  }
-  // Случайная карта с нужными очками.
-  function pullPoints(p) {
-    const at = [];
-    for (let i = 0; i < shoe.length; i++) if (pointsOf(shoe[i]) === p) at.push(i);
-    return shoe.splice(at[randInt(at.length)], 1)[0];
-  }
+  const { draw, drawWhere } = shoe;
 
   const value = (h) => handValue(h.cards).total;
   const current = (g) => g.hands[g.cur];
@@ -95,7 +170,7 @@ function createBlackjack({
 
   function view(player) {
     const g = games.get(player.id);
-    if (!g) return { active: false, shoe: { left: shoe.length, size: SHOE_SIZE } };
+    if (!g) return { active: false, shoe: { left: shoe.left(), size: SHOE_SIZE } };
     const playing = g.status === 'playing';
     const h = playing ? current(g) : null;
     const dealerCards = g.hideHole ? [g.dealer[0], null] : g.dealer.slice();
@@ -126,7 +201,7 @@ function createBlackjack({
       },
       payout: g.payout,
       net: playing ? null : g.payout - staked(g),
-      shoe: { left: shoe.length, size: SHOE_SIZE },
+      shoe: { left: shoe.left(), size: SHOE_SIZE },
     };
   }
 
@@ -136,13 +211,13 @@ function createBlackjack({
     if (cur && cur.status === 'playing') return { error: 'Сначала доиграй раздачу' };
     if (cur && cur.announce) cur.announce();   // новая раздача раньше конца анимации: итог прошлой — сразу
     if (amount > player.balance) return { error: 'Не хватает фишек' };
-    if (shoe.length < 20) newShoe();
+    if (shoe.left() < 20) shoe.fresh();
 
     let mode = rigged;
     rigged = null;
     if (!mode && lucky(player)) mode = 'win';
     // Подкрутка выбрала все тузы из шуза — новый шуз, иначе блэкджек не собрать.
-    if (mode === 'blackjack' && !shoe.some((c) => c[0] === 'A')) newShoe();
+    if (mode === 'blackjack' && !shoe.has((c) => c[0] === 'A')) shoe.fresh();
 
     // Раздача как за столом: игроку, дилеру в открытую, игроку, дилеру в закрытую.
     let p1;
@@ -264,64 +339,8 @@ function createBlackjack({
   function dealerTurn(g) {
     g.hideHole = false;
     if (g.hands.every((h) => value(h) > 21)) return;
-    if (g.mode === 'win' || g.mode === 'lose') steerDealer(g, g.mode);
+    if (g.mode === 'win' || g.mode === 'lose') steerDealer(shoe, g.dealer, g.hands, g.mode, randInt);
     while (handValue(g.dealer).total < 17) g.dealer.push(draw());
-  }
-
-  // Подкрутка: какие карты пришли бы дилеру, выбираем перебором по тому, что лежит в шузе.
-  // Закрытую карту тоже — её ещё никто не видел (но блэкджека у дилера быть не может: он уже проверял).
-  function steerDealer(g, goal) {
-    shoe.splice(randInt(shoe.length + 1), 0, g.dealer.pop());
-    const upP = pointsOf(g.dealer[0]);
-    const counts = Array(11).fill(0);
-    for (const c of shoe) counts[pointsOf(c)]++;
-    const live = g.hands.filter((h) => value(h) <= 21);
-    const score = (d) => {
-      const paid = live.reduce((s, h) => s + handPayout(h, d).payout, 0);
-      return goal === 'win' ? paid : -paid;
-    };
-    const target = goal === 'win' ? live.reduce((s, h) => s + h.bet * 2, 0) : 0;
-    let best = null;
-    let bestScore = -Infinity;
-    let nodes = 0;
-    const order = () => {
-      const a = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
-      for (let i = a.length - 1; i > 0; i--) {
-        const j = randInt(i + 1);
-        [a[i], a[j]] = [a[j], a[i]];
-      }
-      return a;
-    };
-    const search = (pts) => {
-      nodes++;
-      const t = pts.length >= 2 ? totalOfPoints(pts).total : 0;
-      if (pts.length >= 2 && t >= 17) {
-        const s = score(t);
-        if (s > bestScore) {
-          bestScore = s;
-          best = pts.slice();
-        }
-        return s >= target;
-      }
-      if (nodes > SEARCH_LIMIT) return true;
-      for (const p of order()) {
-        if (!counts[p]) continue;
-        if (pts.length === 1 && ((upP === 1 && p === 10) || (upP === 10 && p === 1))) continue;
-        counts[p]--;
-        pts.push(p);
-        const stop = search(pts);
-        pts.pop();
-        counts[p]++;
-        if (stop) return true;
-      }
-      return false;
-    };
-    search([upP]);
-    if (!best) {
-      g.dealer.push(drawWhere((c) => !makesNatural(g.dealer[0], c)));
-      return;
-    }
-    for (const p of best.slice(1)) g.dealer.push(pullPoints(p));
   }
 
   function finish(player, g) {
@@ -335,7 +354,7 @@ function createBlackjack({
     }
     g.status = 'done';
     g.payout = g.hands.reduce((s, h) => s + h.payout, 0);
-    if (shoe.length < RESHUFFLE_AT) newShoe();
+    if (shoe.left() < RESHUFFLE_AT) shoe.fresh();
 
     const stake = staked(g);
     const net = g.payout - stake;
@@ -427,7 +446,7 @@ function createBlackjack({
     feed: () => feed.slice(),
     adminState: () => ({
       rigged,
-      shoe: { left: shoe.length, size: SHOE_SIZE },
+      shoe: { left: shoe.left(), size: SHOE_SIZE },
       playing: [...games.entries()].filter(([, g]) => g.status === 'playing').map(([id, g]) => ({
         id,
         name: (store.get(id) || {}).name,
@@ -438,9 +457,11 @@ function createBlackjack({
       feed: feed.slice(),
     }),
     // Для тестов: положить карты на верх шуза (первая в списке придёт первой).
-    _stack: (cards) => { shoe.push(...cards.slice().reverse()); },
-    _shoeSize: () => shoe.length,
+    _stack: (cards) => shoe.stack(cards),
+    _shoeSize: () => shoe.left(),
   };
 }
 
-module.exports = { createBlackjack, handValue, isNatural, handPayout, naturalPayout, pointsOf, SHOE_SIZE, RESHUFFLE_AT };
+module.exports = {
+  createBlackjack, createShoe, steerDealer, handValue, isNatural, makesNatural, handPayout, naturalPayout, pointsOf, SHOE_SIZE, RESHUFFLE_AT,
+};

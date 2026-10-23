@@ -553,6 +553,7 @@ function activeRigs() {
   if (d.verity.rigged) out.push(['g-verity', `😊 Верити: ${d.verity.rigged === 'good' ? 'добрый' : 'злой'}`]);
   if (d.mines && d.mines.rigged) out.push(['g-mines', '💥 Мины: следующий клик — мина']);
   if (d.blackjack && d.blackjack.rigged) out.push(['g-blackjack', `🂡 Блэкджек: ${BJ_RIG[d.blackjack.rigged]}`]);
+  if (d.bjTable && d.bjTable.rigged) out.push(['g-bjtable', `🪑 Стол 21: ${BJT_RIG[d.bjTable.rigged]}`]);
   if (d.plinko && d.plinko.rigged) out.push(['g-plinko', '🔺 Плинко: в край']);
   if (d.kraken && d.kraken.rigged) out.push(['g-kraken', `🐙 Кракен: ${KR_RIG[d.kraken.rigged]}`]);
   if (d.saloon && d.saloon.rigged) out.push(['g-saloon', `🤠 Салун: ${SL_RIG[d.saloon.rigged]}`]);
@@ -708,6 +709,24 @@ function renderBlackjack() {
   feed('bj-feed', rows, (r) => li(r.text, r.live ? 'live' : ''), 'За столом блэкджека ещё никто не играл', 12);
 }
 
+const BJT_RIG = { bust: 'дилер переберёт', strong: 'дилер обыграет всех', blackjack: 'блэкджек дилеру' };
+const BJT_PHASE = { idle: 'ждёт ставок', betting: 'приём ставок', dealing: 'раздача', playing: 'ходят игроки', dealer: 'ход дилера', results: 'итоги' };
+
+function renderBjTable() {
+  const t = admin.data.bjTable;
+  $('g-bjtable').hidden = !t;
+  if (!t) return;
+  pill('bjt-pill', t.rigged ? BJT_RIG[t.rigged] : null);
+  seg('bjt-seg', 'bjtrig', t.rigged);
+  const seated = t.seats.filter(Boolean);
+  $('bjt-info').textContent = `Раунд ${t.round}: ${BJT_PHASE[t.phase] || t.phase} · за столом ${seated.length} из 5 · в шузе ${t.shoe.left} карт`;
+  const rows = [
+    ...seated.map((x) => ({ live: true, text: `▶ ${x.name}${x.connected ? '' : ' (нет связи)'}: ${x.bet ? `ставка ${chips(x.bet)}` : 'без ставки'}${x.hands.length ? `, на руках ${x.hands.join(' и ')}` : ''}` })),
+    ...t.feed.slice(0, 8).map((e) => ({ text: `${e.name}: ${chips(e.bet)} → ${chips(e.payout)} (${e.natural ? 'блэкджек' : `${e.hands.map((h) => `${h.total} ${BJ_RES[h.result] || ''}`.trim()).join(', ')} · дилер ${e.dealer > 21 ? 'перебрал' : e.dealer}`})` })),
+  ];
+  feed('bjt-feed', rows, (r) => li(r.text, r.live ? 'live' : ''), 'За общим столом ещё не играли', 14);
+}
+
 function renderPlinko() {
   const p = admin.data.plinko;
   $('g-plinko').hidden = !p;
@@ -777,6 +796,7 @@ function renderGames(rigs) {
   renderVerity();
   renderMines();
   renderBlackjack();
+  renderBjTable();
   renderPlinko();
   renderKraken();
   renderSaloon();
@@ -944,6 +964,7 @@ const RIGS = [
   ['vt-seg', 'vtrig', (v) => run('/verity/rig', { mode: v }, v === 'good' ? 'Верити будет добрым' : v === 'evil' ? 'Верити будет злым' : 'Верити снова честный')],
   ['mn-seg', 'mnrig', (v) => run('/mines/rig', { mode: v }, v ? 'Следующий клик в минах — мина' : 'Мины снова честные')],
   ['bj-seg', 'bjrig', (v) => run('/blackjack/rig', { mode: v }, v ? `Следующая раздача блэкджека: ${BJ_RIG[v]}` : 'Блэкджек снова честный')],
+  ['bjt-seg', 'bjtrig', (v) => run('/bjtable/rig', { mode: v }, v ? `Следующий раунд за столом: ${BJT_RIG[v]}` : 'Стол блэкджека снова честный')],
   ['pk-seg', 'pkrig', (v) => run('/plinko/rig', { mode: v }, v ? 'Следующий шарик плинко упадёт в край' : 'Плинко снова честное')],
   ['kr-seg', 'krrig', (v) => run('/kraken/rig', { mode: v }, v ? `Следующий спин Кракена: ${KR_RIG[v]}` : 'Кракен снова честный')],
   ['sl-seg', 'slrig', (v) => run('/saloon/rig', { mode: v }, v ? `Следующий спин Салуна: ${SL_RIG[v]}` : 'Салун снова честный')],

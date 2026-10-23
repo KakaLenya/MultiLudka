@@ -100,9 +100,9 @@
   const snap = () => beep([[1500, 0.025], [700, 0.035]], 'triangle');
 
   // Карта вылетает из шуза; лицом вверх переворачивается на лету.
-  function flyIn(el, faceUp) {
+  function flyIn(el, faceUp, from = shoeEl) {
     if (!reduced && el.animate) {
-      const a = shoeEl.getBoundingClientRect();
+      const a = from.getBoundingClientRect();
       const b = el.getBoundingClientRect();
       const dx = a.left + a.width / 2 - (b.left + b.width / 2);
       const dy = a.top + a.height / 2 - (b.top + b.height / 2);
@@ -500,6 +500,9 @@
       return li;
     }) : [Object.assign(document.createElement('li'), { className: 'muted', textContent: 'За столом ещё никто не играл' })]));
   }
+
+  // Карты, их очки и анимации — общие с блэкджеком за столом (bjtable.js).
+  window.BJCards = { cardEl, paint, value, totalText, flyIn, flip };
 
   handlers.blackjack_state = apply;
   handlers.blackjack_feed = (msg) => renderFeed(msg.feed);

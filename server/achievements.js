@@ -11,11 +11,11 @@ const MSK = 3 * 60 * 60 * 1000;
 const HALL_SIZE = 12;
 const SEASON_TOP = 10;
 const SAVE_DELAY_MS = 1000;
-const GAMES = ['crash', 'roulette', 'wheel', 'upgrade', 'verity', 'plinko', 'mines', 'blackjack', 'kraken', 'saloon', 'yokai', 'circus', 'bomb', 'pool', 'poker'];
+const GAMES = ['crash', 'roulette', 'wheel', 'upgrade', 'verity', 'plinko', 'mines', 'blackjack', 'bjtable', 'kraken', 'saloon', 'yokai', 'circus', 'bomb', 'pool', 'poker'];
 
 const ACHIEVEMENTS = [
   { id: 'first_win', icon: '🩸', name: 'Первая кровь', desc: 'Выиграть в любой игре' },
-  { id: 'regular', icon: '🎪', name: 'Завсегдатай', desc: 'Сыграть во все пятнадцать игр зала' },
+  { id: 'regular', icon: '🎪', name: 'Завсегдатай', desc: 'Сыграть во все шестнадцать игр зала' },
   { id: 'big_win', icon: '💰', name: 'Крупный куш', desc: 'Выиграть 10 000 за раз' },
   { id: 'jackpot', icon: '💎', name: 'Джекпот', desc: 'Выиграть 100 000 за раз' },
   { id: 'high_roller', icon: '🎩', name: 'Хайроллер', desc: 'Поставить 50 000 за раз' },
@@ -51,6 +51,8 @@ const ACHIEVEMENTS = [
   { id: 'bj_natural', icon: '🂡', name: 'Двадцать одно', desc: 'Собрать блэкджек с первых двух карт' },
   { id: 'bj_double', icon: '⏫', name: 'Дерзкое удвоение', desc: 'Выиграть удвоенную руку в блэкджеке' },
   { id: 'bj_split', icon: '✂️', name: 'Двойной удар', desc: 'Выиграть обе руки после сплита в блэкджеке' },
+  { id: 'bjt_seat', icon: '🪑', name: 'За общим столом', desc: 'Сыграть раздачу за общим столом блэкджека' },
+  { id: 'bjt_full', icon: '🎉', name: 'Аншлаг', desc: 'Собрать блэкджек, когда за столом играют все пять мест' },
   { id: 'bomb_win', icon: '🧨', name: 'Сапёр', desc: 'Выиграть в Бомбе' },
   { id: 'bomb_boom', icon: '💥', name: 'Бабах', desc: 'Взорваться в Бомбе' },
   { id: 'bomb_last', icon: '🦁', name: 'Последний герой', desc: 'Забрать банк Бомбы, когда все остальные сбежали' },
@@ -221,6 +223,10 @@ function createAchievements({
         if (meta.natural) unlock(player, 'bj_natural');
         if (meta.doubledWin) unlock(player, 'bj_double');
         if (meta.splitWin) unlock(player, 'bj_split');
+        break;
+      case 'bjtable':
+        if (kind === 'bet') unlock(player, 'bjt_seat');
+        if (meta.natural && meta.fullTable) unlock(player, 'bjt_full');
         break;
       case 'kraken':
         if (meta.level >= 4) unlock(player, 'kraken_awake');

@@ -96,6 +96,7 @@
             <button type="button" class="tab" data-tab="bomb">💣 Бомба <span class="dot" id="bomb-dot" hidden></span></button>
             <button type="button" class="tab" data-tab="pool">🎱 Пул <span class="dot" id="pool-dot" hidden></span></button>
             <button type="button" class="tab" data-tab="poker">🃏 Покер <span class="dot" id="poker-dot" hidden></span></button>
+            <button type="button" class="tab" data-tab="bjtable">🂡 Блэкджек: стол <span class="dot" id="bjt-dot" hidden></span></button>
           </div>
           <div class="tab-group slots">
             <button type="button" class="tab-group-name" aria-expanded="false">Слоты</button>
@@ -691,6 +692,57 @@
           <ul class="list u-feed" id="bj-feed"></ul>
         </section>
 
+        <section class="card bjtgame" id="bjtable" hidden>
+          <div class="bj-table bjt-table" id="bjt-table">
+            <svg class="bj-arc" viewBox="0 0 600 120" aria-hidden="true">
+              <path id="bjt-arc-path" d="M 40 18 Q 300 128 560 18" fill="none"/>
+              <path id="bjt-arc-path-2" d="M 92 8 Q 300 96 508 8" fill="none"/>
+              <text class="bj-arc-main"><textPath href="#bjt-arc-path" startOffset="50%" text-anchor="middle">БЛЭКДЖЕК ПЛАТИТ 3 К 2</textPath></text>
+              <text class="bj-arc-sub"><textPath href="#bjt-arc-path-2" startOffset="50%" text-anchor="middle">общий стол · пять мест · один дилер</textPath></text>
+            </svg>
+            <div class="bj-shoe" id="bjt-shoe" title="Шуз: шесть колод">
+              <span class="bj-shoe-cards"></span>
+              <span class="bj-shoe-left" id="bjt-shoe-left">312</span>
+            </div>
+            <div class="bj-zone bj-dealer-zone">
+              <div class="bj-cards" id="bjt-dealer" aria-label="Карты дилера"></div>
+              <span class="bj-badge" id="bjt-dealer-total" hidden></span>
+            </div>
+            <div class="bjt-status">
+              <div class="bj-msg" id="bjt-msg" aria-live="polite">Садись за стол — места свободны</div>
+              <div class="bjt-timer" id="bjt-timer" hidden><i></i></div>
+            </div>
+            <div class="bjt-seats" id="bjt-seats"></div>
+          </div>
+          <div class="bjt-controls">
+            <p class="bjt-hint" id="bjt-hint"></p>
+            <div class="bj-betbox" id="bjt-betbox" hidden>
+              <label class="field">
+                <span>Ставка</span>
+                <input id="bjt-amount" type="number" min="1" step="1" value="100" inputmode="numeric">
+              </label>
+              <div class="quick">
+                <button type="button" class="ghost" data-bjtq="half">½</button>
+                <button type="button" class="ghost" data-bjtq="double">×2</button>
+                <button type="button" class="ghost" data-bjtq="max">макс</button>
+              </div>
+              <button type="button" class="action" id="bjt-bet">♠ Поставить</button>
+            </div>
+            <div class="bj-actions" id="bjt-actions" hidden>
+              <button type="button" class="bj-act hit" id="bjt-hit" title="Клавиша H"><b>Ещё</b><small>взять карту</small></button>
+              <button type="button" class="bj-act stand" id="bjt-stand" title="Клавиша S"><b>Хватит</b><small>передать ход</small></button>
+              <button type="button" class="bj-act double" id="bjt-double" title="Клавиша D"><b>Удвоить</b><small>×2 и одна карта</small></button>
+              <button type="button" class="bj-act split" id="bjt-split" title="Клавиша P"><b>Сплит</b><small>разделить пару</small></button>
+            </div>
+            <div class="bjt-row">
+              <button type="button" class="ghost" id="bjt-unbet" hidden>Убрать ставку</button>
+              <button type="button" class="ghost" id="bjt-leave" hidden>Встать из-за стола</button>
+            </div>
+          </div>
+          <h2 class="u-feed-title">Лента стола</h2>
+          <ul class="list u-feed" id="bjt-feed"></ul>
+        </section>
+
         <section class="card verity" id="verity" hidden>
           <div class="history vt-strip" id="vt-strip" aria-label="Последние решения Верити"></div>
           <div class="vt-stage" id="vt-stage">
@@ -1174,6 +1226,7 @@
   <script src="circus/audio.js"></script>
   <script src="circus/slot.js"></script>
   <script src="blackjack.js"></script>
+  <script src="bjtable.js"></script>
   <script src="pranks.js"></script>
   <script src="events.js"></script>
   <script src="home.js"></script>

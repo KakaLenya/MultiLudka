@@ -69,6 +69,12 @@ test('игровые достижения по подробностям собы
   assert.ok(unlocked.includes('Аня:bj_natural'));
   assert.ok(unlocked.includes('Боря:bj_double') && unlocked.includes('Боря:bj_split'));
   assert.ok(!unlocked.includes('Аня:bj_double'));
+  ach.record({ game: 'bjtable', kind: 'bet', player: a, amount: 10, meta: { stake: 10 } });
+  ach.record({ game: 'bjtable', kind: 'win', player: b, amount: 15, meta: { natural: true, fullTable: false } });
+  assert.ok(unlocked.includes('Аня:bjt_seat'));
+  assert.ok(!unlocked.includes('Боря:bjt_full'));
+  ach.record({ game: 'bjtable', kind: 'win', player: b, amount: 15, meta: { natural: true, fullTable: true } });
+  assert.ok(unlocked.includes('Боря:bjt_full'));
   for (const id of ['crash_x10', 'crash_x50', 'roulette_straight', 'roulette_zero', 'bomb_win', 'bomb_last', 'poker_quads', 'poker_royal']) {
     assert.ok(unlocked.includes(`Аня:${id}`), id);
   }
@@ -87,11 +93,11 @@ test('Верити: пять раз подряд, серия сбрасывае�
   assert.ok(unlocked.includes('Аня:verity_evil'));
 });
 
-test('пул: пять побед — акула, все пятнадцать игр — завсегдатай, большая ставка — хайроллер', () => {
+test('пул: пять побед — акула, все шестнадцать игр — завсегдатай, большая ставка — хайроллер', () => {
   const { a, ach, unlocked } = setup();
   for (let i = 0; i < 5; i++) ach.record({ game: 'pool', kind: 'win', player: a, amount: 100, meta: { byEight: i === 2 } });
   assert.ok(unlocked.includes('Аня:pool_shark') && unlocked.includes('Аня:pool_clean'));
-  for (const game of ['crash', 'roulette', 'wheel', 'upgrade', 'verity', 'plinko', 'mines', 'blackjack', 'kraken', 'saloon', 'yokai', 'circus', 'bomb', 'poker']) {
+  for (const game of ['crash', 'roulette', 'wheel', 'upgrade', 'verity', 'plinko', 'mines', 'blackjack', 'bjtable', 'kraken', 'saloon', 'yokai', 'circus', 'bomb', 'poker']) {
     ach.record({ game, kind: 'bet', player: a, amount: 10, meta: { stake: game === 'roulette' ? 50_000 : 10 } });
   }
   assert.ok(unlocked.includes('Аня:regular'));

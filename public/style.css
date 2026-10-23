@@ -2434,3 +2434,105 @@ button.install-close { flex: none; padding: 6px; color: var(--muted); font-size:
   .pause, .pause-chip, .pause-dots i { animation: none; }
   .pause-dots i { opacity: .7; }
 }
+
+/* ---------- Блэкджек за общим столом ---------- */
+/* Тот же стол, что у одиночного, но шире внизу: пять мест по дуге, у каждого табличка с именем и ставкой. */
+
+.bjt-table { --w: 64px; min-height: 560px; padding-bottom: 46px; border-radius: 30px 30px 50% 50% / 30px 30px 18% 18%; }
+.bjt-table .bj-dealer-zone { order: 1; }
+.bjt-table .bj-arc { order: 2; }
+.bjt-status { order: 3; display: flex; flex-direction: column; align-items: center; gap: 6px; min-height: 52px; }
+.bjt-status .bj-msg { margin: 10px 0 0; }
+.bjt-timer { width: min(260px, 70%); height: 4px; border-radius: 4px; background: rgba(0, 0, 0, .35); overflow: hidden; }
+.bjt-timer i { display: block; height: 100%; background: var(--gold-grad); transform-origin: left; transition: transform .25s linear; }
+.bjt-timer.hurry i { background: linear-gradient(90deg, #ff8a7f, #e0443d); }
+.bjt-seats {
+  order: 4;
+  --sw: 44px;
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 8px;
+  align-items: end;
+  margin-top: 6px;
+}
+/* Дуга: крайние места выше, среднее ниже всех — как вокруг настоящего стола. */
+.bjt-seat.s0, .bjt-seat.s4 { transform: translateY(-46px); }
+.bjt-seat.s1, .bjt-seat.s3 { transform: translateY(-12px); }
+.bjt-seat {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  min-width: 0;
+  min-height: calc(var(--sw) * 1.4 + 86px);
+  padding: 8px 4px 6px;
+  border-radius: 18px;
+  transition: background .25s, box-shadow .25s;
+}
+.bjt-seat::after {
+  /* Круг на сукне под место */
+  content: "";
+  position: absolute;
+  left: 50%; bottom: 30px;
+  width: 64px; height: 64px;
+  border-radius: 50%;
+  border: 1.5px solid rgba(242, 193, 78, .28);
+  transform: translateX(-50%);
+  z-index: -1;
+}
+.bjt-seat.me::after { border-color: rgba(125, 255, 178, .55); box-shadow: 0 0 18px rgba(125, 255, 178, .2); }
+.bjt-seat.turn { background: rgba(242, 193, 78, .1); box-shadow: 0 0 0 1px rgba(242, 193, 78, .65), 0 0 26px rgba(242, 193, 78, .22); }
+.bjt-seat.away .bjt-plate { opacity: .55; }
+.bjt-hands { display: flex; gap: 4px; justify-content: center; flex-wrap: wrap; --w: var(--sw); }
+.bjt-hand { position: relative; display: flex; flex-direction: column; align-items: center; gap: 4px; padding: 3px; border-radius: 10px; }
+.bjt-hand.cur { box-shadow: 0 0 0 1px rgba(242, 193, 78, .7); }
+.bjt-hand.lost .bj-cards { filter: saturate(.6) brightness(.8); }
+.bjt-hand .bj-badge { font-size: 11px; padding: 2px 8px; }
+.bjt-hand .bj-tag { font-size: 10px; padding: 3px 7px; top: 30%; }
+.bjt-plate {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  max-width: 100%;
+  padding: 5px 9px;
+  border-radius: 12px;
+  background: rgba(4, 18, 10, .7);
+  border: 1px solid rgba(242, 193, 78, .25);
+  font-size: 12px;
+}
+.bjt-seat.me .bjt-plate { border-color: rgba(125, 255, 178, .6); }
+.bjt-seat.empty .bjt-plate { background: transparent; border-style: dashed; }
+.bjt-name { display: flex; align-items: center; gap: 5px; max-width: 100%; font-weight: 700; white-space: nowrap; }
+.bjt-name .avatar { width: 18px; height: 18px; font-size: 10px; flex: none; }
+.bjt-nick { overflow: hidden; text-overflow: ellipsis; }
+.bjt-name .title-tag { flex: none; }
+.bjt-free { color: rgba(243, 239, 226, .45); font-weight: 600; }
+.bjt-betline { display: flex; align-items: center; gap: 5px; min-height: 18px; font: 700 12px var(--display); color: var(--gold-2); font-variant-numeric: tabular-nums; }
+.bjt-betline .bj-chip { width: 16px; height: 16px; }
+.bjt-betline .up { color: #7dffb2; }
+.bjt-betline .down { color: #ff8a83; }
+.bjt-betline .even { color: var(--gold-2); font-family: var(--font); font-weight: 600; }
+.bjt-wait { color: var(--muted); font: 600 11px var(--font); }
+.bjt-sit { padding: 5px 12px; font-size: 12px; }
+.bjt-seat.empty .bjt-sit { border-color: rgba(242, 193, 78, .5); color: var(--gold-2); }
+
+.bjt-controls { margin-top: 18px; display: flex; flex-direction: column; gap: 12px; }
+.bjt-hint { margin: 0; color: var(--muted); font-weight: 600; text-align: center; }
+.bjt-row { display: flex; justify-content: center; gap: 10px; flex-wrap: wrap; }
+.bjt-row:not(:has(button:not([hidden]))) { display: none; }
+
+@media (max-width: 700px) {
+  .bjt-table { --w: 50px; min-height: 0; padding: 14px 6px 30px; border-radius: 24px 24px 40% 40% / 24px 24px 10% 10%; }
+  .bjt-seats { --sw: 42px; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 6px 4px; }
+  /* Три места сверху, два снизу по центру. */
+  .bjt-seat { grid-column: span 2; transform: none !important; min-height: calc(var(--sw) * 1.4 + 74px); padding: 6px 2px 4px; }
+  .bjt-seat.s3 { grid-column: 2 / span 2; }
+  .bjt-seat::after { width: 48px; height: 48px; bottom: 26px; }
+  .bjt-plate { padding: 4px 6px; font-size: 11px; }
+  .bjt-name .avatar { display: none; }
+  .bjt-hands .bj-cards .bj-card + .bj-card { margin-left: calc(var(--w) * -.55); }
+}

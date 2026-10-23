@@ -203,7 +203,7 @@ function listItem(name, isSelf) {
 
 // Спрашиваем, только если игрок сам ввёл сумму в поле (не кнопками ½, ×2, «макс», не фишками)
 // и она больше половины баланса. В каждой игре — один раз до перезагрузки страницы.
-const BET_INPUTS = ['bet-amount', 'u-amount', 'vt-amount', 'b-amount', 'pl-stake', 'buyin', 'raise-amount', 'dv-stake', 'pk-amount', 'mn-amount', 'fw-amount', 'bj-amount'];
+const BET_INPUTS = ['bet-amount', 'u-amount', 'vt-amount', 'b-amount', 'pl-stake', 'buyin', 'raise-amount', 'dv-stake', 'pk-amount', 'mn-amount', 'fw-amount', 'bj-amount', 'bjt-amount'];
 const confirmedGames = new Set();
 let betConfirm = null;   // { resolve } — окно открыто
 
@@ -537,7 +537,7 @@ document.addEventListener('keydown', (ev) => {
 const TAB_KEY = 'casino.tab';
 
 // Все вкладки зала; 'home' — главная с карточками игр (home.js). Новая игра: id сюда и карточку в home.js.
-const TABS = ['home', 'crash', 'roulette', 'wheel', 'kraken', 'saloon', 'yokai', 'circus', 'upgrade', 'plinko', 'mines', 'blackjack', 'verity', 'duel', 'bomb', 'pool', 'poker'];
+const TABS = ['home', 'crash', 'roulette', 'wheel', 'kraken', 'saloon', 'yokai', 'circus', 'upgrade', 'plinko', 'mines', 'blackjack', 'verity', 'duel', 'bomb', 'pool', 'poker', 'bjtable'];
 function showTab(name) {
   if (!TABS.includes(name)) name = 'home';
   document.querySelectorAll('.tab').forEach((t) => t.classList.toggle('active', t.dataset.tab === name));
@@ -4636,6 +4636,7 @@ const ACT_GAMES = {
   plinko: { icon: '🔺', name: 'Плинко' },
   mines: { icon: '💎', name: 'Мины' },
   blackjack: { icon: '🂡', name: 'Блэкджек' },
+  bjtable: { icon: '🪑', name: 'Стол 21' },
   poker: { icon: '🃏', name: 'Покер' },
   pool: { icon: '🎱', name: 'Пул' },
   duel: { icon: '⚔️', name: 'Дуэль' },

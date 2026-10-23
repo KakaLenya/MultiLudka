@@ -23,6 +23,7 @@ const { createEvents } = require('./events');
 const { createMaintenance } = require('./maintenance');
 const { createMines } = require('./mines');
 const { createBlackjack } = require('./blackjack');
+const { createBjTable } = require('./bjtable');
 const { createAchievements, ACHIEVEMENTS } = require('./achievements');
 const { createLuck } = require('./luck');
 const { createPool } = require('./pool');
@@ -329,6 +330,24 @@ const blackjack = createBlackjack({
 });
 store.addReserver(blackjack.reserved);
 
+// Блэкджек за общим столом: состояние одно на всех (закрытая карта дилера скрыта для всех одинаково).
+let bjTableTimer = null;
+function broadcastBjTable() {
+  if (bjTableTimer) return;
+  bjTableTimer = setImmediate(() => {
+    bjTableTimer = null;
+    broadcast({ type: 'bjt_state', ...bjTable.view() });
+  });
+}
+const bjTable = createBjTable({
+  store,
+  lucky: luck.roll,
+  onEvent: onActivity,
+  onChange: broadcastBjTable,
+  onFeed: (feed) => broadcast({ type: 'bjt_feed', feed }),
+});
+store.addReserver(bjTable.reserved);
+
 const kraken = createKraken({
   store,
   lucky: luck.roll,
@@ -566,6 +585,9 @@ const handlers = {
     send(ws, { type: 'mines_state', ...mines.view(player) });
     send(ws, { type: 'blackjack_feed', feed: blackjack.feed() });
     send(ws, { type: 'blackjack_state', ...blackjack.view(player) });
+    bjTable.setConnected(player, true);
+    send(ws, { type: 'bjt_feed', feed: bjTable.feed() });
+    send(ws, { type: 'bjt_state', ...bjTable.view() });
     send(ws, { type: 'activity_history', entries: activity });
     send(ws, { type: 'achievements_defs', list: ACHIEVEMENTS, mine: achievements.unlockedOf(player.id) });
     send(ws, { type: 'season', ...achievements.season() });
@@ -734,6 +756,26 @@ const handlers = {
     blackjackReply(ws, blackjack.split(ws.player), 'split');
   },
 
+  bjt_sit(ws, msg) {
+    reply(ws, bjTable.sit(ws.player, msg.seat));
+  },
+
+  bjt_leave(ws) {
+    reply(ws, bjTable.leave(ws.player));
+  },
+
+  bjt_bet(ws, msg) {
+    reply(ws, bjTable.bet(ws.player, msg.amount));
+  },
+
+  bjt_unbet(ws) {
+    reply(ws, bjTable.unbet(ws.player));
+  },
+
+  bjt_act(ws, msg) {
+    reply(ws, bjTable.act(ws.player, msg.action));
+  },
+
   kraken_spin(ws, msg) {
     const result = kraken.spin(ws.player, msg.bet, msg.mode || 'spin');
     if (result.error) return send(ws, { type: 'error', message: result.error, game: 'kraken' });
@@ -898,7 +940,10 @@ wss.on('connection', (ws, req) => {
     clearTimeout(ws.awayTimer);
     clients.delete(ws);
     if (ws.player) {
-      if (!isOnline(ws.player)) table.setConnected(ws.player, false);
+      if (!isOnline(ws.player)) {
+        table.setConnected(ws.player, false);
+        bjTable.setConnected(ws.player, false);
+      }
       broadcastOnline();
     }
   });
@@ -942,6 +987,8 @@ function shutdown() {
     circus.settleAll();
     mines.settleAll();
     blackjack.settleAll();
+    bjTable.stop();
+    bjTable.refundAll();
     store.flush();
     achievements.flush();
   } finally {
@@ -978,6 +1025,7 @@ app.use('/admin/api', createAdminRouter({
   plinko,
   mines,
   blackjack,
+  bjTable,
   kraken,
   saloon,
   yokai,
@@ -1025,6 +1073,7 @@ setInterval(() => {
   }
 }, 30_000);
 table.start();
+bjTable.start();
 roulette.start();
 wheel.start();
 bomb.start();
