@@ -15,7 +15,7 @@ function rng(seed) {
 
 const N = Number(process.argv[2]) || 1_000_000;
 const rand = rng(Number(process.argv[3]) || 12345);
-const acc = { lines: 0, scatter: 0, knives: 0, total: 0, hits: 0, bonuses: 0, assistant: 0, max: 0, capped: 0, big: [0, 0, 0, 0], mods: {} };
+const acc = { lines: 0, scatter: 0, knives: 0, total: 0, hits: 0, bonuses: 0, assistant: 0, max: 0, big: [0, 0, 0, 0], mods: {} };
 for (let i = 0; i < N; i++) {
   const o = C.play(rand);
   for (const s of o.steps) {
@@ -33,7 +33,6 @@ for (let i = 0; i < N; i++) {
   }
   acc.total += o.mult;
   if (o.mult > 0) acc.hits += 1;
-  if (o.capped) acc.capped += 1;
   acc.max = Math.max(acc.max, o.mult);
   [10, 50, 100, 1000].forEach((x, k) => { if (o.mult >= x) acc.big[k] += 1; });
 }
@@ -45,7 +44,7 @@ console.log(`Выигрышных спинов: ${pct(acc.hits)}`);
 console.log(`Метатель ножей: ${every(acc.bonuses)}, средний ${(acc.knives / acc.bonuses).toFixed(1)}×, кончился на ассистентке ${((acc.assistant / acc.bonuses) * 100).toFixed(0)}%`);
 console.log('Модификаторы (доля ходов / отдача хода):');
 for (const [k, v] of Object.entries(acc.mods)) console.log(`  ${C.MOD_NAMES[k].padEnd(22)} ${((v.n / N) * 100).toFixed(1)}%  ${(v.pay / v.n).toFixed(2)}×`);
-console.log(`×10+: ${every(acc.big[0])}, ×50+: ${every(acc.big[1])}, ×100+: ${every(acc.big[2])}, ×1000+: ${every(acc.big[3])}, потолок: ${acc.capped}, максимум ×${acc.max}`);
+console.log(`×10+: ${every(acc.big[0])}, ×50+: ${every(acc.big[1])}, ×100+: ${every(acc.big[2])}, ×1000+: ${every(acc.big[3])}, максимум ×${acc.max}`);
 
 const M = Math.round(N / 20);
 let sum = 0;

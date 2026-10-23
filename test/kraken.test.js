@@ -85,7 +85,6 @@ test('отдача на дистанции около 96%, бонусы выпа
     total += o.mult;
     if (o.fs) fs += 1;
     if (o.hw) hw += 1;
-    assert.ok(o.mult <= K.MAX_WIN);
   }
   const rtp = total / N;
   assert.ok(rtp > 0.85 && rtp < 1.08, `отдача ${(rtp * 100).toFixed(1)}%`);

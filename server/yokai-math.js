@@ -17,7 +17,6 @@
 const REELS = 5;
 const ROWS = 4;
 const CELLS = REELS * ROWS;
-const MAX_WIN = 5000;
 const UNIT = 44;                   // выплата за путь — в 1/44 ставки
 
 const SYMBOLS = {
@@ -248,14 +247,14 @@ function play(rand, { mode = 'spin', rig = null } = {}) {
     out.night = night(rand, base.trigger);
     total += out.night.pay;
   }
-  out.capped = total > MAX_WIN;
-  out.mult = Math.min(MAX_WIN, Math.round(total * 100) / 100);
+  // Без потолка: сколько насчитали — столько и платим.
+  out.mult = Math.round(total * 100) / 100;
   return out;
 }
 
 const costOf = (mode, bet) => (mode === 'buy-bonus' ? bet * BUY.bonus : bet);
 
 module.exports = {
-  REELS, ROWS, CELLS, UNIT, SYMBOLS, PAY_SYMBOLS, SCATTER_PAY, FREE_SPINS, RETRIGGER, FOX_REELS, TAILS, FS_TAILS, MAX_TAILS, BUY, MAX_WIN,
+  REELS, ROWS, CELLS, UNIT, SYMBOLS, PAY_SYMBOLS, SCATTER_PAY, FREE_SPINS, RETRIGGER, FOX_REELS, TAILS, FS_TAILS, MAX_TAILS, BUY,
   play, evaluate, waysWins, rollGrid, baseRound, night, walk, costOf, BASE_WEIGHTS, FS_WEIGHTS,
 };

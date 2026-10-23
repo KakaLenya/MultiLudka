@@ -81,7 +81,6 @@ test('отдача на дистанции около 96%, метатель вы
     const o = C.play(rand);
     total += o.mult;
     if (o.knives) bonuses += 1;
-    assert.ok(o.mult <= C.MAX_WIN);
     assert.ok(o.steps.length === 1 || (o.steps[0].mod.type === 'again' && o.steps[0].pay === 0));
   }
   const rtp = total / N;

@@ -14,7 +14,6 @@
 const REELS = 5;
 const ROWS = 3;
 const CELLS = REELS * ROWS;
-const MAX_WIN = 10000;
 const UNIT = 20;                   // выплата за путь — в двадцатых ставки
 
 const SYMBOLS = {
@@ -220,8 +219,8 @@ function play(rand, { mode = 'spin', rig = null } = {}) {
     out.duel = duel(rand, start);
     total += out.duel.pay;
   }
-  out.capped = total > MAX_WIN;
-  out.mult = Math.min(MAX_WIN, Math.round(total * 100) / 100);
+  // Без потолка: сколько насчитали — столько и платим.
+  out.mult = Math.round(total * 100) / 100;
   return out;
 }
 
@@ -245,6 +244,6 @@ function losingGrid(rand) {
 const costOf = (mode, bet) => (mode === 'buy-duel' ? bet * BUY.duel : mode === 'buy-super' ? bet * BUY.super : bet);
 
 module.exports = {
-  REELS, ROWS, CELLS, UNIT, SYMBOLS, PAY_SYMBOLS, SCATTER_PAY, LIVES, DUEL, BUY, MAX_WIN, BULLET_CHANCE, WILD_REELS, BULLET_REELS,
+  REELS, ROWS, CELLS, UNIT, SYMBOLS, PAY_SYMBOLS, SCATTER_PAY, LIVES, DUEL, BUY, BULLET_CHANCE, WILD_REELS, BULLET_REELS,
   play, evaluate, waysWins, expandColts, duel, rollGrid, costOf, BASE_WEIGHTS, FS_WEIGHTS,
 };

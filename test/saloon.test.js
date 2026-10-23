@@ -68,7 +68,6 @@ test('отдача на дистанции около 96%, дуэль выпад
     const o = S.play(rand);
     total += o.mult;
     if (o.duel) duels += 1;
-    assert.ok(o.mult <= S.MAX_WIN);
   }
   const rtp = total / N;
   assert.ok(rtp > 0.8 && rtp < 1.15, `отдача ${(rtp * 100).toFixed(1)}%`);

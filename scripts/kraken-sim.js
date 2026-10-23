@@ -15,7 +15,7 @@ function rng(seed) {
 
 const N = Number(process.argv[2]) || 2_000_000;
 const rand = rng(Number(process.argv[3]) || 12345);
-const acc = { lines: 0, collect: 0, scatter: 0, hw: 0, fs: 0, total: 0, hits: 0, fsN: 0, hwN: 0, tent: 0, max: 0, capped: 0, big: [0, 0, 0, 0] };
+const acc = { lines: 0, collect: 0, scatter: 0, hw: 0, fs: 0, total: 0, hits: 0, fsN: 0, hwN: 0, tent: 0, max: 0, big: [0, 0, 0, 0] };
 for (let i = 0; i < N; i++) {
   const o = K.play(rand);
   const b = o.base;
@@ -27,7 +27,6 @@ for (let i = 0; i < N; i++) {
   if (b.tentacle) acc.tent += 1;
   acc.total += o.mult;
   if (o.mult > 0) acc.hits += 1;
-  if (o.capped) acc.capped += 1;
   acc.max = Math.max(acc.max, o.mult);
   [10, 50, 100, 1000].forEach((x, k) => { if (o.mult >= x) acc.big[k] += 1; });
 }
@@ -39,7 +38,7 @@ console.log(`Выигрышных спинов: ${pct(acc.hits)}`);
 console.log(`Фриспины: ${every(acc.fsN)}, средний ${(acc.fs / acc.fsN).toFixed(1)}×`);
 console.log(`Сундук: ${every(acc.hwN)}, средний ${(acc.hw / acc.hwN).toFixed(1)}×`);
 console.log(`Хватка Кракена: ${every(acc.tent)}`);
-console.log(`×10+: ${every(acc.big[0])}, ×50+: ${every(acc.big[1])}, ×100+: ${every(acc.big[2])}, ×1000+: ${every(acc.big[3])}, потолок: ${acc.capped}, максимум ×${acc.max}`);
+console.log(`×10+: ${every(acc.big[0])}, ×50+: ${every(acc.big[1])}, ×100+: ${every(acc.big[2])}, ×1000+: ${every(acc.big[3])}, максимум ×${acc.max}`);
 
 // Покупка бонуса.
 for (const mode of ['buy-fs', 'buy-hw']) {

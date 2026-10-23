@@ -83,7 +83,6 @@ test('отдача на дистанции около 96%, ночь выпада
     const o = Y.play(rand);
     total += o.mult;
     if (o.night) nights += 1;
-    assert.ok(o.mult <= Y.MAX_WIN);
   }
   const rtp = total / N;
   assert.ok(rtp > 0.8 && rtp < 1.15, `отдача ${(rtp * 100).toFixed(1)}%`);
@@ -141,7 +140,7 @@ test('админ подкручивает ночь, лису и проигрыш
   assert.equal(wall.foxes.length, 16, 'барабаны 2–5 целиком из лис');
   assert.ok(wall.foxes.every((f) => f.reel >= 1 && f.tails === 9));
   assert.ok(wall.grid[0].every((x) => x !== 'fox'), 'первый барабан обычный — путь платит');
-  assert.equal(r.outcome.mult, 5000);
+  assert.ok(r.outcome.mult > 5000, 'без потолка');
   k.done(a, r.id);
   k.rig('lose');
   r = k.spin(a, 10).result;

@@ -18,7 +18,6 @@ const REELS = 5;
 const ROWS = 4;
 const CELLS = REELS * ROWS;
 const LINE_COUNT = 20;
-const MAX_WIN = 5000;          // потолок выигрыша за спин, в ставках
 
 // Линии: ряд (0 — верхний) на каждом барабане.
 const LINES = [
@@ -277,8 +276,8 @@ function play(rand, { mode = 'spin', rig = null } = {}) {
     out.fs = freeSpins(rand, FREE_SPINS[Math.min(5, base.scatter.count)]);
     total += out.fs.pay;
   }
-  out.capped = total > MAX_WIN;
-  out.mult = Math.min(MAX_WIN, Math.round(total * 100) / 100);
+  // Без потолка: сколько насчитали — столько и платим.
+  out.mult = Math.round(total * 100) / 100;
   return out;
 }
 
@@ -296,6 +295,6 @@ const costOf = (mode, bet) => (mode === 'buy-fs' ? bet * BUY.fs : mode === 'buy-
 
 module.exports = {
   REELS, ROWS, CELLS, LINES, LINE_COUNT, SYMBOLS, LINE_SYMBOLS, SCATTER_PAY, FREE_SPINS, FS_LEVELS, FS_PER_LEVEL, FS_EXTRA,
-  HW_TRIGGER, HW_RESPINS, JACKPOTS, PEARL_VALUES, BUY, MAX_WIN, TENTACLE_CHANCE,
+  HW_TRIGGER, HW_RESPINS, JACKPOTS, PEARL_VALUES, BUY, TENTACLE_CHANCE,
   play, evaluate, lineWins, holdAndWin, freeSpins, rollGrid, costOf, valueOf, BASE_WEIGHTS, FS_WEIGHTS,
 };

@@ -16,7 +16,6 @@
 const REELS = 5;
 const ROWS = 3;
 const CELLS = REELS * ROWS;
-const MAX_WIN = 5000;
 
 const LINES = [
   [1, 1, 1, 1, 1], [0, 0, 0, 0, 0], [2, 2, 2, 2, 2], [0, 1, 2, 1, 0], [2, 1, 0, 1, 2],
@@ -236,14 +235,14 @@ function play(rand, { mode = 'spin', rig = null } = {}) {
     out.knives = knives(rand, trigger.count);
     total += out.knives.pay;
   }
-  out.capped = total > MAX_WIN;
-  out.mult = Math.min(MAX_WIN, Math.round(total * 100) / 100);
+  // Без потолка: сколько насчитали — столько и платим.
+  out.mult = Math.round(total * 100) / 100;
   return out;
 }
 
 const costOf = (mode, bet) => (mode === 'buy-knives' ? bet * BUY.knives : bet);
 
 module.exports = {
-  REELS, ROWS, CELLS, LINES, SYMBOLS, PAY_SYMBOLS, HIGH, SCATTER_PAY, KNIVES, BOARD, EXTRA_KNIVES, MODS, MOD_NAMES, BUY, MAX_WIN, WEIGHTS,
+  REELS, ROWS, CELLS, LINES, SYMBOLS, PAY_SYMBOLS, HIGH, SCATTER_PAY, KNIVES, BOARD, EXTRA_KNIVES, MODS, MOD_NAMES, BUY, WEIGHTS,
   play, rollGrid, rollStep, applyMod, lineWins, knives, costOf,
 };
