@@ -692,7 +692,7 @@ function renderMines() {
   feed('mn-list', rows, (r) => li(r.text, r.live ? 'live' : ''), 'В мины ещё никто не играл', 12);
 }
 
-const BJ_RIG = { blackjack: 'блэкджек с раздачи', win: 'выиграет', lose: 'проиграет' };
+const BJ_RIG = { blackjack: 'блэкджек с раздачи', win: 'выиграет', lose: 'проиграет', sixseven: 'сикс-севен 🤲' };
 const BJ_RES = { win: 'выигрыш', blackjack: 'блэкджек', push: 'ничья', lose: 'проигрыш', bust: 'перебор' };
 
 function renderBlackjack() {

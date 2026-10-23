@@ -163,7 +163,7 @@ function createBlackjack({
   const announcing = new Set();   // объявления итогов, которые ждут конца анимации у игрока
   const feed = [];
   const shoe = createShoe(randInt);
-  let rigged = null;         // админ: 'win' | 'lose' | 'blackjack' для следующей раздачи любого игрока
+  let rigged = null;         // админ: 'win' | 'lose' | 'blackjack' | 'sixseven' для следующей раздачи любого игрока
   let seq = 0;
   const { draw, drawWhere } = shoe;
 
@@ -174,10 +174,11 @@ function createBlackjack({
 
   // В руке подряд пришли шестёрка и семёрка — раз в жизни игрока показываем пасхалку. Ачивку выдаём,
   // когда у игрока доиграет анимация, иначе всплывашка её опередит.
-  function checkSixSeven(player, g, idx, dealt) {
+  // forced — подкрутка админа: показываем, даже если у игрока пасхалка уже была (ачивка — только раз).
+  function checkSixSeven(player, g, idx, dealt, forced = false) {
     const c = g.hands[idx].cards;
     if (g.sixSeven || c.length < 2 || c[c.length - 2][0] !== '6' || c[c.length - 1][0] !== '7') return;
-    if (sixSevenNow.has(player.id) || sixSeven.seen(player)) return;
+    if (!forced && (sixSevenNow.has(player.id) || sixSeven.seen(player))) return;
     sixSevenNow.add(player.id);
     g.sixSeven = { hand: idx, card: c.length - 1 };
     schedule(() => {
@@ -236,13 +237,17 @@ function createBlackjack({
     let mode = rigged;
     rigged = null;
     if (!mode && lucky(player)) mode = 'win';
-    // Подкрутка выбрала все тузы из шуза — новый шуз, иначе блэкджек не собрать.
+    // Подкрутка выбрала все тузы (шестёрки, семёрки) из шуза — новый шуз, иначе нужную раздачу не собрать.
     if (mode === 'blackjack' && !shoe.has((c) => c[0] === 'A')) shoe.fresh();
+    if (mode === 'sixseven' && !(shoe.has((c) => c[0] === '6') && shoe.has((c) => c[0] === '7'))) shoe.fresh();
 
     // Раздача как за столом: игроку, дилеру в открытую, игроку, дилеру в закрытую.
     let p1;
     let p2;
-    if (mode === 'blackjack') {
+    if (mode === 'sixseven') {
+      p1 = drawWhere((c) => c[0] === '6');
+      p2 = drawWhere((c) => c[0] === '7');
+    } else if (mode === 'blackjack') {
       const aceFirst = randInt(2) === 0;
       p1 = drawWhere((c) => (aceFirst ? pointsOf(c) === 1 : pointsOf(c) === 10));
       p2 = drawWhere((c) => (aceFirst ? pointsOf(c) === 10 : pointsOf(c) === 1));
@@ -250,13 +255,13 @@ function createBlackjack({
       p1 = draw();
     }
     const up = draw();
-    if (mode !== 'blackjack') p2 = mode === 'lose' ? drawWhere((c) => !makesNatural(p1, c)) : draw();
+    if (mode !== 'blackjack' && mode !== 'sixseven') p2 = mode === 'lose' ? drawWhere((c) => !makesNatural(p1, c)) : draw();
     const hole = mode === 'win' || mode === 'blackjack' ? drawWhere((c) => !makesNatural(up, c)) : draw();
 
     const g = {
       id: ++seq,
       bet: amount,
-      mode,
+      mode: mode === 'sixseven' ? null : mode,   // после 6-7 играется честно
       status: 'playing',
       hands: [{ cards: [p1, p2], bet: amount, doubled: false, done: false, splitAces: false, result: null, payout: 0 }],
       cur: 0,
@@ -268,7 +273,7 @@ function createBlackjack({
     };
     games.set(player.id, g);   // сначала раздача, потом списание: капитал в рассылке уже верный
     store.adjust(player, -amount);
-    checkSixSeven(player, g, 0, true);
+    checkSixSeven(player, g, 0, true, mode === 'sixseven');
 
     const playerBJ = isNatural(g.hands[0].cards);
     const peek = [1, 10].includes(pointsOf(up));
@@ -428,7 +433,7 @@ function createBlackjack({
 
   // Админ: исход следующей раздачи любого игрока. null = честно.
   function rig(mode) {
-    if (!['win', 'lose', 'blackjack', null].includes(mode)) return { error: 'Режим: win, lose, blackjack или null' };
+    if (!['win', 'lose', 'blackjack', 'sixseven', null].includes(mode)) return { error: 'Режим: win, lose, blackjack, sixseven или null' };
     rigged = mode;
     return { ok: true };
   }

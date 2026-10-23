@@ -317,7 +317,7 @@ function createAdminRouter({
     ok(res);
   });
 
-  // { mode: 'win' | 'lose' | 'blackjack' | null } — следующая раздача блэкджека (любого игрока).
+  // { mode: 'win' | 'lose' | 'blackjack' | 'sixseven' | null } — следующая раздача блэкджека (любого игрока).
   router.post('/blackjack/rig', (req, res) => {
     if (!blackjack) return fail(res, 'Блэкджек не подключён');
     const result = blackjack.rig(req.body.mode === undefined ? null : req.body.mode);

@@ -361,3 +361,23 @@ test('сикс-севен: пока анимация не доиграла, вт
   grant.fn();
   assert.ok(seen.has(a.id));
 });
+
+test('подкрутка «сикс-севен»: раздача 6 и 7, пасхалка даже повторно, ачивка один раз, дальше честно', () => {
+  const granted = [];
+  const seen = new Set();
+  const { bj, a } = setup({ sixSeven: { seen: (p) => seen.has(p.id), grant: (p) => { if (!seen.has(p.id)) granted.push(p.name); seen.add(p.id); } } });
+  a.balance = 1e6;
+  for (let i = 0; i < 30; i++) {
+    assert.ok(bj.rig('sixseven').ok);
+    let s = bj.start(a, 10).state;
+    assert.equal(s.hands[0].cards[0][0], '6');
+    assert.equal(s.hands[0].cards[1][0], '7');
+    assert.deepEqual(s.sixSeven, { hand: 0, card: 1 }, `раздача ${i + 1}`);
+    assert.equal(bj.adminState().rigged, null);
+    if (s.active) s = bj.stand(a).state;
+  }
+  assert.deepEqual(granted, ['Аня'], 'ачивка — только раз');
+  // Без подкрутки — снова как обычно: у Ани пасхалка уже была.
+  const s = deal(bj, a, 10, ['6s', '9d', '7h', 'Tc']).state;
+  assert.equal(s.sixSeven, null);
+});
