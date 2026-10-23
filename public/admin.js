@@ -1193,3 +1193,28 @@ $('auth-form').addEventListener('submit', (ev) => {
 readHash();
 poll();
 setInterval(poll, POLL_MS);
+
+// ---------- Приложение (PWA): админка ставится на ПК отдельным окном со своей иконкой ----------
+if ('serviceWorker' in navigator && window.isSecureContext) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js', { updateViaCache: 'none' }).catch(() => {});
+  });
+}
+let installPrompt = null;
+window.addEventListener('beforeinstallprompt', (ev) => {
+  ev.preventDefault();
+  installPrompt = ev;
+  $('adm-install').hidden = false;
+});
+window.addEventListener('appinstalled', () => {
+  installPrompt = null;
+  $('adm-install').hidden = true;
+  toast('Админка установлена — ищи «Админка» в меню Пуск');
+});
+$('adm-install').addEventListener('click', async () => {
+  if (!installPrompt) return;
+  installPrompt.prompt();
+  await installPrompt.userChoice.catch(() => {});
+  installPrompt = null;
+  $('adm-install').hidden = true;
+});

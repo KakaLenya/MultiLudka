@@ -23,6 +23,14 @@ const STAR = Array.from({ length: 10 }, (_, i) => {
   const r = i % 2 ? 0.42 : 1;
   return [Math.cos(a) * r, Math.sin(a) * r];
 });
+// Шестерёнка админки: 8 зубцов, отверстие в центре (координаты в радиусах символа).
+function inGear(x, y) {
+  const d = Math.hypot(x, y);
+  if (d < 0.32) return false;
+  const a = (Math.atan2(y, x) + Math.PI * 2) % (Math.PI / 4);
+  const tooth = Math.abs(a - Math.PI / 8) < 0.2;
+  return d < (tooth ? 1 : 0.74);
+}
 function inPoly(x, y, poly) {
   let inside = false;
   for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
@@ -60,7 +68,8 @@ function sample(u, v, opts) {
   // Внутренний круг: сукно, тонкое золотое кольцо и звезда.
   if (r > 0.62 && r < 0.655) return goldAt(vert * 0.6 + 0.2);
   const sr = 0.5 * R;
-  if (inPoly(u / sr, (v + R * 0.02) / sr, STAR)) return goldAt(Math.min(1, (v / sr + 1) / 2));
+  const mark = opts.admin ? inGear(u / sr, v / sr) : inPoly(u / sr, (v + R * 0.02) / sr, STAR);
+  if (mark) return goldAt(Math.min(1, (v / sr + 1) / 2));
   return mix(C.felt, C.felt2, r / 0.72);
 }
 
@@ -128,6 +137,11 @@ write('icon-192.png', render(192, { chip: 0.74, rounded: 0.36 }));
 write('icon-512.png', render(512, { chip: 0.74, rounded: 0.36 }));
 write('maskable-512.png', render(512, { chip: 0.6 }));            // безопасная зона — круг 80%
 write('apple-touch-icon.png', render(180, { chip: 0.7 }));        // iOS скругляет сам, без прозрачности
+// Админка — та же фишка, но с шестерёнкой: на панели задач не спутать с залом.
+write('admin-192.png', render(192, { chip: 0.74, rounded: 0.36, admin: true }));
+write('admin-512.png', render(512, { chip: 0.74, rounded: 0.36, admin: true }));
+write('admin-maskable-512.png', render(512, { chip: 0.6, admin: true }));
+write('admin-favicon-32.png', render(32, { chip: 0.96, rounded: 0.3, admin: true }));
 const fav = render(32, { chip: 0.96, rounded: 0.3 });
 write('favicon-32.png', fav);
 fs.writeFileSync(path.join(OUT, '..', 'favicon.ico'), ico(fav, 32));

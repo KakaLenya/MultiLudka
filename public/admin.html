@@ -6,6 +6,11 @@
   <meta name="robots" content="noindex">
   <meta name="theme-color" content="#07130d">
   <title>Админка зала</title>
+  <!-- Ставится на ПК отдельным приложением (своя иконка с шестерёнкой), не путается с залом. -->
+  <link rel="manifest" href="/admin.webmanifest">
+  <link rel="icon" href="/icons/admin-favicon-32.png" type="image/png" sizes="32x32">
+  <link rel="icon" href="/icons/admin-192.png" type="image/png" sizes="192x192">
+  <link rel="apple-touch-icon" href="/icons/admin-192.png">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Unbounded:wght@500;600;700;800&display=swap">
@@ -22,6 +27,7 @@
       <a href="#hall" data-tab="hall" title="Зал: объявления и чат"><span class="t-ico">📣</span><span class="t-name">Зал</span></a>
       <a href="#server" data-tab="server" title="Сервер"><span class="t-ico">⚙️</span><span class="t-name">Сервер</span></a>
     </nav>
+    <button type="button" class="hall-link adm-install" id="adm-install" hidden title="Поставить админку отдельным приложением">⬇ Установить</button>
     <a class="hall-link" href="/" target="_blank" rel="noopener">в зал ↗</a>
     <div class="conn" id="conn" data-state="connecting">загрузка…</div>
   </header>
