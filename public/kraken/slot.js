@@ -603,19 +603,59 @@
     ctx.restore();
   }
 
+  // Пустая клетка сундука во время вращения: в ней бежит лента из размытых жемчужин и пустот.
+  // Лента тормозит к своей остановке; на чём встанет — решает сервер (жемчужина падает отдельно).
+  const HW_FIRST_STOP = 650;   // мс до остановки первой клетки
+  const HW_STOP_GAP = 70;      // и между остановками
+  const HW_SPEED = 0.011;      // клеток ленты в мс на полном ходу
+  function drawHwSpin(ctx, x, yy, c, el, until) {
+    const brake = 260;
+    // Путь: полный ход, последние brake мс — равномерное торможение до нуля.
+    const run = Math.max(0, until - brake);
+    const pos = el < run
+      ? el * HW_SPEED
+      : run * HW_SPEED + HW_SPEED * (el - run) * (1 - (el - run) / (2 * brake));
+    const S = CELL * 0.84;    // окно клетки
+    const step = CELL * 0.58; // шаг ленты: в окне всегда видно полторы-две позиции, движение заметно
+    ctx.clip();
+    const img = G.blur.pearl;
+    const n0 = Math.floor((pos * S) / step);
+    for (let n = n0 - 2; n <= n0 + 2; n++) {
+      if (!img) break;
+      // Для каждой клетки свой рисунок ленты: жемчужины через одну-две, между ними — тусклые пустые раковины.
+      const pearl = ((c * 7 + n * 13) % 5 + 5) % 5 < 3;
+      const size = CELL * (pearl ? 0.62 : 0.5);
+      const y0 = yy + pos * S - n * step;
+      ctx.globalAlpha = pearl ? 0.9 : 0.18;
+      ctx.drawImage(img, x - size / 2, y0 - size / 2, size, size);
+    }
+    ctx.globalAlpha = 1;
+    // Тень сверху и снизу — как у настоящего барабана.
+    const g = ctx.createLinearGradient(0, yy - S / 2, 0, yy + S / 2);
+    g.addColorStop(0, 'rgba(4, 2, 12, .85)');
+    g.addColorStop(0.25, 'rgba(4, 2, 12, 0)');
+    g.addColorStop(0.75, 'rgba(4, 2, 12, 0)');
+    g.addColorStop(1, 'rgba(4, 2, 12, .85)');
+    ctx.fillStyle = g;
+    ctx.fillRect(x - S / 2, yy - S / 2, S, S);
+  }
+
   // Клетка сундука: пустая ячейка или жемчужина (липнет).
   function drawHwCell(ctx, r, y, c, t) {
     const x = cx(r);
     const yy = cy(y);
     const v = G.hw.board[c];
     if (v === undefined) {
+      const until = G.hw.spin ? G.hw.spin.stops.get(c) : undefined;
+      const spinning = until !== undefined;
       ctx.save();
       roundRect(ctx, x - CELL * 0.42, yy - CELL * 0.42, CELL * 0.84, CELL * 0.84, 16);
       ctx.fillStyle = 'rgba(8, 4, 20, .55)';
       ctx.fill();
-      ctx.strokeStyle = `rgba(160, 120, 255, ${0.18 + 0.1 * Math.sin(t / 300 + c)})`;
+      ctx.strokeStyle = spinning ? 'rgba(200, 170, 255, .55)' : `rgba(160, 120, 255, ${0.18 + 0.1 * Math.sin(t / 300 + c)})`;
       ctx.lineWidth = 2;
       ctx.stroke();
+      if (spinning) drawHwSpin(ctx, x, yy, c, G.clock - G.hw.spin.start, until);
       ctx.restore();
       return;
     }
@@ -1389,19 +1429,38 @@
     let total = Object.values(hw.start).reduce((s, v) => s + valueOf(v), 0);
     setMsg(`В сундуке: ${fmt(total * G.bet0)}`);
     for (const round of hw.rounds) {
-      // Пустые клетки «перекатываются».
+      // Каждая пустая клетка — маленький барабан: крутятся все разом и встают по очереди, колонка за колонкой,
+      // на пустоту или на выпавшую жемчужину.
       a?.sfx('respin');
-      G.hw.shimmer = G.clock;
-      await wait(G.turbo ? 500 : 900);
-      for (const l of round.landed) {
-        if (l.value === 'kraken') continue;
-        G.hw.board[l.cell] = l.value;
-        G.hw.born.set(l.cell, G.clock);
-        a?.sfx(typeof l.value === 'string' ? 'jackpot' : 'pearl');
-        await wait(200);
-        splash(cx(Math.floor(l.cell / ROWS)), cy(l.cell % ROWS));
-        total += valueOf(l.value);
+      const landed = new Map(round.landed.map((l) => [l.cell, l.value]));
+      const empty = [];
+      for (let c = 0; c < REELS * ROWS; c++) if (G.hw.board[c] === undefined) empty.push(c);
+      const spin = { start: G.clock, stops: new Map(empty.map((c, i) => [c, HW_FIRST_STOP + i * HW_STOP_GAP])) };
+      G.hw.spin = spin;
+      for (const c of empty) {
+        await wait(spin.start + spin.stops.get(c) - G.clock);
+        spin.stops.delete(c);
+        const v = landed.get(c);
+        if (v === undefined) {
+          a?.sfx('tick');
+          continue;
+        }
+        if (v === 'kraken') {
+          // Жемчужина Кракена встаёт сейчас, поле она стянет, когда встанут все.
+          G.hw.board[c] = 0;
+          G.hw.kinds.set(c, 'kraken');
+          G.hw.born.set(c, G.clock);
+          a?.sfx('kraken');
+          continue;
+        }
+        G.hw.board[c] = v;
+        G.hw.born.set(c, G.clock);
+        a?.sfx(typeof v === 'string' ? 'jackpot' : 'pearl');
+        wait(200).then(() => splash(cx(Math.floor(c / ROWS)), cy(c % ROWS)));
+        total += valueOf(v);
       }
+      G.hw.spin = null;
+      await wait(250);
       for (const l of round.landed) {
         if (l.value !== 'kraken') continue;
         // Жемчужина Кракена: щупальца стягивают всё поле в неё.
