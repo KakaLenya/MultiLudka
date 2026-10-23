@@ -70,8 +70,8 @@ h2 { font-size: 16px; display: flex; align-items: center; gap: 8px; }
   gap: 8px;
   font-family: var(--display);
   font-weight: 800;
-  font-size: 20px;
-  letter-spacing: .02em;
+  font-size: 26px;
+  letter-spacing: .01em;
   white-space: nowrap;
 }
 .logo-text {
@@ -79,8 +79,10 @@ h2 { font-size: 16px; display: flex; align-items: center; gap: 8px; }
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
-  filter: drop-shadow(0 2px 10px rgba(242, 193, 78, .25));
+  filter: drop-shadow(0 2px 12px rgba(242, 193, 78, .35));
+  transition: filter .2s;
 }
+.logo[role="link"]:hover .logo-text { filter: drop-shadow(0 2px 14px rgba(242, 193, 78, .6)) brightness(1.1); }
 .me { display: flex; gap: 12px; align-items: center; }
 #me-name { font-weight: 700; }
 .chips {
@@ -994,7 +996,7 @@ body.fx-disco { animation: fx-disco .5s linear infinite; }
   main { padding: 14px 10px 90px; }
   .card { padding: 16px; border-radius: 16px; }
   .topbar { flex-wrap: wrap; gap: 8px 12px; padding: 10px 12px; }
-  .logo { font-size: 17px; }
+  .logo { font-size: 20px; }
   .stage { height: 220px; }
   .wheel-box, .wheel-box canvas { width: 280px; height: 280px; }
   .music { left: 8px; right: 8px; bottom: 8px; max-width: none; }
@@ -2010,8 +2012,8 @@ body.fx-disco { animation: fx-disco .5s linear infinite; }
 
 @media (max-width: 700px) {
   .topbar { flex-wrap: nowrap; gap: 8px; padding: 8px 10px; }
-  .logo-text { display: none; }
-  .logo { font-size: 22px; margin-right: 0; }
+  .logo-icon { display: none; }
+  .logo { font-size: 18px; margin-right: 0; }
   .me { gap: 8px; margin-left: auto; min-width: 0; }
   #me-name { max-width: 84px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .chips { padding: 4px 9px 4px 6px; font-size: 13px; }
@@ -2369,3 +2371,12 @@ main { padding-bottom: calc(90px + env(safe-area-inset-bottom, 0px)); }
 .install-text b { color: var(--gold-2); }
 .install-bar #install-btn { flex: none; padding: 9px 16px; font-size: 14px; }
 button.install-close { flex: none; padding: 6px; color: var(--muted); font-size: 15px; }
+
+/* Узкий телефон: название зала остаётся в шапке, остальное ужимается. */
+@media (max-width: 420px) {
+  .topbar { gap: 6px; }
+  .logo { font-size: 14px; letter-spacing: 0; flex-shrink: 0; }
+  .me { gap: 4px; }
+  .me .chips { flex-shrink: 0; font-size: 12px; padding: 3px 7px 3px 4px; }
+  #logout { font-size: 12px; }
+}

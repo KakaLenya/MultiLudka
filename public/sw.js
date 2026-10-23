@@ -4,7 +4,7 @@
 // WebSocket сюда не попадает; /admin*, /music-files и сам sw.js не трогаем.
 'use strict';
 
-const VERSION = 'v1'; // поднять при изменении логики этого файла
+const VERSION = 'v2'; // поднять при изменении логики этого файла
 const SHELL = `shell-${VERSION}`;
 const STATIC = `static-${VERSION}`;
 const SAMPLES = 'samples-v1'; // переживает смену VERSION: 12 МБ сэмплов не качаем заново
