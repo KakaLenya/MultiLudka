@@ -82,7 +82,8 @@ function shuffle(rand, arr) {
 }
 
 // Новое поле. На барабане не больше одной новой лисы и одних ворот. Клетки, где уже стоят лисы
-// парада, заняты ими. force: { torii: n } — подложить ворота, { fox: tails } — лису на последний барабан.
+// парада, заняты ими. force: { torii: n } — подложить ворота, { fox: tails } — лису на последний барабан,
+// { foxWall: tails } — лисы во всех клетках барабанов 2–5 (первый остаётся обычным: путь из одних лис не платит).
 function rollGrid(rand, table, foxes, force = {}) {
   const taken = new Set(foxes.map((f) => cellOf(f.reel, f.row)));
   const grid = [];
@@ -106,6 +107,9 @@ function rollGrid(rand, table, foxes, force = {}) {
       const free = [0, 1, 2, 3].filter((y) => grid[r][y] !== 'fox' && !taken.has(cellOf(r, y)));
       if (free.length) grid[r][free[Math.floor(rand() * free.length)]] = 'torii';
     }
+  }
+  if (force.foxWall) {
+    for (const r of FOX_REELS) for (let y = 0; y < ROWS; y++) if (!taken.has(cellOf(r, y))) grid[r][y] = 'fox';
   }
   if (force.fox && !grid[4].includes('fox') && !foxes.some((f) => f.reel === 4)) grid[4][Math.floor(rand() * ROWS)] = 'fox';
   return grid;
@@ -161,7 +165,7 @@ function rollStep(rand, table, tails, foxes, ids, force) {
   for (let r = 0; r < REELS; r++) {
     for (let y = 0; y < ROWS; y++) {
       if (grid[r][y] !== 'fox') continue;
-      const f = { id: ++ids.n, reel: r, row: y, tails: r === 4 && force.fox ? force.fox : pickWeighted(rand, tails) };
+      const f = { id: ++ids.n, reel: r, row: y, tails: force.foxWall || (r === 4 && force.fox ? force.fox : pickWeighted(rand, tails)) };
       arrived.push(f);
     }
   }
@@ -226,11 +230,12 @@ function night(rand, count) {
   return { spins: total0, retriggers, steps, pay };
 }
 
-// Полный исход ставки. mode: 'spin' | 'buy-bonus'. rig (админ): 'bonus' | 'fox' | 'lose'.
+// Полный исход ставки. mode: 'spin' | 'buy-bonus'. rig (админ): 'bonus' | 'fox' | 'foxwall' | 'lose'.
 function play(rand, { mode = 'spin', rig = null } = {}) {
   const force = {};
   if (mode === 'buy-bonus' || rig === 'bonus') force.torii = 3;
   if (rig === 'fox') force.fox = 9;
+  if (rig === 'foxwall') force.foxWall = 9;
   let base;
   if (rig === 'lose') {
     do base = baseRound(rand); while (base.pay > 0 || base.trigger);

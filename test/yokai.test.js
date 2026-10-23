@@ -135,6 +135,14 @@ test('админ подкручивает ночь, лису и проигрыш
   assert.ok(r.outcome.base.steps[0].foxes.some((f) => f.reel === 4 && f.tails === 9));
   assert.ok(r.outcome.base.steps.length >= 5, 'лиса с последнего барабана идёт четыре шага');
   k.done(a, r.id);
+  k.rig('foxwall');
+  r = k.spin(a, 10).result;
+  const wall = r.outcome.base.steps[0];
+  assert.equal(wall.foxes.length, 16, 'барабаны 2–5 целиком из лис');
+  assert.ok(wall.foxes.every((f) => f.reel >= 1 && f.tails === 9));
+  assert.ok(wall.grid[0].every((x) => x !== 'fox'), 'первый барабан обычный — путь платит');
+  assert.equal(r.outcome.mult, 5000);
+  k.done(a, r.id);
   k.rig('lose');
   r = k.spin(a, 10).result;
   assert.equal(r.payout, 0);

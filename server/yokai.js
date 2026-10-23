@@ -28,7 +28,7 @@ function createYokai({
 }) {
   const pending = new Map();   // playerId -> { id, cost, settle }
   const feed = [];
-  let rigged = null;           // админ: 'bonus' | 'fox' | 'lose' для следующего спина
+  let rigged = null;           // админ: 'bonus' | 'fox' | 'foxwall' | 'lose' для следующего спина
   let seq = 0;
 
   function spin(player, bet, mode = 'spin') {
@@ -87,7 +87,7 @@ function createYokai({
   }
 
   function rig(mode) {
-    if (![null, 'bonus', 'fox', 'lose'].includes(mode)) return { error: 'Режим: bonus, fox, lose или null' };
+    if (![null, 'bonus', 'fox', 'foxwall', 'lose'].includes(mode)) return { error: 'Режим: bonus, fox, foxwall, lose или null' };
     rigged = mode;
     return { ok: true };
   }

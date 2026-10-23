@@ -332,7 +332,7 @@ function createAdminRouter({
     ok(res);
   });
 
-  // { mode: 'bonus' | 'fox' | 'lose' | null } — следующий спин Ночного парада (любого игрока).
+  // { mode: 'bonus' | 'fox' | 'foxwall' | 'lose' | null } — следующий спин Ночного парада (любого игрока).
   router.post('/yokai/rig', (req, res) => {
     if (!yokai) return fail(res, 'Ночной парад не подключён');
     const result = yokai.rig(req.body.mode === undefined ? null : req.body.mode);

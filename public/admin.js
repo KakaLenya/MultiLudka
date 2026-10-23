@@ -42,7 +42,7 @@ const PHASES = {
 };
 const KR_RIG = { fs: 'фриспины', hw: 'сундук глубин', tentacle: 'хватка Кракена', ships: 'все галеоны', lose: 'проигрыш' };
 const SL_RIG = { duel: 'дуэль на закате', bullets: 'шальная пуля', lose: 'проигрыш' };
-const YK_RIG = { bonus: 'ночь ста демонов', fox: 'лиса-кицунэ', lose: 'проигрыш' };
+const YK_RIG = { bonus: 'ночь ста демонов', fox: 'лиса-кицунэ', foxwall: 'стена 9-хвостых лис', lose: 'проигрыш' };
 const CC_RIG = { knives: 'метатель ножей', hoops: 'огненные обручи', lose: 'проигрыш' };
 const DUEL_GAMES = { crash: 'Краш', roulette: 'Рулетка', wheel: 'Колесо', upgrade: 'Апгрейд', verity: 'Верити', plinko: 'Плинко' };
 const fwLabel = (m) => (m === 0 ? '💀 череп' : `×${m}`);
